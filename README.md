@@ -9,7 +9,7 @@ the architecture baseline is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 - Kotlin and Jetpack Compose
 - Portrait focus-cover flow with focus separate from now-playing state
-- Bounded pinch zoom and snap scrolling
+- Bounded pinch zoom and inertial scrolling; dragging never changes the focused cover
 - Folder/audio type markers and focused actions
 - Deterministic random discovery sampler with tests
 - Chinese-first resources and four-destination navigation shell

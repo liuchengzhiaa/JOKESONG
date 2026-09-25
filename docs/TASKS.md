@@ -50,14 +50,67 @@
 - [x] Review Claude's playback implementation and fix three edge cases: the grid
       Pause button restarted instead of pausing, a paused queue was discarded on
       task swipe, and Android 13+ notification permission was never requested.
-- [ ] Re-run Gradle tests/lint and verify those three review fixes on the phone.
-      Codex's restricted runner still blocks Gradle loopback; use the two commands
-      recorded in `docs/HANDOFF.md` from Android Studio or a normal terminal.
+- [x] Implement focus-wall V2 geometry: deterministic mixed-aspect bento blocks,
+      2 dp gutters, local hero reflow with animated neighbour resizing, and a
+      cached artwork-derived translucent focus border.
+- [x] Verify the combined focus-wall V2, playback review fixes and Room draft:
+      63/63 unit tests pass, lint has 0 errors (12 existing warnings), Room schema
+      v1 exports successfully and `assembleDebug` produces a debug APK.
+- [x] Preserve focus-wall V2 and add a second Folia-style wall immediately to its
+      right: dense 12-item exact-cover blocks, per-original-slot quadrant reflow,
+      nearest-slot neighbour assignment and a separate in-session viewport.
+      Full verification passes 68/68 tests; lint reports 0 errors and the same 12
+      pre-existing warnings.
+- [x] Stop the wall from re-focusing on every drag. Release now coasts freely with
+      no snap, no re-centring and no focus change; focus moves on a single tap
+      only -- tap a cover to focus it, tap it again to open or play it. No
+      double-tap handler is bound, which also means a single tap is not held back
+      for the double-tap timeout. Both wall modes share the path, so Bento, V2 and
+      Folia are all covered in one change. `PRODUCT_SPEC.md` and `DECISIONS.md`
+      D-004 were updated, since the old text was what the removed behaviour had
+      been written to satisfy. 76/76 tests pass.
+- [x] Make the Folia hero grow in place instead of jumping to a block corner: the
+      item's original slot now decides where inside the block the fixed 6 x 6 hero
+      sits, and the other eleven slots are regenerated as an exact cover around it.
+      Replaces the two written corner templates and their mirroring. One existing
+      test's stale "not one fixed top strip" assertion was deliberately replaced,
+      not dropped -- see `docs/HANDOFF.md`.
+- [x] Add a floating tools button at each wall's bottom-end corner with a small
+      panel anchored to it, and make its first entry "focus the playing item". A
+      cross-folder reveal follows the queue back to the folder it started from,
+      recorded at play time; an unreachable track leaves the entry disabled rather
+      than silently doing nothing. 83/83 tests pass, lint 0 errors and the same 12
+      warnings, `assembleDebug` produces an APK.
+- [x] Commit the accumulated working tree, which by then held several slices that
+      had never been committed. Split by agent at the owner's request: Codex's
+      `4d22e30` for the Room draft, focus-wall V2, Folia wall and artwork accent;
+      the gesture policy and this slice follow in Claude's commit. The split is by
+      file and two of the shared files interleave both agents' work line by line,
+      so Codex's commit does not compile on its own -- see `docs/HANDOFF.md`.
+- [ ] Review focus-wall V2, notification permission and paused task-swipe behavior
+      on the phone.
+- [ ] Review the new Folia-style wall's per-slot focus transitions on the phone
+      against the downloaded v0.7.4 demonstration video. In particular: tap a cover
+      that is not in a block corner and check that the focus shape appears where the
+      cover already was, with neighbours reshaping around it.
+- [ ] Review the wall tools button and its panel on the phone, both for a track in
+      the current folder and for one in another folder (the reveal should navigate
+      there and centre on it).
+- [ ] Review the single-tap focus policy and the added pan bounds on the phone. The
+      build installed at 21:11 carried an earlier double-tap policy and is
+      superseded; the single-tap build has been assembled but not installed and
+      nothing has been driven by hand.
+- [ ] Decide whether to keep the pan bound. It is Claude's own safety rail, added
+      because removing release-snapping left pan unbounded; the owner has not yet
+      accepted or rejected it.
 
 ## Next
 
 - [x] Implement SAF root selection and persistable URI permission.
-- [ ] Define Room schema for folders, audio, artwork, subtitles and playback state.
+- [x] Define Room schema for folders, audio, artwork, subtitles and playback state.
+      The v1 entities, paged DAOs, KSP wiring and completion policy compile, tests
+      pass, and `app/schemas/.../1.json` is exported. Integration with the scanner
+      and Media3 remains separate work.
 - [ ] Extend the bounded direct-folder scanner into a full-library scanner with partial progress.
 - [ ] Complete artwork resolution (embedded art and recursive fallback); direct image covers and bounded Coil thumbnails are working.
 - [ ] Persist the Media3 queue and playback positions in Room.

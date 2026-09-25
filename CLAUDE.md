@@ -3,6 +3,12 @@
 The canonical repository guidance is in `AGENTS.md`. Read it first, then read only
 the product or architecture documents relevant to the assigned task.
 
+When the owner resumes this project manually, always read `docs/HANDOFF.md`,
+`docs/TASKS.md`, `git status`, the recent Git log and the current diff before
+planning or editing. The working tree may intentionally contain verified Codex
+work that has not been committed yet; preserve it and continue from the recorded
+state instead of assuming a clean checkout.
+
 When working as a delegated implementation agent:
 
 1. Work only on the task named in `docs/TASKS.md` or in the invocation prompt.

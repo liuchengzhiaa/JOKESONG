@@ -1,10 +1,12 @@
 package com.example.asmrplayer.feature.focuswall
 
 import android.content.res.Configuration
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,6 +16,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -32,8 +35,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -41,15 +46,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,12 +65,14 @@ import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -74,18 +82,31 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.example.asmrplayer.R
+import com.example.asmrplayer.core.artwork.CoverAccentLoader
 import com.example.asmrplayer.core.media.PlaybackState
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
 import com.example.asmrplayer.feature.folderSummaryLine
 import com.example.asmrplayer.feature.player.formatPlaybackTime
 import com.example.asmrplayer.ui.theme.artworkBrush
+import com.example.asmrplayer.ui.theme.artworkAccent
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-private const val FlingThresholdPxPerSecond = 650f
+/**
+ * How quickly a released fling decays. Release is deliberately inertial and does
+ * not snap to a card: snapping would move the wall after the user had stopped
+ * moving it, which is the same "it moved on its own" feeling that made focus
+ * follow the viewport unworkable.
+ */
+private const val FlingFrictionMultiplier = 1.35f
+
+enum class FocusWallStyle {
+    Bento,
+    Folia,
+}
 
 @Composable
 fun FocusCoverWall(
@@ -99,8 +120,15 @@ fun FocusCoverWall(
     onSeekTo: (Long) -> Unit,
     onDensityChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    style: FocusWallStyle = FocusWallStyle.Bento,
     onActivate: (LibraryItem) -> Unit = {},
     onPlay: (LibraryItem) -> Unit = {},
+    /**
+     * Brings the wall's focus to the item that is playing, following the queue back
+     * to its folder when it is not on this wall. Null when that cannot be done, and
+     * the entry is then shown disabled.
+     */
+    onRevealPlayingItem: (() -> Unit)? = null,
 ) {
     Column(modifier = modifier) {
         Row(
@@ -143,40 +171,166 @@ fun FocusCoverWall(
             overflow = TextOverflow.Ellipsis,
         )
 
-        FocusWallCanvas(
-            items = items,
-            contentKey = contentKey,
-            focusedItemId = focusedItemId,
-            playbackState = playbackState,
-            viewportState = viewportState,
-            onFocusedItemChange = onFocusedItemChange,
-            onSeekTo = onSeekTo,
-            onCardClick = { item ->
-                when (resolveCardTap(focusedItemId, item.id)) {
-                    is FocusWallIntent.Focus -> onFocusedItemChange(item.id)
-                    is FocusWallIntent.Activate -> when (item.type) {
-                        LibraryItemType.Folder -> onActivate(item)
-                        // Tapping the focused card of the item that is already
-                        // current opens the full player instead of restarting it.
-                        LibraryItemType.Audio -> {
-                            if (playbackState.isCurrent(item.id)) {
-                                onActivate(item)
-                            } else {
-                                onPlay(item)
+        Box(modifier = Modifier.fillMaxSize()) {
+            FocusWallCanvas(
+                items = items,
+                contentKey = contentKey,
+                focusedItemId = focusedItemId,
+                playbackState = playbackState,
+                viewportState = viewportState,
+                style = style,
+                onFocusedItemChange = onFocusedItemChange,
+                onSeekTo = onSeekTo,
+                onCardClick = { item ->
+                    when (resolveCardTap(focusedItemId, item.id)) {
+                        // A tap on any other card moves focus to it. Nothing else
+                        // happens yet -- the pile of actions below belongs to the
+                        // second tap, once the card already holds focus.
+                        is FocusWallIntent.Focus -> onFocusedItemChange(item.id)
+                        is FocusWallIntent.Activate -> when (item.type) {
+                            LibraryItemType.Folder -> onActivate(item)
+                            // Tapping the focused card of the item that is already
+                            // current opens the full player instead of restarting it.
+                            LibraryItemType.Audio -> {
+                                if (playbackState.isCurrent(item.id)) {
+                                    onActivate(item)
+                                } else {
+                                    onPlay(item)
+                                }
                             }
                         }
                     }
+                },
+                onPlayPause = { item ->
+                    when {
+                        item.type == LibraryItemType.Folder -> onPlay(item)
+                        playbackState.isCurrent(item.id) -> onTogglePlayPause()
+                        else -> onPlay(item)
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+            WallToolsOverlay(
+                contentKey = contentKey,
+                onRevealPlayingItem = onRevealPlayingItem,
+            )
+        }
+    }
+}
+
+/** One entry of the wall's tools panel. Adding a tool is adding a row here. */
+private data class WallTool(
+    val icon: ImageVector,
+    val labelRes: Int,
+    val enabled: Boolean,
+    val onClick: () -> Unit,
+)
+
+/**
+ * The wall's floating tools button and the small panel that opens beside it.
+ *
+ * It floats over the wall rather than inside it, so it stays the same size and in
+ * the same place while the wall is zoomed or panned. The panel is anchored to the
+ * button instead of being a modal sheet: it is a handful of actions on a surface
+ * that is already full-screen and gesture-driven, and a sheet would take the wall
+ * away to show four rows.
+ *
+ * While the panel is open a transparent scrim covers the wall, so a tap that means
+ * "close this" cannot also land on a card behind it.
+ *
+ * The button is always there, even while every tool it holds is unavailable: it is
+ * the wall's one growing actions surface, and one that appears and disappears would
+ * be harder to find than a row that is greyed out until it applies.
+ */
+@Composable
+private fun WallToolsOverlay(
+    contentKey: String,
+    onRevealPlayingItem: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    // Keyed on the content, so changing folder or wall style closes the panel.
+    var expanded by remember(contentKey) { mutableStateOf(false) }
+
+    // The overlay fills the wall, so the scrim below covers all of it -- the button
+    // and the panel are placed inside, at the bottom end.
+    Box(modifier = modifier.fillMaxSize()) {
+        if (expanded) {
+            val interactionSource = remember { MutableInteractionSource() }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(interactionSource = interactionSource, indication = null) {
+                        expanded = false
+                    },
+            )
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            AnimatedVisibility(visible = expanded) {
+                WallToolsPanel(
+                    tools = listOf(
+                        WallTool(
+                            icon = Icons.Default.MyLocation,
+                            labelRes = R.string.focus_playing_item,
+                            enabled = onRevealPlayingItem != null,
+                            onClick = {
+                                expanded = false
+                                onRevealPlayingItem?.invoke()
+                            },
+                        ),
+                    ),
+                )
+            }
+            SmallFloatingActionButton(
+                onClick = { expanded = !expanded },
+                containerColor = Color(0xFF17181D),
+                contentColor = Color.White,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Widgets,
+                    contentDescription = stringResource(R.string.wall_tools),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WallToolsPanel(tools: List<WallTool>) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xFF17181D),
+        tonalElevation = 6.dp,
+        shadowElevation = 8.dp,
+    ) {
+        Column(modifier = Modifier.padding(vertical = 6.dp)) {
+            tools.forEach { tool ->
+                Row(
+                    modifier = Modifier
+                        .clickable(enabled = tool.enabled, onClick = tool.onClick)
+                        .padding(horizontal = 16.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Icon(
+                        imageVector = tool.icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = if (tool.enabled) Color.White else Color.White.copy(alpha = 0.38f),
+                    )
+                    Text(
+                        text = stringResource(tool.labelRes),
+                        color = if (tool.enabled) Color.White else Color.White.copy(alpha = 0.38f),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
-            },
-            onPlayPause = { item ->
-                when {
-                    item.type == LibraryItemType.Folder -> onPlay(item)
-                    playbackState.isCurrent(item.id) -> onTogglePlayPause()
-                    else -> onPlay(item)
-                }
-            },
-            modifier = Modifier.fillMaxSize(),
-        )
+            }
+        }
     }
 }
 
@@ -187,6 +341,7 @@ private fun FocusWallCanvas(
     focusedItemId: String?,
     playbackState: PlaybackState,
     viewportState: FocusWallViewportState,
+    style: FocusWallStyle,
     onFocusedItemChange: (String?) -> Unit,
     onCardClick: (LibraryItem) -> Unit,
     onPlayPause: (LibraryItem) -> Unit,
@@ -202,7 +357,6 @@ private fun FocusWallCanvas(
     val localDensity = LocalDensity.current
     val scope = rememberCoroutineScope()
     var activePanAnimation by remember(contentKey) { mutableStateOf<Job?>(null) }
-    val currentFocusedItemId by rememberUpdatedState(focusedItemId)
 
     fun animatePanTo(target: Offset, durationMillis: Int) {
         activePanAnimation?.cancel()
@@ -216,9 +370,41 @@ private fun FocusWallCanvas(
         }
     }
 
+    /**
+     * Lets a released drag coast to a stop.
+     *
+     * There is deliberately no snap and no focus change here. Snapping would move
+     * the wall after the user had already stopped moving it, and re-focusing the
+     * card nearest the centre -- what this used to do -- reflowed the whole block
+     * and re-centred the canvas on every release, which made the wall impossible
+     * to scroll. Focus is now only ever moved by a double tap.
+     */
+    fun settlePan(velocity: Offset, bounds: FocusWallWorldBounds?) {
+        activePanAnimation?.cancel()
+        if (velocity.getDistance() < 1f) return
+        var coasting: Job? = null
+        coasting = scope.launch {
+            Animatable(viewportState.pan, Offset.VectorConverter).animateDecay(
+                initialVelocity = velocity,
+                animationSpec = exponentialDecay<Offset>(
+                    frictionMultiplier = FlingFrictionMultiplier,
+                ),
+            ) {
+                val bounded = clampWallPan(value.x, value.y, viewportState.zoom, bounds)
+                viewportState.pan = Offset(bounded.x, bounded.y)
+                // Stop coasting the moment the wall's edge is reached: otherwise
+                // the decay would keep producing values the clamp holds still,
+                // keeping the viewport pinned there until it ran itself out.
+                if (bounded.x != value.x || bounded.y != value.y) coasting?.cancel()
+            }
+        }
+        activePanAnimation = coasting
+    }
+
     BoxWithConstraints(modifier = modifier.clip(RoundedCornerShape(0.dp))) {
         val viewportWidth = with(localDensity) { maxWidth.toPx() }
         val viewportHeight = with(localDensity) { maxHeight.toPx() }
+        val wallGapPx = with(localDensity) { 2.dp.toPx() }
         val layoutItems = remember(items) {
             items.map { FocusWallLayoutItem(it.id, it.paletteSeed) }
         }
@@ -228,14 +414,30 @@ private fun FocusWallCanvas(
             viewportHeight,
             orientation,
             viewportState.densityOrdinal,
+            focusedItemId,
+            style,
+            wallGapPx,
         ) {
-            FocusWallLayoutEngine.layout(
-                items = layoutItems,
-                viewportWidth = viewportWidth,
-                viewportHeight = viewportHeight,
-                orientation = orientation,
-                density = viewportState.density,
-            )
+            when (style) {
+                FocusWallStyle.Bento -> FocusWallLayoutEngine.layout(
+                    items = layoutItems,
+                    viewportWidth = viewportWidth,
+                    viewportHeight = viewportHeight,
+                    orientation = orientation,
+                    density = viewportState.density,
+                    focusedItemId = focusedItemId,
+                    gapPx = wallGapPx,
+                )
+                FocusWallStyle.Folia -> FoliaWallLayoutEngine.layout(
+                    items = layoutItems,
+                    viewportWidth = viewportWidth,
+                    viewportHeight = viewportHeight,
+                    orientation = orientation,
+                    density = viewportState.density,
+                    focusedItemId = focusedItemId,
+                    gapPx = wallGapPx,
+                )
+            }
         }
         val placementById = remember(placements) { placements.associateBy(FocusWallPlacement::itemId) }
         val itemById = remember(items) { items.associateBy(LibraryItem::id) }
@@ -255,6 +457,7 @@ private fun FocusWallCanvas(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(placements, orientation, contentKey) {
+                    val worldBounds = wallWorldBounds(placements)
                     awaitEachGesture {
                         val firstDown = awaitFirstDown(requireUnconsumed = false)
                         activePanAnimation?.cancel()
@@ -297,44 +500,19 @@ private fun FocusWallCanvas(
                                     Offset.Zero
                                 }
                                 viewportState.zoom = newZoom
-                                viewportState.pan = viewportState.pan * ratio +
+                                val panned = viewportState.pan * ratio +
                                     centroidFromCenter * (1f - ratio) + panChange
+                                val bounded = clampWallPan(panned.x, panned.y, newZoom, worldBounds)
+                                viewportState.pan = Offset(bounded.x, bounded.y)
                                 event.changes.forEach { change ->
                                     if (change.positionChanged()) change.consume()
                                 }
                             }
                         } while (event.changes.any { it.pressed })
 
-                        if (pastTouchSlop && placements.isNotEmpty()) {
+                        if (pastTouchSlop) {
                             val velocity = velocityTracker.calculateVelocity()
-                            val nearest = nearestPlacementToCenter(
-                                placements = placements,
-                                pan = viewportState.pan,
-                                zoom = viewportState.zoom,
-                            )
-                            val target = if (
-                                Offset(velocity.x, velocity.y).getDistance() >= FlingThresholdPxPerSecond
-                            ) {
-                                directionalNeighbor(
-                                    placements = placements,
-                                    current = nearest,
-                                    contentVelocity = Offset(velocity.x, velocity.y),
-                                    orientation = orientation,
-                                ) ?: nearest
-                            } else {
-                                nearest
-                            }
-
-                            if (target != null) {
-                                if (target.itemId != currentFocusedItemId) {
-                                    onFocusedItemChange(target.itemId)
-                                } else {
-                                    animatePanTo(
-                                        target = centeredPan(target, viewportState.zoom),
-                                        durationMillis = 230,
-                                    )
-                                }
-                            }
+                            settlePan(Offset(velocity.x, velocity.y), worldBounds)
                         }
                     }
                 },
@@ -367,10 +545,8 @@ private fun FocusWallCanvas(
                     viewportWidth = constraints.maxWidth.toFloat(),
                     viewportHeight = constraints.maxHeight.toFloat(),
                 )
-                val focusBoost = if (placement.itemId == focusedItemId) 1.18f else 1f
-                val visualScale = depthScale * focusBoost
-                val halfWidth = placement.width * zoom * visualScale / 2f
-                val halfHeight = placement.height * zoom * visualScale / 2f
+                val halfWidth = placement.width * zoom / 2f
+                val halfHeight = placement.height * zoom / 2f
                 screenCenterX + halfWidth >= -horizontalBuffer &&
                     screenCenterX - halfWidth <= constraints.maxWidth + horizontalBuffer &&
                     screenCenterY + halfHeight >= -verticalBuffer &&
@@ -399,13 +575,32 @@ private fun FocusWallCanvas(
                     viewportWidth = constraints.maxWidth.toFloat(),
                     viewportHeight = constraints.maxHeight.toFloat(),
                 )
-                val visualScale = depthScale * if (isFocused) 1.18f else 1f
                 val visualAlpha = when {
                     isFocused -> 1f
                     focusedItemId != null -> (0.48f + depthScale * 0.34f).coerceAtMost(0.78f)
-                    else -> 0.58f + depthScale * 0.42f
+                    else -> 0.72f + depthScale * 0.28f
                 }
                 val placeable = subcompose(placement.itemId) {
+                    val animatedCenterX by animateFloatAsState(
+                        targetValue = placement.centerX,
+                        animationSpec = tween(durationMillis = 320),
+                        label = "wallCardX",
+                    )
+                    val animatedCenterY by animateFloatAsState(
+                        targetValue = placement.centerY,
+                        animationSpec = tween(durationMillis = 320),
+                        label = "wallCardY",
+                    )
+                    val animatedWidth by animateFloatAsState(
+                        targetValue = placement.width,
+                        animationSpec = tween(durationMillis = 320),
+                        label = "wallCardWidth",
+                    )
+                    val animatedHeight by animateFloatAsState(
+                        targetValue = placement.height,
+                        animationSpec = tween(durationMillis = 320),
+                        label = "wallCardHeight",
+                    )
                     FocusCoverCard(
                         item = item,
                         isFocused = isFocused,
@@ -418,8 +613,10 @@ private fun FocusWallCanvas(
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer {
-                                scaleX = zoom * visualScale
-                                scaleY = zoom * visualScale
+                                scaleX = zoom * animatedWidth / placement.width
+                                scaleY = zoom * animatedHeight / placement.height
+                                translationX = (animatedCenterX - placement.centerX) * zoom
+                                translationY = (animatedCenterY - placement.centerY) * zoom
                                 alpha = visualAlpha
                                 shadowElevation = if (isFocused) 18.dp.toPx() else 3.dp.toPx()
                             },
@@ -459,26 +656,44 @@ private fun FocusCoverCard(
     onSeekTo: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current.applicationContext
+    val sampledAccentArgb by produceState<Int?>(
+        null,
+        item.artworkUri,
+        isFocused,
+    ) {
+        value = if (isFocused) {
+            CoverAccentLoader.resolve(context, item.artworkUri)
+        } else {
+            null
+        }
+    }
+    val coverAccent = sampledAccentArgb?.let { Color(it) } ?: artworkAccent(item.paletteSeed)
     val borderColor by animateColorAsState(
-        targetValue = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+        targetValue = if (isFocused) coverAccent.copy(alpha = 0.76f) else Color.Transparent,
         label = "focusBorder",
     )
-    val borderWidth by animateFloatAsState(if (isFocused) 2.4f else 0f, label = "focusBorderWidth")
+    val borderWidth by animateFloatAsState(if (isFocused) 2.2f else 0f, label = "focusBorderWidth")
     val shape = RoundedCornerShape(if (isFocused) 12.dp else 8.dp)
 
     Surface(
         modifier = modifier
             .border(borderWidth.dp, borderColor, shape)
             .clip(shape)
+            // Plain clickable, deliberately: binding onDoubleClick as well would
+            // make Compose hold every single tap back for the double-tap timeout
+            // before delivering it, which is felt as lag on the wall's main
+            // gesture. "Double tap to open" still works -- see resolveCardTap.
             .clickable(onClick = onClick),
         shape = shape,
         tonalElevation = if (isFocused) 8.dp else 1.dp,
     ) {
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .background(artworkBrush(item.paletteSeed)),
         ) {
+            val compactCard = !isFocused && (maxWidth < 116.dp || maxHeight < 112.dp)
             if (item.artworkUri != null) {
                 AsyncImage(
                     model = item.artworkUri,
@@ -511,10 +726,10 @@ private fun FocusCoverCard(
                 ),
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(12.dp)
-                    .size(if (isFocused) 34.dp else 30.dp)
+                    .padding(if (compactCard) 6.dp else 12.dp)
+                    .size(if (isFocused) 34.dp else if (compactCard) 22.dp else 30.dp)
                     .background(Color(0xB814171D), CircleShape)
-                    .padding(7.dp),
+                    .padding(if (compactCard) 5.dp else 7.dp),
                 tint = Color.White,
             )
 
@@ -522,23 +737,28 @@ private fun FocusCoverCard(
                 Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(12.dp)
+                        .padding(if (compactCard) 6.dp else 12.dp)
                         .background(Color(0xD014171D), CircleShape)
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                        .padding(
+                            horizontal = if (compactCard) 6.dp else 10.dp,
+                            vertical = if (compactCard) 4.dp else 6.dp,
+                        ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         Icons.Default.GraphicEq,
                         contentDescription = null,
-                        modifier = Modifier.size(17.dp),
+                        modifier = Modifier.size(if (compactCard) 14.dp else 17.dp),
                         tint = MaterialTheme.colorScheme.primary,
                     )
-                    Spacer(Modifier.width(5.dp))
-                    Text(
-                        stringResource(R.string.now_playing),
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelMedium,
-                    )
+                    if (!compactCard) {
+                        Spacer(Modifier.width(5.dp))
+                        Text(
+                            stringResource(R.string.now_playing),
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
                 }
             }
 
@@ -546,28 +766,30 @@ private fun FocusCoverCard(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .padding(if (isFocused) 18.dp else 14.dp),
+                    .padding(if (isFocused) 18.dp else if (compactCard) 8.dp else 14.dp),
             ) {
                 Text(
                     text = item.title,
                     color = Color.White,
-                    fontSize = if (isFocused) 24.sp else 19.sp,
+                    fontSize = if (isFocused) 24.sp else if (compactCard) 12.sp else 19.sp,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 2,
+                    maxLines = if (compactCard) 1 else 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    text = item.detailLine(),
-                    color = Color(0xFFDCE1EA),
-                    style = if (isFocused) {
-                        MaterialTheme.typography.bodyMedium
-                    } else {
-                        MaterialTheme.typography.bodySmall
-                    },
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (!compactCard) {
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = item.detailLine(),
+                        color = Color(0xFFDCE1EA),
+                        style = if (isFocused) {
+                            MaterialTheme.typography.bodyMedium
+                        } else {
+                            MaterialTheme.typography.bodySmall
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
 
                 // Only audio carries an action row here. A folder owns no playable
                 // queue of its own -- the folder listing excludes child folders --
@@ -661,47 +883,6 @@ private fun centeredPan(placement: FocusWallPlacement, zoom: Float): Offset = Of
     x = -placement.centerX * zoom,
     y = -placement.centerY * zoom,
 )
-
-private fun nearestPlacementToCenter(
-    placements: List<FocusWallPlacement>,
-    pan: Offset,
-    zoom: Float,
-): FocusWallPlacement? = placements.minByOrNull { placement ->
-    val x = placement.centerX * zoom + pan.x
-    val y = placement.centerY * zoom + pan.y
-    x * x + y * y
-}
-
-private fun directionalNeighbor(
-    placements: List<FocusWallPlacement>,
-    current: FocusWallPlacement?,
-    contentVelocity: Offset,
-    orientation: FocusWallOrientation,
-): FocusWallPlacement? {
-    current ?: return null
-
-    val direction = Offset(-contentVelocity.x, -contentVelocity.y)
-    val directionLength = direction.getDistance()
-    if (directionLength == 0f) return current
-    return placements.asSequence()
-        .filter { it.itemId != current.itemId }
-        .mapNotNull { candidate ->
-            val delta = Offset(
-                candidate.centerX - current.centerX,
-                candidate.centerY - current.centerY,
-            )
-            val distance = delta.getDistance()
-            if (distance == 0f) return@mapNotNull null
-            val portraitVerticalBias = if (orientation == FocusWallOrientation.Portrait) 0.82f else 1f
-            val weightedDelta = Offset(delta.x * portraitVerticalBias, delta.y)
-            val weightedDistance = weightedDelta.getDistance()
-            val cosine = (weightedDelta.x * direction.x + weightedDelta.y * direction.y) /
-                (weightedDistance * directionLength)
-            if (cosine < 0.35f) null else candidate to (distance / (cosine * cosine))
-        }
-        .minByOrNull { it.second }
-        ?.first
-}
 
 private fun FocusWallDensity.labelResource(): Int = when (this) {
     FocusWallDensity.Small -> R.string.density_small

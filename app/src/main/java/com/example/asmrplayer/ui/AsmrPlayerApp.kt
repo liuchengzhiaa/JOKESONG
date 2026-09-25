@@ -52,7 +52,9 @@ import com.example.asmrplayer.core.media.PlaybackState
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
 import com.example.asmrplayer.feature.focuswall.FocusCoverWall
+import com.example.asmrplayer.feature.focuswall.FocusWallStyle
 import com.example.asmrplayer.feature.focuswall.FocusWallViewportState
+import com.example.asmrplayer.feature.focuswall.canRevealPlayingItem
 import com.example.asmrplayer.feature.library.CompactLibraryList
 import com.example.asmrplayer.feature.library.DetailedLibraryList
 import com.example.asmrplayer.feature.library.LibraryGrid
@@ -78,6 +80,7 @@ fun AsmrPlayerApp(
     onViewportChange: (Float, Float, Float) -> Unit,
     onWallDensityChange: (Int) -> Unit,
     onPlayItem: (LibraryItem) -> Unit,
+    onRevealPlayingItem: (String) -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onSeekBy: (Long) -> Unit,
@@ -241,6 +244,7 @@ fun AsmrPlayerApp(
                     onViewportChange = onViewportChange,
                     onWallDensityChange = onWallDensityChange,
                     onPlayItem = onPlayItem,
+                    onRevealPlayingItem = onRevealPlayingItem,
                     onTogglePlayPause = onTogglePlayPause,
                     onSeekTo = onSeekTo,
                 )
@@ -268,11 +272,20 @@ private fun LibraryContent(
     onViewportChange: (Float, Float, Float) -> Unit,
     onWallDensityChange: (Int) -> Unit,
     onPlayItem: (LibraryItem) -> Unit,
+    onRevealPlayingItem: (String) -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
 ) {
     val focusedItemId = state.focusedItemId
     BackHandler(enabled = focusedItemId != null) { onFocusedItemChange(null) }
+
+    // A reveal the wall cannot honour is offered disabled rather than as a tap that
+    // does nothing, so both walls see the same answer.
+    val playingItemId = playbackState.mediaId
+    val listedItemIds = remember(state.items) { state.items.mapTo(mutableSetOf(), LibraryItem::id) }
+    val revealPlayingItem: (() -> Unit)? = playingItemId
+        ?.takeIf { canRevealPlayingItem(it, listedItemIds, state.hasPlaybackOrigin) }
+        ?.let { id -> { onRevealPlayingItem(id) } }
 
     // Lives above the layout switch so changing layout keeps the wall viewport,
     // and is recreated per folder from the snapshot the ViewModel restored.
@@ -283,6 +296,21 @@ private fun LibraryContent(
             initialPanY = state.panY,
             initialDensityOrdinal = state.wallDensityOrdinal,
             restored = state.isRestored,
+        )
+    }
+    // The alternate wall is a separate presentation, so switching between the
+    // two keeps each wall exactly where the user left it during this folder
+    // session instead of making them fight over one pan/zoom state.
+    val foliaViewportState = remember(state.folderKey) {
+        FocusWallViewportState(
+            initialZoom = state.canvasZoom,
+            // Bento snapshot coordinates describe a different world geometry.
+            // Start the alternate wall at its own origin; a shared focused item
+            // is then centred by the wall's normal focus reconciliation.
+            initialPanX = 0f,
+            initialPanY = 0f,
+            initialDensityOrdinal = state.wallDensityOrdinal,
+            restored = false,
         )
     }
     LaunchedEffect(viewportState) {
@@ -350,7 +378,31 @@ private fun LibraryContent(
                     focusedItemId = focusedItemId,
                     playbackState = playbackState,
                     viewportState = viewportState,
+                    style = FocusWallStyle.Bento,
                     onFocusedItemChange = onFocusedItemChange,
+                    onRevealPlayingItem = revealPlayingItem,
+                    onTogglePlayPause = onTogglePlayPause,
+                    onSeekTo = onSeekTo,
+                    onDensityChange = onWallDensityChange,
+                    onActivate = { item ->
+                        if (item.type == LibraryItemType.Folder) {
+                            onOpenFolder(item)
+                        } else {
+                            onOpenPlayer(item)
+                        }
+                    },
+                    onPlay = onPlayItem,
+                )
+                LibraryLayoutMode.FoliaWall -> FocusCoverWall(
+                    modifier = Modifier.fillMaxSize(),
+                    items = state.items,
+                    contentKey = "${state.folderKey}:folia",
+                    focusedItemId = focusedItemId,
+                    playbackState = playbackState,
+                    viewportState = foliaViewportState,
+                    style = FocusWallStyle.Folia,
+                    onFocusedItemChange = onFocusedItemChange,
+                    onRevealPlayingItem = revealPlayingItem,
                     onTogglePlayPause = onTogglePlayPause,
                     onSeekTo = onSeekTo,
                     onDensityChange = onWallDensityChange,

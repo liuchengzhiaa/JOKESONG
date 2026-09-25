@@ -75,6 +75,7 @@ Supported layouts:
 - Compact list
 - Regular grid
 - Focus-cover wall
+- Folia-style focus wall
 
 The app remembers a global layout and permits per-folder overrides. Lists default
 to folders-first grouping with an optional mixed-sort mode. Supported deterministic
@@ -85,26 +86,67 @@ ordering is not supported.
 
 This is a signature feature, not a decorative grid.
 
+The original centred-bento wall remains available unchanged. A second wall mode,
+shown immediately to its right in the layout switcher, uses a denser Folia-style
+12-item lattice. In that mode the focused item grows where it already is: the
+hero keeps the fixed 6 x 6 focus shape, its position inside the block is derived
+from the slot the card already occupied, and the remaining eleven slots are
+regenerated as an exact cover around it, so neighbours change shape and move
+rather than the hero jumping to a block corner. A card that already sat in a
+corner still focuses in that corner. Both modes share the same focus, playback
+and gesture semantics below.
+
 - A card can represent either a folder or an audio file; a small overlay glyph
   distinguishes the type.
-- Tapping a non-focused card moves and enlarges it into the focus position without
-  playing or navigating.
-- Tapping a focused audio item starts it. Tapping the currently playing focused
-  item opens the full player.
-- Tapping a focused folder enters it. Folder focus also exposes separate Enter and
-  Play actions.
+- A single tap on a card that does not hold focus moves focus to it: the card
+  re-packs its block around the hero slot and the canvas centres on it. It does not
+  play or navigate yet.
+- A single tap on the card that already holds focus activates it. A focused audio
+  item starts playing; the currently playing focused item opens the full player; a
+  focused folder is entered.
+- No double-tap gesture is bound to the cards. A quick double tap therefore reads
+  as "focus, then activate", which is what makes opening an item a natural second
+  tap rather than a special gesture. Leaving the double-tap handler off is also
+  what lets a single tap be delivered immediately instead of being held back for
+  the double-tap timeout.
 - Focus and now-playing are independent states.
-- Dragging explores the wall; release snaps the nearest item into focus. A light
-  fling moves among neighboring items.
+- Dragging explores the wall and never changes focus. Release coasts to a stop on
+  the drag's own momentum; there is no snapping to the nearest item and no
+  re-focusing on release. Focus used to follow whichever card came nearest the
+  viewport centre when the drag ended, and the canvas then re-centred on it, so
+  every scroll reflowed a block and moved the wall.
+- Panning is bounded so a hard fling cannot carry the whole wall off screen and
+  leave nothing to grab. Inside that bound panning is completely free; the clamp
+  is a safety rail, not a snapping rule.
 - Pinch zoom scales the canvas without reflowing it. Card density separately offers
   small, medium and large presets.
 - The same sorted data and settings always produce the same spatial layout.
+- Unfocused cards form a tightly packed deterministic mosaic with deliberately
+  mixed square, portrait and landscape footprints; they are not one repeated
+  card size with perspective applied afterward.
+- Focusing a card re-packs the other cards in its local layout block around a
+  centred hero slot. Neighbouring blocks keep their footprint and identity, so
+  the change remains predictable rather than cascading across the whole wall.
+- Card gutters stay visually narrow (about 2 dp at the default zoom). The focused
+  outline is translucent and takes its accent from the focused cover, with the
+  deterministic placeholder palette as fallback.
 - Both orientations use a screen-filling two-dimensional mosaic similar to the
   approved reference image. The hero cover sits exactly at the viewport's
   horizontal and vertical centre, with smaller covers surrounding it in multiple
   rows and columns. Portrait prioritizes vertical exploration; landscape uses a
   wider composition.
 - Back first clears focus; with no focused item, Back navigates to the parent.
+
+Both walls also carry a floating tools button at their bottom-end corner. It sits
+above the wall rather than inside it, so it keeps its size and place under zoom
+and pan. Tapping it opens a small panel anchored to the button -- not a modal
+sheet -- and a full-wall transparent scrim behind it, so a tap meant to close the
+panel cannot also land on a card. Its first entry is "focus the playing item":
+the wall's focus moves to the track that is playing, and when that track is not in
+the current listing the app first navigates to the folder the queue was started
+from. The entry is shown disabled when nothing is playing, or when the track
+cannot be reached because the queue outlived the process that recorded its origin.
+Further tools are added as rows to this same panel.
 
 In All Audio, the wall is a discovery mode containing a persistent random sample.
 It defaults to 15 items, with 10/15/20 choices. The sample changes only when the

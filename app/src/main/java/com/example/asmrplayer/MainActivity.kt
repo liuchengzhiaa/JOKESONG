@@ -52,6 +52,11 @@ class MainActivity : ComponentActivity() {
                     onViewportChange = libraryViewModel::onViewportChange,
                     onWallDensityChange = libraryViewModel::onWallDensityChange,
                     onPlayItem = { item ->
+                        // The queue is built from the listing on screen, so this is
+                        // the one moment that knows which folder the queue belongs
+                        // to -- and therefore where "focus the playing item" has to
+                        // go looking for it later.
+                        libraryViewModel.notePlaybackOrigin()
                         val needsNotificationPermission =
                             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                                 ContextCompat.checkSelfPermission(
@@ -64,6 +69,9 @@ class MainActivity : ComponentActivity() {
                         }
                         playback.playFromFolder(libraryState.items, item)
                     },
+                    // The wall only offers this when it can be honoured, so the
+                    // refusal is not something the UI has to react to.
+                    onRevealPlayingItem = { libraryViewModel.revealPlayingItem(it) },
                     onTogglePlayPause = playback::togglePlayPause,
                     onSeekTo = playback::seekTo,
                     onSeekBy = playback::seekBy,

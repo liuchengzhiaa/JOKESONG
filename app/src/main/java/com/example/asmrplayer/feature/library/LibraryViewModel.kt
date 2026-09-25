@@ -33,6 +33,11 @@ data class LibraryUiState(
     val hasError: Boolean = false,
     /** True when this listing came from the in-memory snapshot, not a scan. */
     val isRestored: Boolean = false,
+    /**
+     * True once a play started in this session, which is what makes the folder a
+     * running queue belongs to knowable. See [LibraryViewModel.revealPlayingItem].
+     */
+    val hasPlaybackOrigin: Boolean = false,
     val focusedItemId: String? = null,
     val canvasZoom: Float = 1f,
     val panX: Float = 0f,
@@ -56,6 +61,15 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private var treeUri: Uri? = null
     private var scanJob: Job? = null
 
+    /**
+     * The folder chain the running queue was built from. A queue is always built
+     * from one folder listing, so remembering the chain at the moment playback
+     * starts is enough to follow any of its tracks back -- no scan, and no
+     * document-URI-to-path map.
+     */
+    private var playbackOrigin: List<Uri> = emptyList()
+    private var pendingFocusItemId: String? = null
+
     private val mutableUiState = MutableStateFlow(LibraryUiState(isScanning = true))
     val uiState = mutableUiState.asStateFlow()
 
@@ -65,6 +79,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 scanJob?.cancel()
                 folderStack.clear()
                 folderSnapshots.clear()
+                playbackOrigin = emptyList()
+                pendingFocusItemId = null
                 treeUri = persistedRoot
                 if (persistedRoot == null) {
                     mutableUiState.value = LibraryUiState()
@@ -122,6 +138,50 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
+     * Records which folder the queue now starting was built from, so focus can be
+     * brought back to any of its tracks later. Called by the play path, which is
+     * the only place that knows both the listing and the track.
+     */
+    fun notePlaybackOrigin() {
+        if (folderStack.isEmpty()) return
+        playbackOrigin = folderStack.toList()
+        mutableUiState.update { it.copy(hasPlaybackOrigin = true) }
+    }
+
+    /**
+     * Moves the wall's focus onto [itemId], following the running queue back to the
+     * folder it started from when the item is not in the current listing.
+     *
+     * Returns false when the item cannot be reached at all, which is exactly the
+     * case [canRevealPlayingItem] reports as disabled.
+     */
+    fun revealPlayingItem(itemId: String): Boolean {
+        if (mutableUiState.value.items.any { it.id == itemId }) {
+            onFocusedItemChange(itemId)
+            return true
+        }
+        if (playbackOrigin.isEmpty()) return false
+
+        // The listing arrives asynchronously, and either path publishes a whole new
+        // state that would drop a focus set now, so it waits for the folder.
+        pendingFocusItemId = itemId
+        folderStack.clear()
+        folderStack.addAll(playbackOrigin)
+        loadFolder(playbackOrigin.last())
+        return true
+    }
+
+    /**
+     * Applies a focus that was requested before its folder was loaded. Called after
+     * every path that publishes a listing.
+     */
+    private fun applyPendingFocus() {
+        val target = pendingFocusItemId ?: return
+        pendingFocusItemId = null
+        onFocusedItemChange(target)
+    }
+
+    /**
      * Viewport updates arrive on every drag frame. They are written straight to
      * the snapshot and deliberately do not publish UI state, so panning never
      * triggers a recomposition of the library.
@@ -149,7 +209,14 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
         val restored = if (forceRefresh) null else folderSnapshots.get(folderKey)
         if (restored != null) {
-            mutableUiState.value = restored.toUiState(canNavigateUp = folderStack.size > 1)
+            // Jumping to a track is not back navigation: the restored viewport would
+            // otherwise swallow the one animation that brings the camera to it.
+            mutableUiState.value = restored.toUiState(
+                canNavigateUp = folderStack.size > 1,
+                restored = pendingFocusItemId == null,
+                hasPlaybackOrigin = playbackOrigin.isNotEmpty(),
+            )
+            applyPendingFocus()
             return
         }
 
@@ -161,6 +228,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 folderKey = folderKey,
                 isScanning = true,
                 canNavigateUp = folderStack.size > 1,
+                hasPlaybackOrigin = playbackOrigin.isNotEmpty(),
             )
         } else {
             mutableUiState.value.copy(isScanning = true, hasError = false, isRestored = false)
@@ -187,7 +255,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     isTruncated = listing.isTruncated,
                     isScanning = false,
                     canNavigateUp = folderStack.size > 1,
+                    hasPlaybackOrigin = playbackOrigin.isNotEmpty(),
                 )
+                applyPendingFocus()
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
@@ -234,7 +304,11 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     }
 }
 
-private fun FolderSnapshot.toUiState(canNavigateUp: Boolean): LibraryUiState = LibraryUiState(
+private fun FolderSnapshot.toUiState(
+    canNavigateUp: Boolean,
+    restored: Boolean,
+    hasPlaybackOrigin: Boolean,
+): LibraryUiState = LibraryUiState(
     hasRoot = true,
     folderKey = folderKey,
     folderTitle = folderTitle,
@@ -243,7 +317,8 @@ private fun FolderSnapshot.toUiState(canNavigateUp: Boolean): LibraryUiState = L
     isTruncated = isTruncated,
     isScanning = false,
     canNavigateUp = canNavigateUp,
-    isRestored = true,
+    isRestored = restored,
+    hasPlaybackOrigin = hasPlaybackOrigin,
     focusedItemId = focusedItemId,
     canvasZoom = canvasZoom,
     panX = panX,

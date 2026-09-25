@@ -17,10 +17,51 @@ refused. Privacy aliases are never tag writes.
 
 ## D-004 — Focus-cover wall is a core feature
 
-The wall has deterministic spatial layout, explicit focus state, center snapping,
-bounded canvas zoom and distinct portrait/landscape presentations. Both
-orientations remain two-dimensional, screen-filling mosaics with the focused hero
-at the exact viewport centre; portrait must never collapse into a single column.
+The wall has deterministic spatial layout, explicit focus state, bounded canvas
+zoom and distinct portrait/landscape presentations. Both orientations remain
+two-dimensional, screen-filling mosaics with the focused hero at the exact viewport
+centre; portrait must never collapse into a single column. Base geometry mixes
+square, portrait and landscape cards in tightly packed logical blocks. Focusing
+reflows only the selected card's block, and its translucent border uses an
+artwork-derived accent without changing the canonical artwork or metadata.
+
+A single tap on a card that does not hold focus moves focus to it; a single tap on
+the card that already holds focus activates it. No double-tap gesture is bound, so
+a quick double tap reads as "focus, then activate" and a single tap is delivered
+without waiting out the double-tap timeout. Dragging never changes focus: release
+is inertial and free, with no snapping to the nearest card, because re-focusing on
+release reflowed the block and re-centred the canvas every time the user stopped
+moving, which made the wall impossible to scroll. Pan is clamped so the viewport
+centre stays inside the wall's extent; that bound exists only to keep a hard fling
+from throwing the wall out of reach, and panning is otherwise free.
+
+The approved centred-bento wall is retained as its own layout. A separate
+Folia-style wall sits immediately to its right in the layout switcher. The latter
+uses twelve-item 12 x 8 exact-cover blocks and chooses a focus reflow from the
+selected item's original slot instead of applying one universal surrounding
+frame. The implementation may learn interaction concepts from Folia Major but
+must keep independently authored geometry and code.
+
+A focused Folia card grows where it already is. The focus shape stays a fixed
+6 x 6 hero -- that shape is the configured focus shape and is not negotiable -- so
+what the item's original slot decides is where inside the block the hero sits: the
+hero is centred on the card's own centre and clamped to the block, and the other
+eleven slots are regenerated as an exact cover around it. Only a card that already
+sat in a corner therefore focuses in a corner. The earlier design pinned the hero
+to one of two written corner templates and mirrored it, so every focus landed on a
+block corner regardless of where the card had been. The greedy nearest-neighbour
+assignment of neighbouring cards to slots is unchanged.
+
+The wall also exposes a floating tools button at its bottom-end corner that opens
+a small panel of wall actions, the first being "focus the playing item". Focus and
+playback stay independent states, so the wall needs an explicit way back to the
+track that is playing. The panel is anchored to its button rather than being a
+modal sheet, because the wall is already a full-screen gesture surface and a sheet
+would hide the very thing the action moves. The folder a queue belongs to is
+recorded when playback starts, since that is the only moment that knows both the
+listing and the track; following a track back needs no scan and no
+document-URI-to-path map. An action that cannot be honoured is offered disabled,
+never as a tap that silently does nothing.
 
 ## D-005 — Large-library performance is a product requirement
 

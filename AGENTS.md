@@ -27,14 +27,28 @@ set of files before changing code:
 - Add or update tests for non-trivial state and data behavior.
 - Do not edit another agent's worktree. Exchange work through commits or patches.
 
+## Agent continuity
+
+- The owner starts Claude Code manually. Codex must not invoke Claude on the
+  owner's behalf unless the owner explicitly reverses this rule for that task.
+- Before ending a material development slice, update `docs/HANDOFF.md` with the
+  current implementation, exact verification results, known blockers and the
+  safest next action. Keep `docs/TASKS.md` aligned with it. This is the shared
+  continuity layer between Codex and Claude; chat history is not.
+
 ## Verification
 
 Run the narrowest relevant tests first. Before handing off a completed change, run:
 
 ```powershell
-./gradlew.bat testDebugUnitTest
-./gradlew.bat lintDebug
+./gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest
+./gradlew.bat -I tools/ascii-build-dir.init.gradle lintDebug
 ```
+
+On this Windows host, if Gradle reports `Unable to establish loopback connection`,
+set `TEMP` and `TMP` to the existing `C:\jtmp` directory for that terminal before
+retrying. The init script deliberately keeps outputs on the checkout's drive so
+KSP can relativize generated sources.
 
 If Android tooling is unavailable, document the exact command that remains to run
 in `docs/HANDOFF.md`.

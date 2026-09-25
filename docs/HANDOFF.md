@@ -21,9 +21,9 @@ Both orientations are predictable, screen-filling two-dimensional mosaics;
 portrait prioritizes vertical exploration but never collapses into a single
 column. Cards scale continuously by distance to the viewport centre,
 so the centre cover is dominant and surrounding covers recede. Dragging,
-release-to-snap, directional flings, bounded whole-canvas pinch zoom and
-small/medium/large density are implemented without relayout during a gesture. Only
-near-visible cards are composed. Focus and playback presentation are independent;
+inertial release, bounded whole-canvas pinch zoom and small/medium/large density
+are implemented without relayout during a gesture. Only near-visible cards are
+composed. Focus and playback presentation are independent;
 focused folders expose explicit Play and Enter actions, and focused audio exposes
 Play/Pause and queue affordances. Back clears focus before navigating upward.
 
@@ -124,8 +124,10 @@ New `core/storage/FolderSnapshotCache.kt`:
 - `feature/focuswall/FocusCoverWall.kt` gained a `CompactSeekBar`
   (local `scrubFraction`, committed through `onSeekTo(playbackState.positionForFraction(fraction))`)
   and an explicit play/pause action on the focused card, shown only when that card
-  is the current item. The existing tap rule is preserved: clicking the currently
-  playing focused cover opens the full player, clicking any other cover starts it.
+  is the current item. The tap rule as it stood at that point was: clicking the
+  currently playing focused cover opens the full player, clicking any other cover
+  starts it. Superseded — see "Focus-wall gesture policy" below; only the focused
+  cover answers a single tap now.
 
 ### 4. Library layout modes
 
@@ -178,8 +180,149 @@ still need these commands from Android Studio or a normal terminal:
 
 No APK was built or installed during this Codex review.
 
-- Room schema and persistence for the queue and playback positions. The queue is
-  currently rebuilt from the folder listing on each play and is not durable.
+### Focus-wall V2 in the working tree
+
+The owner's four current visual priorities supersede further Room integration for
+this slice. Codex inspected Folia Major's open-source lattice design for concepts,
+then implemented independent geometry rather than copying its AGPL templates or
+source:
+
+- `FocusWallLayoutEngine` now groups ten sorted items into a 12 x 10 logical
+  block. Three original exact-cover templates, stable template selection and
+  deterministic horizontal/vertical reflection produce large and small square,
+  portrait and landscape cards without random state.
+- Default card gutters are 2 dp. Card size now comes from the mosaic itself; the
+  former centre-distance scale no longer opens large gaps between cards.
+- Cards below 116 dp wide or 112 dp high switch to a compact treatment (smaller
+  type/glyph, no secondary line) so the smallest gears do not overflow.
+- Focusing an item switches only its block to a centred 6 x 6 hero template. The
+  other nine identities re-pack into the surrounding frame, and Compose animates
+  their centre and width/height transition over 320 ms. Other blocks do not move.
+- Drag release still selected/snapped the nearest card, and tapping an unfocused
+  card still focused it without playing, as `PRODUCT_SPEC.md` then required. Both
+  were removed on the owner's next request — see "Focus-wall gesture policy".
+- `CoverAccentLoader` decodes at most a thumbnail-sized version of the focused
+  cover on an IO dispatcher, samples a quantised colour histogram and caches the
+  result. The 2.2 dp border uses that colour at 76% alpha; failed/no artwork falls
+  back to the existing deterministic placeholder accent. Non-focused cards incur
+  no palette decode.
+- Pure tests now cover exact deterministic geometry, mixed aspect families,
+  non-overlap, local-only focus reflow, large-scene viewport bounds and colour
+  sampling/transparent-pixel rejection.
+
+The owner subsequently requested automated verification. The combined focus-wall,
+playback-review and Room working tree now has **63/63 passing unit tests**, lint
+reports **0 errors and 12 warnings** (seven future-surface strings plus existing
+version/manifest/icon notices), and `assembleDebug` succeeds. No device was started
+and no APK was installed. The Room work and focus-wall V2 are still uncommitted in
+the same working tree and must not be discarded.
+
+The APK is at
+`D:\c\Documents\ChatGPT\.asmrplayer-build\app\outputs\apk\debug\app-debug.apk`.
+
+**Correction, and a warning about this path.** This section previously recorded that
+file as 74,159,084 bytes with SHA-256 `0EEB0BD5...`. That record had gone stale --
+the artifact was replaced and no build in the session could be tied to it. The file
+at this path is a single mutable output that every `assembleDebug` overwrites, so a
+byte count and hash written here is only true until the next build. The authoritative
+fingerprint for whatever is currently on disk belongs next to the change that built
+it, not in this section. Debug APKs here are also not byte-reproducible, so treat any
+hash as a fingerprint of one build, not of the source tree. For the current build,
+see the verification under "Focus-wall gesture policy" below.
+
+On the first requested verification, KSP rejected the old ASCII build directory
+because it lived on `C:` while this checkout lives on `D:`. The init script now
+defaults to the repository's ASCII-named parent directory
+(`D:\c\Documents\ChatGPT\.asmrplayer-build` here), keeping generated sources on
+the same drive while still avoiding the UTF-8/GBK test-worker path problem.
+The Codex terminal also needed `TEMP` and `TMP` set to `C:\jtmp`; otherwise JDK 17
+failed while opening the local selector used by Gradle's daemon connection. This
+environment override is process-local and is not an application change.
+
+Agent continuity is now explicit: the owner starts Claude manually, Codex does not
+invoke it automatically, and both `AGENTS.md` and `CLAUDE.md` require a resuming
+agent to inspect this handoff, the task board, Git status/log and the current diff
+before editing. Keeping these two docs current is the handoff mechanism.
+
+### Alternate Folia-style wall in the working tree
+
+The owner approved the current focus-wall V2 but requested that it remain intact
+while a second layout more closely follows the Folia v0.7.4 demonstration. The
+new `FoliaWall` entry is immediately to the right of `FocusWall` in the layout
+switcher; the original engine and its fixed centred-bento behavior are unchanged.
+
+- `FoliaWallLayoutEngine` uses independently-authored 12 x 8 exact-cover blocks
+  with twelve items, two base gears and deterministic block reflection.
+- Focusing no longer applies one universal top/side/bottom frame. The selected
+  item's original slot chooses the nearest hero quadrant; two original focus
+  gears plus horizontal/vertical reflection yield eight stable arrangements.
+  **Superseded** by "Folia focus grows in place, and a wall tools button" below:
+  those eight arrangements were all block corners, and the hero now takes its
+  position from the card's own slot instead.
+- Remaining identities are assigned to the globally nearest open slots with a
+  small aspect-ratio penalty. Only the selected block changes, so distant blocks
+  stay fixed and motion remains understandable.
+- Both wall modes reuse the same renderer, artwork-derived translucent border,
+  gestures, focused-card controls and playback behavior. Each keeps a separate
+  in-session pan/zoom state while the user switches between them.
+- `FoliaWallLayoutTest` covers determinism, mixed shapes, non-overlap, distinct
+  per-slot focus gears, local-only reflow and a bounded 40,000-item visibility
+  query. `LibraryLayoutModeTest` locks the new mode immediately after the old one.
+- The owner supplied `F:\41646818644-1-16.mp4` (11,973,324 bytes). This sandbox
+  confirmed the file but could not decode it: FFmpeg is absent, the package
+  download failed TLS validation and browser automation correctly rejected the
+  local `file://` URL. Final motion/visual comparison therefore remains a phone
+  review item rather than a claimed automated video comparison.
+
+The narrow Folia/layout-mode run passed. The required full verification also
+passes: **68/68 unit tests**, followed by `lintDebug` with **0 errors and 12
+existing warnings**. Commands used on this host were:
+
+```powershell
+$env:TEMP='C:\jtmp'; $env:TMP='C:\jtmp'
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle testDebugUnitTest
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle lintDebug
+```
+
+### Room schema draft in the working tree
+
+After the transport review commit, Codex started the next task without yet
+connecting the database to Media3:
+
+- `gradle/libs.versions.toml` and `app/build.gradle.kts` select stable Room 2.8.5,
+  the Room Gradle plugin and KSP 2.3.6. AGP 9 built-in Kotlin is retained; kapt is
+  not introduced. KSP exported the checked schema as
+  `app/schemas/com.example.asmrplayer.core.database.AsmrDatabase/1.json`.
+- `core/database/LibraryEntities.kt` defines indexed folder, audio, artwork and
+  subtitle rows. Artwork stores references/cache identity and dimensions, never
+  bitmap bytes. Missing media is retained through `isMissing`.
+- `core/database/PlaybackEntities.kt` defines per-audio long-form progress, the
+  singleton global restore point, durable queue order and time-point bookmarks.
+- `LibraryDao` pages direct children with composite parent/sort indices and offers
+  bounded-batch upserts. `PlaybackDao.replaceQueue` is transactional.
+- `AsmrDatabase` is version 1 and intentionally has no destructive migration
+  fallback.
+- `shouldMarkPlaybackCompleted` codifies the 95%-or-last-30-seconds rule while
+  preventing short fixture tracks from becoming complete immediately. Four pure
+  tests cover the policy.
+
+Room/KSP dependencies are now cached, the generated implementation compiles and
+the schema export, tests, lint and APK build all succeed. The original percentage
+test used a 100-second track, so its 94.999% sample also satisfied the independent
+last-30-seconds rule; the fixture now uses a 1,000-second track and isolates the
+95% boundary without changing production behavior. There are 63 passing test
+methods in total.
+
+```powershell
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle testDebugUnitTest
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle lintDebug
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle assembleDebug
+```
+
+- Inspect/commit the Room v1 schema draft with the focus-wall slice, or separate
+  them deliberately. After that, connect
+  `PlaybackService` to `PlaybackDao` for periodic progress and atomic queue
+  persistence; the queue is still rebuilt from the folder listing on each play.
 - Durable bookmarks: the full player's bookmark list is still local UI state only.
 - Queue insertion. The focused card's "add to queue" affordance was removed
   because it was wired to an empty lambda; bringing it back needs a queue-insertion
@@ -191,7 +334,8 @@ No APK was built or installed during this Codex review.
   artwork precedence is complete.
 - Extend the bounded direct-folder scanner into a full-library scanner.
 
-All of the above is now committed on `master`, on top of Codex's `fbea40e` ("封面墙V1"):
+The earlier Claude implementation described before the "Immediate next work"
+heading is committed on `master`, on top of Codex's `fbea40e` ("封面墙V1"):
 
 - `1360e23` "Make SAF audio playable and finish the library surfaces" -- the slice
   itself, 28 files, +3133/-293.
@@ -201,8 +345,295 @@ All of the above is now committed on `master`, on top of Codex's `fbea40e` ("封
   gave both agents one shared author.
 - the tip commit reverses that again and gives each agent its own name.
 
-The working tree is clean apart from an untracked `bash.exe.stackdump`, which is a
-shell crash dump and deliberately not committed.
+That earlier baseline was clean apart from `bash.exe.stackdump`. The current
+working tree intentionally also contains the later playback review, Room v1 and
+focus-wall V2 described above; none of those newer changes is committed yet. The
+crash dump remains unrelated and must not be staged.
+
+### Focus-wall gesture policy: a single tap moves focus, dragging never does
+
+The owner reported a product defect on both walls: "我一滑动就会聚焦在我停留的那个
+封面" -- any drag re-focused whatever card the viewport happened to stop on. Two
+coupled mechanisms caused it, and it was **not** a coding slip: the committed code
+matched `PRODUCT_SPEC.md` and `DECISIONS.md` as written. Drag release called
+`nearestPlacementToCenter` and re-focused that card, and
+`LaunchedEffect(focusedItemId, placements)` then re-centred the canvas on it. So
+every release reflowed a block and moved the viewport, which is exactly what made
+the wall feel unscrollable. Fixing it therefore required changing the spec, not
+just the code.
+
+This went through two revisions. The first removed tap-to-focus entirely, leaving a
+double tap as the only way to move focus and making a single tap act only on the
+already-focused card. The owner then asked for the simpler rule -- "能正常拖动
+（拖动时不改变聚焦封面），同时单击就能改变聚焦封面" -- and the final policy is:
+
+- A single tap on a card that does **not** hold focus moves focus to it: the card
+  re-packs its block around the hero slot and the canvas centres on it. Nothing is
+  played or entered yet.
+- A single tap on the card that **already** holds focus activates it: audio starts,
+  the currently playing item opens the full player, a folder is entered.
+- **No double-tap gesture is bound to the cards.** A quick double tap therefore
+  reads as "focus, then activate" for free.
+- Drag **release is inertial and free**: no snapping to the nearest card, no
+  re-centring, no focus change. Panning never moves focus.
+
+Worth noting for whoever reads this next: `strings.xml` still carries an orphaned,
+unused `demo_hint` reading "点击卡片使其聚焦，再次点击执行操作" -- tap a card to focus
+it, tap again to act. That is the rule above, word for word, left behind from the
+fixture-data prototype. So this is the wall's originally designed interaction
+restored, not a new one invented to patch the defect.
+
+Implementation, all in `feature/focuswall`:
+
+- `FocusWallInteraction.kt` holds one pure function,
+  `resolveCardTap(focusedItemId, tappedItemId): FocusWallIntent`, returning
+  `Focus` when the tapped card is not the focused one and `Activate` when it is.
+  Both sealed-interface branches are genuinely reachable, so no dead branch is
+  forced on the caller.
+- `FocusCoverWall.kt` binds cards with plain `clickable(onClick)`, **not**
+  `combinedClickable`. That is deliberate: binding `onDoubleClick` makes Compose
+  hold every single tap back for the double-tap timeout (~300 ms) before delivering
+  it, which is felt as lag on the wall's primary gesture. "Double tap to open" does
+  not need the handler -- it is the same rule applied twice. This build is
+  therefore also more responsive on a single tap than the double-tap revision that
+  preceded it.
+- `settlePan(...)` runs on release: `Animatable.animateDecay` with
+  `exponentialDecay(frictionMultiplier = 1.35f)`. `nearestPlacementToCenter` and
+  `directionalNeighbor` were deleted; with the release path gone they had no
+  remaining caller.
+- Because release no longer snaps, the pan became unbounded and a hard fling could
+  throw the wall out of reach with nothing left to grab. `FocusWallLayout.kt` now
+  exports `wallWorldBounds()`, `FocusWallWorldBounds`, `FocusWallPan` and
+  `clampWallPan()`. **This bound is Claude's own addition, not something the owner
+  asked for** -- it is a safety rail that keeps the viewport *centre* inside the
+  wall's extent, and panning is completely free within it. The owner has not yet
+  accepted or rejected it.
+- `focus_wall_hint` now reads "拖动浏览 · 双指缩放 · 单击聚焦 · 再单击已聚焦封面执行操作".
+
+Both wall modes share this code path: `FocusWallStyle.Bento` and
+`FocusWallStyle.Folia` differ only in the layout engine, so the single gesture
+change covers the Bento wall, focus-wall V2 and the Folia wall at once.
+
+**A first action is a single tap again.** `focusedItemId` starts as null for a
+folder with no cached snapshot, but `resolveCardTap` returns `Focus` whenever the
+tapped card is not the focused one -- including when nothing is focused at all --
+so entering a folder and tapping a cover focuses it, exactly as before the defect
+was reported. The mid-round double-tap revision had made that tap a no-op, which
+would have cost two gestures to play anything; the owner's second request removed
+that cost. Playing an item is still two taps when it was not already focused (one
+to focus, one to activate), but the second tap is now the same gesture, not a
+different one.
+
+`PRODUCT_SPEC.md` and `DECISIONS.md` (D-004) were updated to state the new policy,
+since the old text was what the removed behaviour had been written to satisfy.
+
+Verification of this change:
+
+```powershell
+$env:TEMP='C:\jtmp'; $env:TMP='C:\jtmp'
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle testDebugUnitTest --rerun lintDebug assembleDebug
+```
+
+The first attempt failed to compile: `cancelAnimation()` is a member of
+`AnimationScope`, not of the `Animatable` receiver that `Animatable.animateDecay`
+hands its block, so `settlePan` now cancels the job it owns instead. The rerun
+passes **76/76 unit tests, 0 failures, 0 errors, 0 skipped** (read back from the
+JUnit XML under `.asmrplayer-build/app/test-results/testDebugUnitTest/`, not from
+the Gradle console) and `lintDebug` reports **0 errors and 12 warnings** -- the same
+twelve the previous slice recorded, so this change added none. The count is 76
+rather than the double-tap revision's 77 because the two rewritten
+`FocusWallInteractionTest` cases collapsed into one "focus, then activate" case.
+
+The six new pure tests from the earlier revision still stand: world bounds
+enclosing every placement in all four quadrants, absent bounds, the no-op without
+bounds, the rail stopping the centre exactly at the wall's extent, the bound
+scaling with zoom, and a degenerate zero zoom staying finite.
+
+The APK carrying this policy is 74,175,884 bytes, SHA-256
+`FDDB98B95FCD901ACAC46119AE763E6FAE4407ABD96EDBC347B4BC16B354AA47`, built
+2026-09-25 21:17. **It has not been installed.** The owner installs APKs himself.
+
+**Install history, so the two builds are not confused.** The build installed with
+`adb install -r` at 2026-09-25 21:11:04 (device checksum
+`7a5a5295e9564f04cbbc65461e88ebd8`) carried the **double-tap** revision, and is
+therefore already superseded by the build above. It replaced the 20:16 build, which
+predated any of this work and is what the owner was seeing when reporting the
+defect; `firstInstallTime` stayed at 12:52:55, so app data including the persisted
+SAF root survived, and no media was read, written or deleted.
+
+Note for the next agent: the owner installs APKs himself and does not want `adb`
+driven on his phone without asking, even for a read-only query like `dumpsys`. That
+21:11 install was authorised in the moment ("装到手机上看看") and was already
+complete when he said he would rather do it himself; do not treat it as standing
+permission.
+
+**What is still unverified.** The app has not been driven by hand on any of these
+policies. The gesture rule, the pan bound and the tap-to-focus recentring are all
+awaiting a manual pass on the device; a checksum only proves which build is
+running, not that the behaviour is right.
+
+### Folia focus grows in place, and a wall tools button
+
+Two independent requests from the owner, done in one slice.
+
+**1. The focused Folia cover no longer jumps to a corner.** This was not a
+transient bug but the direct consequence of the design: `FoliaFocusTemplates`
+held two written templates with the hero pinned at `FoliaSlot(0, 0, 6, 6)` and
+`focusedSlotsByItem` mirrored them with `focusOnRight`/`focusOnBottom` derived
+from the original slot's centre, so the hero could only ever land on one of eight
+mirror combinations -- all of them block corners.
+
+The replacement keeps the focus *shape* fixed (a 6 x 6 hero; the shape is the
+configured focus shape and was never the variable) and instead derives the hero's
+*position* from the card's own slot:
+
+- `foliaFocusCover(heroX, heroY, variant)` builds an exact cover of the 12 x 8
+  block: the hero, plus four complement regions -- top strip, bottom strip, left
+  band and right band, where the bands span only the hero's six rows -- each
+  allocated a share of the remaining eleven slots by capped largest-remainder
+  (`allocateFoliaPieces`) and cut into integer cells by recursive guillotine
+  halving (`splitFoliaRegion`). `variant` keeps the determinism and the
+  per-block variety that `stableFoliaBucket(seed, 2)` already provided.
+- `heroX`/`heroY` centre that shape on the card's original centre and clamp it
+  into the block.
+- The greedy nearest-neighbour assignment of neighbours to slots
+  (`movementCost`) is untouched -- that is the "the shapes around it move" half,
+  and it already worked.
+
+Corner cards still focus in their corner, and the corner case regenerates the
+same structure the hand-written template had, so there is no visual regression
+there. The corner geometry was checked by hand before implementing: `heroX=0,
+heroY=0` yields a right band of six 3 x 2 cells and a bottom strip of five, which
+is what the old template produced.
+
+Test changes in `FoliaWallLayoutTest.kt`:
+
+- **Deliberately replaced, not deleted:** `focus reflows only the selected block
+  and avoids one fixed top strip` is now `focus reflows only the selected block`.
+  The first half still holds and is still asserted; the "not one fixed top strip"
+  half described the old design's intent and is now false by construction, so
+  those assertions were removed rather than left to rot.
+- **New:** `the focused hero lands as close to the tapped card as its shape
+  allows` computes, for each of 24 items, the best reachable hero centre over all
+  21 legal origins and asserts the implemented centre is within 0.05 units of it.
+  This is a discriminating bound, not a tautology: for a mid-block slot like
+  `(4, 0, 5, 4)` the old code was 2.69 units off while the best reachable
+  distance is 1.118.
+- **New:** `focused heroes are no longer confined to block corners`.
+- **New:** `every focus shape remains an exact cover of its block` -- recovers the
+  cell grid from the placement rectangles and asserts 96 covered cells with no
+  overlap for every focused item. This is the main safety net for the generator.
+- One comment written during this slice was corrected before landing: block 0
+  yields seven distinct origins but only **three** interior ones (`(4,0)`,
+  `(3,2)`, `(5,2)`), not four. The threshold follows the corrected count.
+
+**2. A floating tools button at the wall's bottom-end corner.** `FocusCoverWall`
+now wraps its canvas in a `Box` and adds `WallToolsOverlay`, which floats above
+the wall so it keeps its size and position under zoom and pan. It opens a small
+`Surface` panel anchored to the button -- deliberately not a `ModalBottomSheet`,
+which would hide the wall the action is about to move -- with a full-wall
+transparent scrim behind it so a tap meant to close the panel cannot also land on
+a card. Tools are modelled as a `WallTool` row list so later additions are one
+more entry.
+
+Its first entry, "聚焦当前播放位置", moves focus to the playing track. Focus and
+playback are independent states, so the wall needed an explicit way back.
+
+- `LibraryViewModel.notePlaybackOrigin()` records `folderStack` at play time.
+  That is the only moment that knows both the listing and the track, and it needs
+  no scan and no document-URI-to-path map. `MainActivity.onPlayItem` calls it
+  before `playFromFolder`.
+- `revealPlayingItem(itemId)` focuses directly when the item is already listed;
+  otherwise it restores the recorded folder chain, loads that folder, and parks
+  the focus in `pendingFocusItemId` for `applyPendingFocus()` to apply once the
+  listing is published -- the load is asynchronous and would otherwise overwrite a
+  focus set immediately.
+- The snapshot-restore path publishes `isRestored = false` for such a jump. A jump
+  is not back navigation, and restoring the saved viewport would have swallowed
+  the one animation that brings the camera to the track.
+- `canRevealPlayingItem(...)` gates the entry, and the answer is computed in
+  `LibraryContent` so both walls see the same one. It is disabled when nothing is
+  playing, and when the track is in another folder but no origin was recorded --
+  which is exactly the case of a queue that outlived the process. A queue that
+  cannot be traced back shows a disabled entry rather than a tap that does
+  nothing. `MainActivity` passes `onRevealPlayingItem` as a lambda, so the
+  discarded `Boolean` return is safe.
+- Two strings were added: `wall_tools` and `focus_playing_item`.
+
+Verification:
+
+```powershell
+$env:TEMP='C:\jtmp'; $env:TMP='C:\jtmp'
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle testDebugUnitTest --rerun lintDebug assembleDebug
+```
+
+**83/83 unit tests pass, 0 failures, 0 errors, 0 skipped**, read back from the
+JUnit XML under `.asmrplayer-build/app/test-results/testDebugUnitTest/` rather
+than from the Gradle console. `lintDebug` reports **0 errors and 12 warnings** --
+the same twelve as the previous slice, and the seven `UnusedResources` warnings do
+not include either new string, so both are wired up. `assembleDebug` succeeds.
+
+The APK is 74,209,472 bytes, SHA-256
+`f1d0ba4cdefe2ca7ee3a60c329c9183c4005aa4b3892e4ab276ef807fa597ea5`, built
+2026-09-25 22:08. **It has not been installed**, and no `adb` command was run.
+This file is overwritten in place by every `assembleDebug`, so that size and hash
+identify only this build; the path
+`.asmrplayer-build/app/outputs/apk/debug/app-debug.apk` is a mutable output, not an
+archive.
+
+**Known trade-offs, accepted:**
+
+- No global document-URI-to-folder map was built. A queue that outlived the process
+  cannot be traced back, so the entry stays disabled in that case. This is
+  deliberate; see `canRevealPlayingItem`.
+- If the folder jumped back to has since been refreshed and the track is gone from
+  it, the pending focus lands on nothing and the wall simply shows that folder. Rare,
+  and accepted.
+- The Bento wall was not touched. Its hero was already centred in its block, so it
+  never had this problem, and the owner raised only Folia. It does get the tools
+  button, since that is shared.
+
+**Still unverified.** Nothing here has been driven by hand. Two things need the
+owner's eyes on the phone: (a) tapping a Folia cover that is not in a block corner
+and checking the focus shape appears where the cover already was with its
+neighbours reshaping around it; (b) the tools button and its panel, once for a
+track in the current folder and once for one in another folder.
+
+**How this was committed, and why it is two commits.** The working tree had
+accumulated several slices that had never been committed: Codex's Room schema
+draft, focus-wall V2, the Folia wall and `CoverAccentLoader`, plus the gesture
+policy above and now this slice. The owner asked for the record, then chose to
+split it by agent so the one-author-per-agent rule survives.
+
+The split is by file. Codex's commit `4d22e30` carries the Room/KSP wiring,
+`core/database/`, `core/media/PlaybackCompletion.kt`, `core/artwork/`,
+`ui/theme/Artwork.kt`, `FocusWallLayout.kt`, `FoliaWallLayout.kt`, their tests,
+the `LibraryLayoutMode.FoliaWall` plumbing and `tools/ascii-build-dir.init.gradle`.
+This commit carries `FocusCoverWall.kt`, `FocusWallInteraction.kt`,
+`LibraryViewModel.kt`, `MainActivity.kt`, `ui/AsmrPlayerApp.kt`, `strings.xml`,
+the README/AGENTS/CLAUDE notes and the docs.
+
+Two consequences, recorded rather than papered over:
+
+- **The file boundary is an approximation.** `FocusCoverWall.kt`,
+  `FocusWallLayout.kt` and `ui/AsmrPlayerApp.kt` each hold both agents' work, and
+  the interleaving is at line level, not hunk level: `ui/AsmrPlayerApp.kt` alone
+  mixes the FoliaWall dispatch (Codex) with the reveal wiring (Claude) inside one
+  hunk. Each file went to the agent whose work dominates it, so Codex's commit also
+  contains the pan-bound helpers and the six pan-clamp tests that are Claude's, and
+  this commit also contains the V2 renderer and the `FocusWallStyle` enum.
+- **Codex's commit does not compile on its own.** `LibraryLayoutMode.FoliaWall`
+  lands there while the exhaustive `when (layoutMode)` over that enum in
+  `ui/AsmrPlayerApp.kt` lands here, because that file belongs to this commit. The
+  dependency is genuinely circular -- every other assignment of the shared files
+  breaks one of the two trees -- so no ordering fixes it; only hand-editing an
+  intermediate state that never existed would, and that was not worth fabricating
+  history. The tree at the tip of this commit is the verified one, and there is no
+  remote, so the split remains local and reversible.
+
+The commit that carries the code another agent wrote does not also carry the
+`Co-Authored-By: Claude Code` trailer, so `git log` does not imply Claude co-wrote
+it; `git log --author` separates the two agents as before.
 
 ### Git identity: one author per agent
 
@@ -465,6 +896,12 @@ subfolder, one audio) still reads "1 个子文件夹 · 1 条音频".
   current folder and the first 48 naturally sorted child folders; folders that hold
   only subfolders fall back to the generated gradient placeholder. Recursive
   child-folder artwork fallback is still pending.
+- **The reveal target is a folder, not an identity.** "Focus the playing item"
+  follows the folder chain recorded at play time. If that folder has been refreshed
+  since and no longer lists the track, the pending focus lands on nothing and the
+  wall just shows the folder. A queue that outlived the process cannot be traced at
+  all and leaves the entry disabled. Both are accepted trade-offs of not building a
+  global document-URI-to-folder map; neither is verified on a device.
 
 Gradle has a 2 GiB heap and 1 GiB metaspace in `gradle.properties`, replacing the
 defaults that caused an Android Studio out-of-memory build failure.

@@ -10,7 +10,10 @@
     <string name="recent">最近播放</string>
     <string name="favorites">收藏</string>
     <string name="focus_wall">聚焦封面墙</string>
-    <string name="focus_wall_hint">拖动浏览 · 松手吸附 · 双指缩放 · 再次点击执行操作</string>
+    <string name="folia_wall">Folia 封面墙</string>
+    <string name="focus_wall_hint">拖动浏览 · 双指缩放 · 单击聚焦 · 再单击已聚焦封面执行操作</string>
+    <string name="wall_tools">墙面功能</string>
+    <string name="focus_playing_item">聚焦当前播放位置</string>
     <string name="wall_density_value">密度：%1$s</string>
     <string name="density_small">小</string>
     <string name="density_medium">中</string>
