@@ -62,13 +62,31 @@ assignment of neighbouring cards to slots is unchanged.
 
 The Folia focus shape and size are per-folder settings, chosen from the wall's tools
 panel beside the density control, and both default to what the wall did before they
-existed: a square 6 x 6 hero. The shape is a rectangle -- square, portrait or
-landscape -- at one of three sizes; the Bento wall is unaffected, since its focused
-block is a hand-written template rather than a generated cover. Sizes are deliberately
-capped below what the block could hold: an 8 x 8 hero leaves eleven neighbours thirty
-two cells between them, and the block stops reading as a mosaic with a focus. Whatever
-the preset, the eleven neighbours must still tile the rest of the block exactly, which
-is what the enumerating cover test enforces.
+existed: a square 6 x 6 hero. Six shapes are offered: square, portrait, landscape,
+full cover, and the heart and circle silhouettes. The Bento wall is unaffected, since
+its focused block is a hand-written template rather than a generated cover. Sizes are
+deliberately capped below what the block could hold: an 8 x 8 hero leaves eleven
+neighbours thirty two cells between them, and the block stops reading as a mosaic with
+a focus. Whatever the preset, the eleven neighbours must still tile the rest of the
+block exactly, which is what the enumerating cover test enforces.
+
+Two shapes are silhouettes, and they are a different kind of thing from the four
+rectangles, so they are allowed to behave differently. The focused card is itself
+drawn as the cells that spell the shape, with the neighbours tiling the remainder
+exactly -- a pixel outline, not an outline drawn over a picture. A silhouette is
+therefore written for a single place in the block and has a single size: it does not
+follow the tapped card's slot the way a rectangular hero does, and the size control
+is shown disabled rather than being given a second, differently drawn silhouette for
+each preset. They live at the end of the shape enum so the ordinals a folder has
+already persisted keep their meaning.
+
+Full cover is the square preset with the artwork fitted rather than cropped, so the
+whole cover is visible; it deliberately keeps the square's footprint and the size
+control, since it is the same card drawn differently rather than a new geometry.
+
+The focused card also carries an icon-only action that clears focus, at its bottom-end
+corner. Focus is independent of playback, so without it the only way out of a focused
+block would be to tap a different cover, which also moves the canvas.
 
 The wall also exposes a floating tools button at its bottom-end corner that opens
 a small panel of wall actions, the first being "focus the playing item". Focus and

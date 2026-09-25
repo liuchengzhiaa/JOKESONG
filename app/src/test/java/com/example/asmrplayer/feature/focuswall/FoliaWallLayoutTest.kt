@@ -123,16 +123,8 @@ class FoliaWallLayoutTest {
             val focused = layout(focusedItemId = id)
             val blockIndex = focused.associateBy(FocusWallPlacement::itemId).getValue(id).blockIndex
             val block = focused.filter { it.blockIndex == blockIndex }
-            val unit = blockUnit(block)
 
-            val cells = block.sumOf { placement ->
-                val columns = ((placement.width + GapPx) / unit).roundToInt()
-                val rows = ((placement.height + GapPx) / unit).roundToInt()
-                assertTrue("$id produced a sliver", columns >= 1 && rows >= 1)
-                columns * rows
-            }
-
-            assertEquals("$id did not cover its block", BlockCells, cells)
+            assertPaintedOnce(block, id)
             assertNoOverlap(block)
         }
     }
@@ -142,6 +134,11 @@ class FoliaWallLayoutTest {
      * for every shape and size the panel can ask for. This is the one that would catch
      * a preset the cover generator cannot honour, since the engine would otherwise
      * throw while placing the neighbours.
+     *
+     * A silhouette's neighbours are shaped too, and their bounding boxes overlap the
+     * hero's by design -- that is what a pixel outline is. So the thing checked here is
+     * not that the boxes stay apart but that the cells they paint do: every cell of the
+     * block is painted by exactly one card.
      */
     @Test
     fun `every focus preset still lays out a whole block without a hole`() {
@@ -155,16 +152,12 @@ class FoliaWallLayoutTest {
                     val where = "$shape/$size on $id"
 
                     assertEquals("$where lost a card", 12, block.size)
-                    val unit = blockUnit(block)
-                    val cells = block.sumOf { placement ->
-                        val columns = ((placement.width + GapPx) / unit).roundToInt()
-                        val rows = ((placement.height + GapPx) / unit).roundToInt()
-                        assertTrue("$where produced a sliver", columns >= 1 && rows >= 1)
-                        columns * rows
+                    assertPaintedOnce(block, where)
+                    if (block.none { it.shape != null }) {
+                        // Rectangular presets still have to keep their boxes apart as
+                        // well; for a silhouette the boxes are allowed to interlock.
+                        assertNoOverlap(block)
                     }
-
-                    assertEquals("$where did not cover its block", BlockCells, cells)
-                    assertNoOverlap(block)
                 }
             }
         }
@@ -231,6 +224,77 @@ class FoliaWallLayoutTest {
         return (extent + GapPx) / FoliaBlockColumnsForTest
     }
 
+    /**
+     * Asserts that the twelve cards of [block] paint every cell of the block exactly
+     * once, whichever shape they are. A hole shows up as a cell nobody painted, two
+     * cards on one cell as a duplicate, and a card drawn outside the block as a cell
+     * that is not in it. A card this small is also the sliver case, since a sliver
+     * paints no cell at all.
+     */
+    private fun assertPaintedOnce(block: List<FocusWallPlacement>, where: String) {
+        val unit = blockUnit(block)
+        // The layout insets every card by half a gutter, so the block's own corner is
+        // that much outside the outermost card edge.
+        val blockLeft = block.minOf { it.centerX - it.width / 2f } - GapPx / 2f
+        val blockTop = block.minOf { it.centerY - it.height / 2f } - GapPx / 2f
+        val painted = mutableSetOf<Pair<Int, Int>>()
+
+        block.forEach { placement ->
+            val cells = paintedCells(placement, unit, blockLeft, blockTop)
+            assertTrue("$where painted nothing for ${placement.itemId}", cells.isNotEmpty())
+            cells.forEach { cell ->
+                assertTrue("$where painted $cell twice", painted.add(cell))
+                assertTrue(
+                    "$where painted $cell outside the block",
+                    cell.first in 0 until FoliaBlockColumnsForTest && cell.second in 0 until BlockRows,
+                )
+            }
+        }
+
+        assertEquals("$where did not paint the whole block", BlockCells, painted.size)
+    }
+
+    /**
+     * The block cells a placement paints, as (column, row) in block coordinates.
+     *
+     * An unfocused or rectangular card is one box and paints all of it. A shaped card
+     * paints the cells its silhouette lists, each one a fraction of the card's own box,
+     * so each of those pieces is read back as the cell it covers.
+     *
+     * A cell is read from the piece's leading edges rather than its centre. A piece is
+     * inset by half a gutter on every side that faces another card, so its centre sits
+     * off the middle of its cell -- and for a cell that is inset on one side only, exactly
+     * on the boundary between two of them, where rounding is a coin toss.
+     */
+    private fun paintedCells(
+        placement: FocusWallPlacement,
+        unit: Float,
+        blockLeft: Float,
+        blockTop: Float,
+    ): Set<Pair<Int, Int>> {
+        val cardLeft = placement.centerX - placement.width / 2f
+        val cardTop = placement.centerY - placement.height / 2f
+        val silhouette = placement.shape
+        if (silhouette == null) {
+            val columns = ((placement.width + GapPx) / unit).roundToInt()
+            val rows = ((placement.height + GapPx) / unit).roundToInt()
+            val firstColumn = ((cardLeft - blockLeft) / unit).roundToInt()
+            val firstRow = ((cardTop - blockTop) / unit).roundToInt()
+            return (0 until columns).flatMap { column ->
+                (0 until rows).map { row -> (firstColumn + column) to (firstRow + row) }
+            }.toSet()
+        }
+        return silhouette.rects.map { rect ->
+            val left = ((cardLeft + rect.left * placement.width - blockLeft) / unit).roundToInt()
+            val top = ((cardTop + rect.top * placement.height - blockTop) / unit).roundToInt()
+            val right = ((cardLeft + rect.right * placement.width - blockLeft) / unit).roundToInt()
+            val bottom = ((cardTop + rect.bottom * placement.height - blockTop) / unit).roundToInt()
+            assertEquals("a silhouette cell is not one cell wide", left + 1, right)
+            assertEquals("a silhouette cell is not one cell tall", top + 1, bottom)
+            left to top
+        }.toSet()
+    }
+
     private fun distance(fromX: Float, fromY: Float, toX: Float, toY: Float): Float {
         val dx = fromX - toX
         val dy = fromY - toY
@@ -264,6 +328,9 @@ class FoliaWallLayoutTest {
 
         /** `FoliaBlockColumns`, which is private to the engine. */
         const val FoliaBlockColumnsForTest = 12
+
+        /** `FoliaBlockRows`. */
+        const val BlockRows = 8
 
         /** `FoliaBlockColumns * FoliaBlockRows`. */
         const val BlockCells = 96

@@ -768,6 +768,117 @@ code that only differed by a comment). Recording an incremental APK's hash as if
 identified the source revision was wrong; the numbers above are the clean build, and a
 future reader comparing hashes should rebuild `clean` first.
 
+### The heart, the circle, full cover, and a way out of focus
+
+The four things the owner asked for in one message: "1、开始做心形状；2、做圆形状；
+3、聚焦的封面右下角应该加一个图标（不用加文字）用来取消聚焦；4、能不能再多加一种形状，
+即能完全显示音频封面内容的". This is the slice the section above ends by naming as
+next; the shape table there now has six rows rather than three.
+
+**Two of the new shapes are silhouettes.** The owner chose, when asked, "整块卡片排成轮廓
+（与已定的心形一致）" -- the focused card is itself a pixel heart or pixel disc, made of the
+block's cells, with the eleven neighbours tiling everything else in the block exactly.
+None of them is a picture inside a cut-out outline. `FoliaFocusShape` gained `FullCover`,
+`Heart` and `Circle` **appended** rather than inserted, because the ordinals are persisted
+per folder and an insertion would silently re-shape folders that had already chosen one.
+
+The two masks are hand-written and were verified before anything was built on them: an
+independent cell count over both, of the hero, the eleven neighbour regions, duplicates,
+missed cells and cells outside the block, in every combination. The heart is 8 x 6 at
+block `(2, 1)`, 32 cells, with the 2 x 2 notch between its lobes; its complement is 64
+cells in nine regions, five of them rectangles and four of them 1 x 3 or 3-cell Ls. The
+circle is an 8 x 8 disc at block `(2, 0)`, 52 cells, with a 44-cell complement in six
+regions. Four of the heart's regions and all of the circle's are genuinely non-rectangular,
+which is why `FoliaPiece` grew its own `cells` list and stopped being a rectangle with a
+box: the renderer, the allocator and the tests all read the cells a piece actually fills
+rather than assuming `columns x rows`.
+
+**A silhouette ignores the tapped card and the size preset**, and that is a deliberate
+departure from the rule the rectangular heroes follow. A rectangle hero can be generated
+at any legal origin from one set of formulas; a hand-written silhouette would need one
+written cover per origin (and one per size). The owner's answer to "「完整显示封面」放在
+哪里？" was "作为形状列表的第六项" -- and full cover turned out to be the cheap one: it is
+the square preset with `ContentScale.Fit` instead of `Crop`, so it keeps the square's
+footprint and the size control, and it is asserted equal to the square preset in the tests
+rather than maintained as a second table.
+
+**The third request is the unfocus icon.** `ClearFocusButton` is icon-only -- `Icons.Default.Close`
+in a 38 dp translucent disc at the card's bottom-end corner, no label, as asked. It sits at
+the end of the focused audio card's action row, which became `SpaceBetween` so it is pushed
+to the trailing edge; a focused folder gets its own row holding only the button, since folders
+have no other action. It removes focus, never the item, so there is nothing destructive to
+guard and no confirmation.
+
+**What the rendering needed.** `FocusWallCellShape` is the one new renderer: it builds a
+Compose `Path` with `addRect` per cell and returns `Outline.Generic(Path().op(cellPath,
+cellPath, PathOperation.Union))`, so `border` strokes the silhouette's own outline and not
+the seams between its cells. `FocusWallShape` is normalised to the card's own 0..1 box, so
+the same mask survives the 320 ms animation between two card sizes. Cards with no shape
+keep the existing `RoundedCornerShape` path untouched.
+
+**The allocator cap, and why it cannot change today's wall.** `allocateFoliaPieces` now caps
+each region at `min(area, max(columns, rows), area / FoliaMinPieceCells)` for shaped covers
+and leaves rectangular covers on the old rule, where `FoliaMinPieceCells` is 3. The proof
+that this is a no-op for every existing preset is short: the cover test already asserts no
+neighbour receives fewer than three cells, and a region of `n` cells can never be handed
+more than `floor(n / 3)` such pieces. So the cap was already satisfied, and the owner-approved
+phone behaviour is untouched.
+
+**Tests: four added, several rewritten rather than deleted.** The `FoliaFocusPresetTest`
+enumeration now runs all six shapes x three sizes x every legal origin x both variants, and
+its coverage assertion moved from "the boxes sum to 96 cells" to a real cell set, because for
+a silhouette the bounding boxes deliberately overlap -- that is what a pixel outline is.
+`FoliaWallLayoutTest` gained the same treatment for the engine: a new `paintedCells` helper
+decodes each placement back to block cells (a rectangle enumerates its box; a shaped card
+reads its own cell rects) and `assertPaintedOnce` asserts the twelve cards paint all 96 cells
+of the block exactly once, with no hole, no duplicate and nothing outside. `assertNoOverlap`
+is kept on the rectangular presets and skipped when a silhouette is present, with the reason
+written where the skip happens. Three new assertions go at the shapes themselves: both are
+connected and mirrored about the block's centre line, the circle is symmetric top to bottom
+with rows that widen to its middle and narrow after it, and the heart is not.
+
+Three test-writing mistakes were caught by the tests failing, and they are worth knowing
+about because they look like engine bugs:
+
+- The circle's row-width assertion first read `assertEquals(widths.sorted(), widths)` and
+  failed with `expected [4,4,6,6,8,8,8,8] but was [4,6,8,8,8,8,6,4]` -- the disc widens and
+  then narrows, so only each half is monotonic.
+- `paintedCells` first counted a rectangular card as one cell, giving
+  `did not paint the whole block expected:<96> but was:<12>`; it now enumerates the box.
+- `painted (9, 4) twice` was a mapping bug in the test, not the layout: an eroded cell's
+  centre can land exactly on a cell boundary -- cell (5,6) spans `[5u + g/2, 6u]`, so its
+  centre is 5.5056 cells and rounds to 6. Cells are now read from the rect's leading edges,
+  with an assertion that each piece is exactly one cell wide and tall.
+
+Two of the fixes above were in the *shape* helper, and the first attempt at the second one
+was wrong in a way worth recording. `FoliaPiece.foliaShape` computed cell edges block-relative
+while the card's own left/top included the block's world origin, so every rect was offset by
+the block's place on the wall: `painted (14, 6) outside the block`. Adding `originX`/`originY`
+parameters did not fix it, and a `--rerun-tasks` debug dump that came back byte-identical is
+what proved the edit had not taken effect in the path being run. The correct fix keeps
+everything block-relative inside the helper and drops the origin parameters entirely, with a
+comment saying why they cancel: the shape is normalised to the card's own box.
+
+Verified: **97/97 unit tests** across 18 suites, 0 failures, 0 errors, 0 skipped, read back
+from the JUnit XML under `.asmrplayer-build/app/test-results/testDebugUnitTest/` rather than
+from the Gradle console -- the baseline before this slice was 93. `lintDebug` reports
+**0 errors and 12 warnings**, the same twelve as the previous slice, so this change added
+none. `clean assembleDebug` produces a 74,295,032-byte debug APK, SHA-256
+`1B8EC7F66246E33F8FD4733DDDEFEFCE6CD29FCCEA014D5B289AB2A74B4A5140`; an incremental
+`assembleDebug` of the same tree produced byte-identical output, and the tests were re-run
+after the clean build to confirm the count below rather than carrying it over. **Not installed and not
+driven by hand** -- the owner installs APKs himself, and every question this slice raises is
+one only an eye on the phone can answer:
+
+- whether the heart reads as a heart at that size, and the circle as a circle, rather than as
+  a lumpy blob with cards around it;
+- whether a tap in a silhouette's bounding-box corner reaches the card *underneath* it. The
+  hero's box overlaps its neighbours by design, and the expectation is that Compose's
+  clip-aware hit testing sends those taps to the neighbour. If it does not, the fallback is an
+  explicit pointer check on the box corners, and that has not been written;
+- whether the unfocus icon is big enough and far enough from the card's own tap target;
+- whether full cover letterboxes a portrait cover readably inside a square card.
+
 ### Git identity: one author per agent
 
 `user.name` and `user.email` are unset both globally and in this repository, so a

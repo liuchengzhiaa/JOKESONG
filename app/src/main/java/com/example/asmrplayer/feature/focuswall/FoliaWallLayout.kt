@@ -1,26 +1,57 @@
 package com.example.asmrplayer.feature.focuswall
 
+import androidx.compose.ui.geometry.Rect
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-private data class FoliaSlot(
+/**
+ * One card's footprint in a block, in block cells: the rectangle it is placed by, and,
+ * when it is not a plain rectangle, the cells it actually fills.
+ *
+ * [x] and [y] are always the bounding box's corner, so a shaped card still has a centre
+ * and an aspect ratio to be moved and animated with. A card that carries [cells] fills
+ * exactly those and is never cut into more cards, because halving it would tear a
+ * silhouette in two.
+ */
+internal data class FoliaPiece(
     val x: Int,
     val y: Int,
     val columns: Int,
     val rows: Int,
+    val cells: List<Int> = emptyList(),
 ) {
     val centerX: Float get() = x + columns / 2f
     val centerY: Float get() = y + rows / 2f
     val aspectRatio: Float get() = columns.toFloat() / rows
-    val area: Int get() = columns * rows
+    val area: Int get() = if (cells.isEmpty()) columns * rows else cells.size
+    val isRectangular: Boolean get() = cells.isEmpty()
+
+    /** The block cells this card fills, packed as `row * FoliaBlockColumns + column`. */
+    val filledCells: List<Int>
+        get() = if (cells.isNotEmpty()) {
+            cells
+        } else {
+            (y until y + rows).flatMap { row ->
+                (x until x + columns).map { column -> foliaCell(column, row) }
+            }
+        }
 }
 
 private const val FoliaBlockColumns = 12
 private const val FoliaBlockRows = 8
 private const val FoliaItemsPerBlock = 12
+
+/**
+ * Smallest area a neighbour may be given, in block cells. Below this a card is a sliver
+ * rather than a cover, and the block reads as one huge focus with debris around it.
+ */
+private const val FoliaMinPieceCells = 3
+
+/** A block cell as one number, so a cell set can be a plain list. */
+private fun foliaCell(column: Int, row: Int): Int = row * FoliaBlockColumns + column
 
 /**
  * Independently-authored exact covers for a compact 12 x 8 wall block. The
@@ -32,32 +63,32 @@ private const val FoliaItemsPerBlock = 12
  */
 private val FoliaBaseTemplates = listOf(
     listOf(
-        FoliaSlot(0, 0, 4, 3),
-        FoliaSlot(0, 3, 2, 3),
-        FoliaSlot(2, 3, 2, 3),
-        FoliaSlot(0, 6, 2, 2),
-        FoliaSlot(2, 6, 2, 2),
-        FoliaSlot(4, 0, 5, 4),
-        FoliaSlot(9, 0, 3, 2),
-        FoliaSlot(9, 2, 3, 2),
-        FoliaSlot(4, 4, 3, 4),
-        FoliaSlot(7, 4, 2, 2),
-        FoliaSlot(9, 4, 3, 2),
-        FoliaSlot(7, 6, 5, 2),
+        FoliaPiece(0, 0, 4, 3),
+        FoliaPiece(0, 3, 2, 3),
+        FoliaPiece(2, 3, 2, 3),
+        FoliaPiece(0, 6, 2, 2),
+        FoliaPiece(2, 6, 2, 2),
+        FoliaPiece(4, 0, 5, 4),
+        FoliaPiece(9, 0, 3, 2),
+        FoliaPiece(9, 2, 3, 2),
+        FoliaPiece(4, 4, 3, 4),
+        FoliaPiece(7, 4, 2, 2),
+        FoliaPiece(9, 4, 3, 2),
+        FoliaPiece(7, 6, 5, 2),
     ),
     listOf(
-        FoliaSlot(0, 0, 3, 3),
-        FoliaSlot(3, 0, 5, 3),
-        FoliaSlot(8, 0, 2, 3),
-        FoliaSlot(10, 0, 2, 3),
-        FoliaSlot(0, 3, 5, 3),
-        FoliaSlot(0, 6, 2, 2),
-        FoliaSlot(2, 6, 3, 2),
-        FoliaSlot(5, 3, 3, 2),
-        FoliaSlot(5, 5, 3, 3),
-        FoliaSlot(8, 3, 4, 2),
-        FoliaSlot(8, 5, 2, 3),
-        FoliaSlot(10, 5, 2, 3),
+        FoliaPiece(0, 0, 3, 3),
+        FoliaPiece(3, 0, 5, 3),
+        FoliaPiece(8, 0, 2, 3),
+        FoliaPiece(10, 0, 2, 3),
+        FoliaPiece(0, 3, 5, 3),
+        FoliaPiece(0, 6, 2, 2),
+        FoliaPiece(2, 6, 3, 2),
+        FoliaPiece(5, 3, 3, 2),
+        FoliaPiece(5, 5, 3, 3),
+        FoliaPiece(8, 3, 4, 2),
+        FoliaPiece(8, 5, 2, 3),
+        FoliaPiece(10, 5, 2, 3),
     ),
 )
 
@@ -66,6 +97,26 @@ enum class FoliaFocusShape {
     Square,
     Portrait,
     Landscape,
+
+    /**
+     * A square that shows the whole cover: the artwork is letterboxed inside the card
+     * instead of being cropped to fill it, so nothing is hidden whatever the artwork's
+     * own proportions are.
+     */
+    FullCover,
+
+    /** An eight by six pixel heart, centred in the block. */
+    Heart,
+
+    /** A pixel disc eight cells across, centred in the block. */
+    Circle;
+
+    /**
+     * Silhouettes are drawn cell by cell rather than as a rectangle, so they are written
+     * out for one place in the block and have one size each: there is no second size to
+     * grow into. They also ignore the tapped card's slot, unlike a rectangular hero.
+     */
+    val isSilhouette: Boolean get() = this == Heart || this == Circle
 }
 
 /** How large the focused cover grows. */
@@ -76,12 +127,10 @@ enum class FoliaFocusSize {
 }
 
 /**
- * The hero is the only card that changes shape, and it is a rectangle in every
- * preset: the eleven neighbours have to be packed around it as an exact cover, and a
- * rectangular complement is what keeps that cover four clean regions. The preset
- * decides the shape and [FoliaFocusSize] decides the area; the item's own slot then
- * decides where inside the block it lands, which is what makes a focused card grow
- * where it already is instead of jumping to a block corner.
+ * The hero's bounding box. Square, portrait, landscape and 完整封面 are rectangles: the
+ * preset decides the shape and [FoliaFocusSize] the area, and the item's own slot then
+ * decides where inside the block the rectangle lands, which is what makes a focused card
+ * grow where it already is instead of jumping to a block corner.
  *
  * The sizes stop short of what the block could hold. An 8 x 8 hero leaves 32 cells
  * for eleven neighbours, and at the origins a card in the middle of a block asks for,
@@ -89,23 +138,148 @@ enum class FoliaFocusSize {
  * slivers around it rather than as a mosaic with a focus. 7 x 7 is the largest square,
  * 5 x 7 the tallest and 8 x 6 the widest that still gives every neighbour room, and
  * the cover test holds the whole table to a floor of three cells each.
+ *
+ * Heart and circle are silhouettes, and their box is simply where their mask sits in the
+ * block. That place is fixed: the outline of a shape that is not a rectangle cannot be
+ * re-cut for every slot a card might have been tapped in, so those two ignore the tapped
+ * card rather than growing in place.
  */
-private fun foliaHeroSlot(shape: FoliaFocusShape, size: FoliaFocusSize): FoliaSlot = when (shape) {
+private fun foliaHeroSlot(shape: FoliaFocusShape, size: FoliaFocusSize): FoliaPiece = when (shape) {
     FoliaFocusShape.Square -> when (size) {
-        FoliaFocusSize.Small -> FoliaSlot(0, 0, 4, 4)
-        FoliaFocusSize.Medium -> FoliaSlot(0, 0, 6, 6)
-        FoliaFocusSize.Large -> FoliaSlot(0, 0, 7, 7)
+        FoliaFocusSize.Small -> FoliaPiece(0, 0, 4, 4)
+        FoliaFocusSize.Medium -> FoliaPiece(0, 0, 6, 6)
+        FoliaFocusSize.Large -> FoliaPiece(0, 0, 7, 7)
     }
     FoliaFocusShape.Portrait -> when (size) {
-        FoliaFocusSize.Small -> FoliaSlot(0, 0, 3, 4)
-        FoliaFocusSize.Medium -> FoliaSlot(0, 0, 4, 6)
-        FoliaFocusSize.Large -> FoliaSlot(0, 0, 5, 7)
+        FoliaFocusSize.Small -> FoliaPiece(0, 0, 3, 4)
+        FoliaFocusSize.Medium -> FoliaPiece(0, 0, 4, 6)
+        FoliaFocusSize.Large -> FoliaPiece(0, 0, 5, 7)
     }
     FoliaFocusShape.Landscape -> when (size) {
-        FoliaFocusSize.Small -> FoliaSlot(0, 0, 5, 3)
-        FoliaFocusSize.Medium -> FoliaSlot(0, 0, 7, 5)
-        FoliaFocusSize.Large -> FoliaSlot(0, 0, 8, 6)
+        FoliaFocusSize.Small -> FoliaPiece(0, 0, 5, 3)
+        FoliaFocusSize.Medium -> FoliaPiece(0, 0, 7, 5)
+        FoliaFocusSize.Large -> FoliaPiece(0, 0, 8, 6)
     }
+    // The whole cover is the square card with the artwork fitted inside it instead of
+    // cropped to fill; the footprint the neighbours have to cover is the square's.
+    FoliaFocusShape.FullCover -> foliaHeroSlot(FoliaFocusShape.Square, size)
+    FoliaFocusShape.Heart -> FoliaHeart.piece
+    FoliaFocusShape.Circle -> FoliaCircle.piece
+}
+
+/** A silhouette hero and the neighbour regions that cover the rest of the block. */
+private data class FoliaSilhouette(val piece: FoliaPiece, val regions: List<FoliaPiece>)
+
+/**
+ * The heart the focused cover becomes, as the columns it fills on each block row: eight
+ * wide and six tall, centred in the block, with a two-cell dip between the lobes. The dip
+ * has to be two cells wide to stay symmetric, which is what makes eight the narrowest
+ * heart this block can draw, and the two-by-two pocket it leaves is a card of its own
+ * between the lobes.
+ */
+private val FoliaHeartSpans = listOf(
+    1 to 2..4,
+    1 to 7..9,
+    2 to 2..4,
+    2 to 7..9,
+    3 to 2..9,
+    4 to 3..8,
+    5 to 4..7,
+    6 to 5..6,
+)
+
+/**
+ * The circle the focused cover becomes: eight cells across and eight rows tall, so it is
+ * centred in the block exactly, with rows of four, six and then eight cells. Four corners
+ * of its box are left over, and each is an L-shaped neighbour.
+ */
+private val FoliaCircleSpans = listOf(
+    0 to 4..7,
+    1 to 3..8,
+    2 to 2..9,
+    3 to 2..9,
+    4 to 2..9,
+    5 to 2..9,
+    6 to 3..8,
+    7 to 4..7,
+)
+
+/**
+ * The heart's eleven neighbours, hand-written the way the Bento wall's focused block is.
+ * The complement of a silhouette cannot be cut out of rectangles by halving them the way
+ * a rectangular hero's can: the heart's sloping edge leaves pockets one and two cells
+ * wide. Two regions are therefore given as explicit cells -- one L on each side of the
+ * heart's point, whose two-by-two box shows three cells -- and the rest are rectangles.
+ * Heart and neighbours together cover the block exactly once; [foliaSilhouetteCover]
+ * checks that rather than trusting it.
+ */
+private val FoliaHeart = FoliaSilhouette(
+    piece = foliaSilhouettePiece(FoliaHeartSpans),
+    regions = listOf(
+        FoliaPiece(0, 0, FoliaBlockColumns, 1),
+        FoliaPiece(0, 7, FoliaBlockColumns, 1),
+        FoliaPiece(0, 1, 2, 6),
+        FoliaPiece(10, 1, 2, 6),
+        FoliaPiece(5, 1, 2, 2),
+        FoliaPiece(2, 4, 1, 3),
+        FoliaPiece(9, 4, 1, 3),
+        FoliaPiece(
+            3, 5, 2, 2,
+            cells = listOf(foliaCell(3, 5), foliaCell(3, 6), foliaCell(4, 6)),
+        ),
+        FoliaPiece(
+            7, 5, 2, 2,
+            cells = listOf(foliaCell(8, 5), foliaCell(7, 6), foliaCell(8, 6)),
+        ),
+    ),
+)
+
+/** The circle's neighbours: two side bands and the four corners its box leaves over. */
+private val FoliaCircle = FoliaSilhouette(
+    piece = foliaSilhouettePiece(FoliaCircleSpans),
+    regions = listOf(
+        FoliaPiece(0, 0, 2, FoliaBlockRows),
+        FoliaPiece(10, 0, 2, FoliaBlockRows),
+        FoliaPiece(
+            2, 0, 2, 2,
+            cells = listOf(foliaCell(2, 0), foliaCell(3, 0), foliaCell(2, 1)),
+        ),
+        FoliaPiece(
+            8, 0, 2, 2,
+            cells = listOf(foliaCell(8, 0), foliaCell(9, 0), foliaCell(9, 1)),
+        ),
+        FoliaPiece(
+            2, 6, 2, 2,
+            cells = listOf(foliaCell(2, 6), foliaCell(2, 7), foliaCell(3, 7)),
+        ),
+        FoliaPiece(
+            8, 6, 2, 2,
+            cells = listOf(foliaCell(9, 6), foliaCell(9, 7), foliaCell(8, 7)),
+        ),
+    ),
+)
+
+/** The hero a silhouette's row spans describe, with the block cells it fills. */
+private fun foliaSilhouettePiece(spans: List<Pair<Int, IntRange>>): FoliaPiece {
+    val firstColumn = spans.minOf { it.second.first }
+    val lastColumn = spans.maxOf { it.second.last }
+    val firstRow = spans.minOf { it.first }
+    val lastRow = spans.maxOf { it.first }
+    return FoliaPiece(
+        x = firstColumn,
+        y = firstRow,
+        columns = lastColumn - firstColumn + 1,
+        rows = lastRow - firstRow + 1,
+        cells = spans.flatMap { (row, columns) ->
+            columns.map { column -> foliaCell(column, row) }
+        },
+    )
+}
+
+private fun FoliaFocusShape.silhouette(): FoliaSilhouette? = when (this) {
+    FoliaFocusShape.Heart -> FoliaHeart
+    FoliaFocusShape.Circle -> FoliaCircle
+    else -> null
 }
 
 /**
@@ -126,15 +300,12 @@ internal fun foliaHeroYRange(heroColumns: Int, heroRows: Int): IntRange {
     return if (heroColumns >= FoliaBlockColumns) 1..(max - 1) else 0..max
 }
 
-/** One rectangle of a block cover, in block cells. */
-internal data class FoliaCellRect(val x: Int, val y: Int, val columns: Int, val rows: Int) {
-    val cells: Int get() = columns * rows
-}
-
-/** Where a preset's hero may sit, and how big it is, in block cells. */
+/**
+ * The hero a preset produces, and every origin it may take. A silhouette has exactly one
+ * origin in both directions: its outline is drawn for one place in the block.
+ */
 internal data class FoliaHeroCells(
-    val columns: Int,
-    val rows: Int,
+    val piece: FoliaPiece,
     val xs: IntRange,
     val ys: IntRange,
 )
@@ -174,7 +345,6 @@ object FoliaWallLayoutEngine {
         val safeGap = gapPx.coerceIn(0.5f, unit * 0.06f)
         val focusedIndex = focusedItemId?.let { id -> items.indexOfFirst { it.id == id } } ?: -1
         val focusedBlock = focusedIndex.takeIf { it >= 0 }?.div(FoliaItemsPerBlock)
-        val hero = foliaHeroSlot(focusShape, focusSize)
         val placements = ArrayList<FocusWallPlacement>(items.size)
 
         val blockCount = ceil(items.size / FoliaItemsPerBlock.toDouble()).toInt()
@@ -199,8 +369,8 @@ object FoliaWallLayoutEngine {
                     focusedSlotIndex = localFocusedIndex,
                     itemCount = itemCount,
                     seed = blockSeed xor items[focusedIndex].stableSeed,
-                    heroColumns = hero.columns,
-                    heroRows = hero.rows,
+                    shape = focusShape,
+                    size = focusSize,
                 )
             } else {
                 baseSlots.take(itemCount)
@@ -222,6 +392,9 @@ object FoliaWallLayoutEngine {
                     width = width,
                     height = height,
                     blockIndex = blockIndex,
+                    shape = slot.foliaShape(unit, safeGap),
+                    fitArtwork = itemIndex == focusedIndex &&
+                        focusShape == FoliaFocusShape.FullCover,
                 )
             }
         }
@@ -232,40 +405,50 @@ object FoliaWallLayoutEngine {
     }
 
     private fun focusedSlotsByItem(
-        baseSlots: List<FoliaSlot>,
+        baseSlots: List<FoliaPiece>,
         focusedSlotIndex: Int,
         itemCount: Int,
         seed: Int,
-        heroColumns: Int,
-        heroRows: Int,
-    ): List<FoliaSlot> {
+        shape: FoliaFocusShape,
+        size: FoliaFocusSize,
+    ): List<FoliaPiece> {
         // The hero keeps the configured focus shape, so the closest it can get to
         // "where the card already was" is to centre that shape on the card's own
         // centre and clamp it inside the block. A card in the middle of a block
         // therefore grows almost exactly in place; only a card that already sat in
-        // a corner still ends up in one.
+        // a corner still ends up in one. A silhouette cannot be re-cut for every
+        // slot, so it takes the one place it is drawn for instead.
+        val hero = foliaHeroSlot(shape, size)
         val originalFocusSlot = baseSlots[focusedSlotIndex]
-        val heroX = (originalFocusSlot.centerX - heroColumns / 2f)
-            .roundToInt()
-            .coerceIn(foliaHeroXRange(heroColumns, heroRows))
-        val heroY = (originalFocusSlot.centerY - heroRows / 2f)
-            .roundToInt()
-            .coerceIn(foliaHeroYRange(heroColumns, heroRows))
+        val heroX = if (shape.isSilhouette) {
+            hero.x
+        } else {
+            (originalFocusSlot.centerX - hero.columns / 2f)
+                .roundToInt()
+                .coerceIn(foliaHeroXRange(hero.columns, hero.rows))
+        }
+        val heroY = if (shape.isSilhouette) {
+            hero.y
+        } else {
+            (originalFocusSlot.centerY - hero.rows / 2f)
+                .roundToInt()
+                .coerceIn(foliaHeroYRange(hero.columns, hero.rows))
+        }
         val targetSlots = foliaFocusCover(
+            shape = shape,
+            size = size,
             heroX = heroX,
             heroY = heroY,
-            heroColumns = heroColumns,
-            heroRows = heroRows,
             variant = stableFoliaBucket(seed, 2),
         )
         // A hero whose complement cannot yield one slot per remaining item would
         // otherwise leave the assignment loop below with nothing to pick and crash
         // on a -1 index. Failing here instead names the shape that does not fit.
         require(targetSlots.size >= itemCount) {
-            "a ${heroColumns}x$heroRows hero cannot cover a $itemCount-item block"
+            "a $shape $size focus cannot cover a $itemCount-item block"
         }
 
-        val assignment = arrayOfNulls<FoliaSlot>(itemCount)
+        val assignment = arrayOfNulls<FoliaPiece>(itemCount)
         assignment[focusedSlotIndex] = targetSlots.first()
         val remainingItems = (0 until itemCount).filter { it != focusedSlotIndex }.toMutableSet()
         val remainingSlots = (1 until targetSlots.size).toMutableSet()
@@ -299,9 +482,58 @@ object FoliaWallLayoutEngine {
     }
 
     /**
-     * Builds an exact cover of the 12 x 8 block whose first slot is the
-     * [heroColumns] x [heroRows] hero at ([heroX], [heroY]). The hero's shape is
-     * fixed, so it is the rest of the block that has to move around it.
+     * Builds an exact cover of the 12 x 8 block whose first slot is the preset's hero.
+     * The hero's shape is fixed, so it is the rest of the block that has to move
+     * around it.
+     */
+    private fun foliaFocusCover(
+        shape: FoliaFocusShape,
+        size: FoliaFocusSize,
+        heroX: Int,
+        heroY: Int,
+        variant: Int,
+    ): List<FoliaPiece> {
+        val silhouette = shape.silhouette()
+        if (silhouette != null) return foliaSilhouetteCover(shape, silhouette, variant)
+        return foliaRectCover(foliaHeroSlot(shape, size), heroX, heroY, variant)
+    }
+
+    /**
+     * The cover of a silhouette hero, whose neighbours are the hand-written regions
+     * beside its mask. Its outline leaves pockets no halving can produce, so unlike a
+     * rectangle's it is authored rather than generated -- and authored twice: once as
+     * the hero's cells and once as the regions beside them.
+     *
+     * Those two halves have to add up to the block and never overlap, and nothing at
+     * the call site can check that, so this does: a mistyped cell becomes a loud
+     * failure here instead of a block with a hole in it on the phone. The check is 96
+     * cells and runs only while a silhouette block is laid out.
+     */
+    private fun foliaSilhouetteCover(
+        shape: FoliaFocusShape,
+        silhouette: FoliaSilhouette,
+        variant: Int,
+    ): List<FoliaPiece> {
+        val covered = HashSet<Int>(FoliaBlockColumns * FoliaBlockRows)
+        (listOf(silhouette.piece) + silhouette.regions).forEach { piece ->
+            piece.filledCells.forEach { cell ->
+                require(covered.add(cell)) {
+                    "$shape covers cell $cell twice"
+                }
+            }
+        }
+        require(covered.size == FoliaBlockColumns * FoliaBlockRows) {
+            "$shape covers ${covered.size} of the block's ${FoliaBlockColumns * FoliaBlockRows} cells"
+        }
+        val counts = allocateFoliaPieces(silhouette.regions, FoliaItemsPerBlock - 1, variant)
+        return listOf(silhouette.piece) + silhouette.regions.flatMapIndexed { index, region ->
+            splitFoliaRegion(region, counts[index], variant + index)
+        }
+    }
+
+    /**
+     * Builds an exact cover of the block whose first slot is the [hero] rectangle at
+     * ([heroX], [heroY]).
      *
      * The complement of any rectangular window is four rectangles: a strip above
      * it, a strip below it, and a band on each side that spans only the hero's own
@@ -309,30 +541,29 @@ object FoliaWallLayoutEngine {
      * pieces that stay close to square, and a hero in a corner reproduces the
      * tightly packed corner arrangement the wall used before the hero could move.
      */
-    private fun foliaFocusCover(
+    private fun foliaRectCover(
+        slot: FoliaPiece,
         heroX: Int,
         heroY: Int,
-        heroColumns: Int,
-        heroRows: Int,
         variant: Int,
-    ): List<FoliaSlot> {
-        require(heroX in 0..FoliaBlockColumns - heroColumns) { "heroX out of block" }
-        require(heroY in 0..FoliaBlockRows - heroRows) { "heroY out of block" }
-        val hero = FoliaSlot(heroX, heroY, heroColumns, heroRows)
+    ): List<FoliaPiece> {
+        require(heroX in 0..FoliaBlockColumns - slot.columns) { "heroX out of block" }
+        require(heroY in 0..FoliaBlockRows - slot.rows) { "heroY out of block" }
+        val hero = slot.copy(x = heroX, y = heroY)
         val regions = listOf(
-            FoliaSlot(0, 0, FoliaBlockColumns, heroY),
-            FoliaSlot(
+            FoliaPiece(0, 0, FoliaBlockColumns, heroY),
+            FoliaPiece(
                 x = 0,
-                y = heroY + heroRows,
+                y = heroY + hero.rows,
                 columns = FoliaBlockColumns,
-                rows = FoliaBlockRows - heroY - heroRows,
+                rows = FoliaBlockRows - heroY - hero.rows,
             ),
-            FoliaSlot(0, heroY, heroX, heroRows),
-            FoliaSlot(
-                x = heroX + heroColumns,
+            FoliaPiece(0, heroY, heroX, hero.rows),
+            FoliaPiece(
+                x = heroX + hero.columns,
                 y = heroY,
-                columns = FoliaBlockColumns - heroX - heroColumns,
-                rows = heroRows,
+                columns = FoliaBlockColumns - heroX - hero.columns,
+                rows = hero.rows,
             ),
         ).filterNot { it.columns <= 0 || it.rows <= 0 }
 
@@ -350,10 +581,9 @@ object FoliaWallLayoutEngine {
     internal fun heroCells(shape: FoliaFocusShape, size: FoliaFocusSize): FoliaHeroCells {
         val hero = foliaHeroSlot(shape, size)
         return FoliaHeroCells(
-            columns = hero.columns,
-            rows = hero.rows,
-            xs = foliaHeroXRange(hero.columns, hero.rows),
-            ys = foliaHeroYRange(hero.columns, hero.rows),
+            piece = hero,
+            xs = if (shape.isSilhouette) hero.x..hero.x else foliaHeroXRange(hero.columns, hero.rows),
+            ys = if (shape.isSilhouette) hero.y..hero.y else foliaHeroYRange(hero.columns, hero.rows),
         )
     }
 
@@ -368,17 +598,14 @@ object FoliaWallLayoutEngine {
         heroX: Int,
         heroY: Int,
         variant: Int,
-    ): List<FoliaCellRect> {
-        val hero = foliaHeroSlot(shape, size)
-        return foliaFocusCover(heroX, heroY, hero.columns, hero.rows, variant)
-            .map { FoliaCellRect(it.x, it.y, it.columns, it.rows) }
-    }
+    ): List<FoliaPiece> = foliaFocusCover(shape, size, heroX, heroY, variant)
 
     /**
      * Hands out [budget] pieces over [regions] in proportion to their area, one at
      * a time, always to whichever region is furthest below its share. The total is
      * therefore exact, and no region is asked for more pieces than it has cells
-     * along its longer side -- which is what keeps slivers out.
+     * along its longer side, nor more than it has cells for at
+     * [FoliaMinPieceCells] apiece -- which is what keeps slivers out.
      *
      * A region that reaches its cap stops taking pieces, so a budget the regions
      * cannot hold comes back short rather than overfilling one of them. The caller
@@ -386,12 +613,23 @@ object FoliaWallLayoutEngine {
      * a phone.
      */
     private fun allocateFoliaPieces(
-        regions: List<FoliaSlot>,
+        regions: List<FoliaPiece>,
         budget: Int,
         variant: Int,
     ): List<Int> {
         val areas = regions.map { it.area }
-        val caps = regions.map { minOf(it.area, maxOf(it.columns, it.rows)) }
+        val caps = regions.map { region ->
+            when {
+                // A card that is not a rectangle cannot be halved into two cards
+                // without tearing its shape in two, so it is never split.
+                !region.isRectangular -> 1
+                else -> minOf(
+                    region.area,
+                    maxOf(region.columns, region.rows),
+                    region.area / FoliaMinPieceCells,
+                )
+            }
+        }
         val totalArea = areas.sum()
         val counts = IntArray(regions.size) { 1 }
         val tieBreak = variant % regions.size
@@ -420,7 +658,7 @@ object FoliaWallLayoutEngine {
      * keeps both halves non-empty and keeps repeating until every piece is one
      * rectangle, so the result always partitions [region] exactly.
      */
-    private fun splitFoliaRegion(region: FoliaSlot, pieces: Int, axisSeed: Int): List<FoliaSlot> {
+    private fun splitFoliaRegion(region: FoliaPiece, pieces: Int, axisSeed: Int): List<FoliaPiece> {
         if (pieces <= 1) return listOf(region)
         val splitByRows = when {
             region.columns > region.rows -> false
@@ -434,27 +672,72 @@ object FoliaWallLayoutEngine {
         val secondPieces = pieces - firstPieces
         val cut = (extent * firstPieces.toDouble() / pieces).roundToInt().coerceIn(1, extent - 1)
         val first = if (splitByRows) {
-            FoliaSlot(region.x, region.y, region.columns, cut)
+            FoliaPiece(region.x, region.y, region.columns, cut)
         } else {
-            FoliaSlot(region.x, region.y, cut, region.rows)
+            FoliaPiece(region.x, region.y, cut, region.rows)
         }
         val second = if (splitByRows) {
-            FoliaSlot(region.x, region.y + cut, region.columns, region.rows - cut)
+            FoliaPiece(region.x, region.y + cut, region.columns, region.rows - cut)
         } else {
-            FoliaSlot(region.x + cut, region.y, region.columns - cut, region.rows)
+            FoliaPiece(region.x + cut, region.y, region.columns - cut, region.rows)
         }
         return splitFoliaRegion(first, firstPieces, axisSeed + 1) +
             splitFoliaRegion(second, secondPieces, axisSeed + 1)
     }
 
-    private fun movementCost(from: FoliaSlot, to: FoliaSlot): Float {
+    /**
+     * Where a shaped card's cells sit inside it, in its own 0..1 box, or null for a card
+     * that is a plain rectangle.
+     *
+     * Each cell keeps the block's grid and is pulled in by half a gutter on every side
+     * that faces another card's cell, and not pulled in where the cell beside it belongs
+     * to this same card. The gutter between two cards therefore comes out exactly [gap]
+     * everywhere; the outline of a silhouette lands exactly on its own box, so it neither
+     * spills onto its neighbours nor floats inside itself; and the cells of one card meet
+     * edge to edge, leaving no seam across the artwork.
+     *
+     * Both the cells and the card's own box are measured from the block's corner, so the
+     * two are in one coordinate system: the block's place on the wall cancels out, and
+     * this is the same box the placement is built from.
+     */
+    private fun FoliaPiece.foliaShape(unit: Float, gap: Float): FocusWallShape? {
+        if (isRectangular) return null
+        val left = x * unit + gap / 2f
+        val top = y * unit + gap / 2f
+        val width = columns * unit - gap
+        val height = rows * unit - gap
+        val filled = cells.toHashSet()
+        fun isOtherCard(column: Int, row: Int): Boolean =
+            column !in 0 until FoliaBlockColumns ||
+                row !in 0 until FoliaBlockRows ||
+                foliaCell(column, row) !in filled
+
+        return FocusWallShape(
+            rects = cells.map { cell ->
+                val column = cell % FoliaBlockColumns
+                val row = cell / FoliaBlockColumns
+                val cellLeft = if (isOtherCard(column - 1, row)) gap / 2f else 0f
+                val cellTop = if (isOtherCard(column, row - 1)) gap / 2f else 0f
+                val cellRight = unit - if (isOtherCard(column + 1, row)) gap / 2f else 0f
+                val cellBottom = unit - if (isOtherCard(column, row + 1)) gap / 2f else 0f
+                Rect(
+                    left = (column * unit + cellLeft - left) / width,
+                    top = (row * unit + cellTop - top) / height,
+                    right = (column * unit + cellRight - left) / width,
+                    bottom = (row * unit + cellBottom - top) / height,
+                )
+            },
+        )
+    }
+
+    private fun movementCost(from: FoliaPiece, to: FoliaPiece): Float {
         val dx = from.centerX - to.centerX
         val dy = from.centerY - to.centerY
         val aspectPenalty = abs(from.aspectRatio - to.aspectRatio) * 0.35f
         return dx * dx + dy * dy + aspectPenalty
     }
 
-    private fun FoliaSlot.mirrored(horizontal: Boolean, vertical: Boolean): FoliaSlot = copy(
+    private fun FoliaPiece.mirrored(horizontal: Boolean, vertical: Boolean): FoliaPiece = copy(
         x = if (horizontal) FoliaBlockColumns - x - columns else x,
         y = if (vertical) FoliaBlockRows - y - rows else y,
     )

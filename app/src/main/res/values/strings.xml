@@ -20,6 +20,10 @@
     <string name="focus_shape_square">正方形</string>
     <string name="focus_shape_portrait">竖矩形</string>
     <string name="focus_shape_landscape">横矩形</string>
+    <string name="focus_shape_full">完整封面</string>
+    <string name="focus_shape_heart">心形</string>
+    <string name="focus_shape_circle">圆形</string>
+    <string name="clear_focus">取消聚焦</string>
     <string name="density_small">小</string>
     <string name="density_medium">中</string>
     <string name="density_large">大</string>

@@ -35,9 +35,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Circle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CropLandscape
 import androidx.compose.material.icons.filled.CropPortrait
 import androidx.compose.material.icons.filled.CropSquare
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FitScreen
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -67,9 +71,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathOperation
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.positionChanged
@@ -84,7 +94,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -339,7 +351,12 @@ private fun WallToolsOverlay(
                                 WallTool(
                                     icon = Icons.Default.AspectRatio,
                                     labelRes = R.string.wall_focus_size,
-                                    enabled = true,
+                                    // The silhouettes are drawn at one size: there is
+                                    // no second size for a heart or a circle to grow
+                                    // into, so the row shows the setting greyed out
+                                    // rather than opening a page that cannot change
+                                    // anything.
+                                    enabled = !viewportState.focusShape.isSilhouette,
                                     onClick = { page = WallPanelPage.FocusSize },
                                     valueRes = viewportState.focusSize.labelResource(),
                                 ),
@@ -482,7 +499,9 @@ private fun WallToolRow(tool: WallTool) {
             )
             tool.valueRes != null -> Text(
                 text = stringResource(tool.valueRes),
-                color = Color.White.copy(alpha = 0.7f),
+                // Dimmed with the row it belongs to: an unavailable setting's value is
+                // not something to read as actionable either.
+                color = Color.White.copy(alpha = 0.7f * contentAlpha),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -775,9 +794,12 @@ private fun FocusWallCanvas(
                             heightPx = placement.height,
                             zoom = artworkScale,
                         ),
+                        silhouette = placement.shape,
+                        fitArtwork = placement.fitArtwork,
                         onClick = { onCardClick(item) },
                         onPlayPause = { onPlayPause(item) },
                         onSeekTo = onSeekTo,
+                        onClearFocus = { onFocusedItemChange(null) },
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer {
@@ -820,9 +842,18 @@ private fun FocusCoverCard(
     isPlaying: Boolean,
     playbackState: PlaybackState,
     decodeSize: IntSize,
+    /**
+     * The silhouette this card is drawn as, or null for a plain rectangle. A shaped card
+     * is still placed and animated by its rectangle; this only changes what it paints and
+     * where it can be touched.
+     */
+    silhouette: FocusWallShape?,
+    /** Letterbox the artwork instead of cropping it, so none of it is hidden. */
+    fitArtwork: Boolean,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
+    onClearFocus: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current.applicationContext
@@ -858,7 +889,11 @@ private fun FocusCoverCard(
         label = "focusBorder",
     )
     val borderWidth by animateFloatAsState(if (isFocused) 2.2f else 0f, label = "focusBorderWidth")
-    val shape = RoundedCornerShape(if (isFocused) 12.dp else 8.dp)
+    // A silhouette is clipped to its own cells, so the artwork inside it is cut to the
+    // shape and a tap in the corners of its rectangle never reaches the card. Every other
+    // card keeps the rounded rectangle the wall has always drawn.
+    val shape: Shape = silhouette?.let(::FocusWallCellShape)
+        ?: RoundedCornerShape(if (isFocused) 12.dp else 8.dp)
 
     Surface(
         modifier = modifier
@@ -883,7 +918,9 @@ private fun FocusCoverCard(
                     model = artworkRequest,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
+                    // 完整封面 exists to show the whole cover, so it letterboxes the
+                    // artwork in the card the other presets crop to fill.
+                    contentScale = if (fitArtwork) ContentScale.Fit else ContentScale.Crop,
                 )
             }
 
@@ -980,6 +1017,10 @@ private fun FocusCoverCard(
                 // and tapping the focused cover already resolves to the same
                 // activation the card used to spell out, so a focused folder shows
                 // nothing but its own title and counts.
+                //
+                // The row that carries the play button carries the way out of focus
+                // too, at its far end: the button pair then reads as one row of
+                // actions, and neither sits on top of the title above it.
                 if (isFocused && item.type == LibraryItemType.Audio) {
                     if (isCurrent) {
                         Spacer(Modifier.height(8.dp))
@@ -989,6 +1030,7 @@ private fun FocusCoverCard(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         FilledIconButton(onClick = onPlayPause) {
                             Icon(
@@ -998,10 +1040,79 @@ private fun FocusCoverCard(
                                 ),
                             )
                         }
+                        ClearFocusButton(onClick = onClearFocus)
+                    }
+                } else if (isFocused) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        ClearFocusButton(onClick = onClearFocus)
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * The focused card's way out of focus, at the card's bottom end.
+ *
+ * Icon only: the card is a picture, so a label would have to sit on top of it, and the
+ * close glyph already carries the meaning. Removing focus rather than the item is the
+ * only thing it can do, so there is no destructive action to guard.
+ */
+@Composable
+private fun ClearFocusButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier
+            .size(38.dp)
+            .background(Color(0xB814171D), CircleShape),
+    ) {
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = stringResource(R.string.clear_focus),
+            modifier = Modifier.size(20.dp),
+            tint = Color.White,
+        )
+    }
+}
+
+/**
+ * A card drawn as the cells the wall gave it, rather than as a rectangle.
+ *
+ * The cells are merged into one path before it is handed over: stroking them separately
+ * would trace the seams between the cells as well as the silhouette's own outline, and
+ * a silhouette must show one edge, not a grid. The cells meet exactly edge to edge -- the
+ * layout gives adjacent cells of one card a shared edge -- so the merge is a real union
+ * rather than an approximation.
+ *
+ * The shape is scaled to whatever box it is asked about, which is the card's own measured
+ * size, so the same shape survives the card being animated between two sizes.
+ */
+private class FocusWallCellShape(private val cells: FocusWallShape) : Shape {
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density,
+    ): Outline {
+        if (cells.rects.isEmpty()) return Outline.Rectangle(Rect(0f, 0f, size.width, size.height))
+        val cellPath = Path()
+        cells.rects.forEach { rect ->
+            cellPath.addRect(
+                Rect(
+                    left = rect.left * size.width,
+                    top = rect.top * size.height,
+                    right = rect.right * size.width,
+                    bottom = rect.bottom * size.height,
+                ),
+            )
+        }
+        return Outline.Generic(
+            Path().apply { op(cellPath, cellPath, PathOperation.Union) },
+        )
     }
 }
 
@@ -1085,6 +1196,9 @@ private fun FoliaFocusShape.labelResource(): Int = when (this) {
     FoliaFocusShape.Square -> R.string.focus_shape_square
     FoliaFocusShape.Portrait -> R.string.focus_shape_portrait
     FoliaFocusShape.Landscape -> R.string.focus_shape_landscape
+    FoliaFocusShape.FullCover -> R.string.focus_shape_full
+    FoliaFocusShape.Heart -> R.string.focus_shape_heart
+    FoliaFocusShape.Circle -> R.string.focus_shape_circle
 }
 
 /** A glyph whose own proportions say which shape the option picks. */
@@ -1092,4 +1206,7 @@ private fun FoliaFocusShape.icon(): ImageVector = when (this) {
     FoliaFocusShape.Square -> Icons.Default.CropSquare
     FoliaFocusShape.Portrait -> Icons.Default.CropPortrait
     FoliaFocusShape.Landscape -> Icons.Default.CropLandscape
+    FoliaFocusShape.FullCover -> Icons.Default.FitScreen
+    FoliaFocusShape.Heart -> Icons.Default.Favorite
+    FoliaFocusShape.Circle -> Icons.Default.Circle
 }

@@ -99,11 +99,30 @@ and gesture semantics below.
 The Folia focus shape and size are per-folder settings, offered from the wall's
 tools panel beside the density control. Both default to the wall's original
 behaviour, a square 6 x 6 hero, so a folder that never opens the panel looks
-exactly as it always has. Shapes are square, portrait and landscape; sizes are
-three presets, and the largest of each is capped so the eleven neighbours around
-the hero still have room to be cards rather than slivers. The Bento wall has no
-such setting: its focused block is a hand-written template, not a generated
-cover.
+exactly as it always has. There are six shapes -- square, portrait, landscape,
+full cover, heart and circle -- and three sizes, and the largest size of each
+rectangle is capped so the eleven neighbours around the hero still have room to
+be cards rather than slivers. The Bento wall has no such setting: its focused
+block is a hand-written template, not a generated cover.
+
+Two of the six are silhouettes rather than rectangles. The heart and the circle
+are the focused card itself, drawn as the block cells that spell the shape, with
+the eleven neighbours tiling everything else in the block exactly; none of them
+is a picture inside a cut-out outline. A silhouette is written for one place in
+the block and has one size, so it sits where it is rather than following the slot
+the tapped card occupied, and the size control does not apply to it -- the size
+row is offered disabled while a silhouette is selected, in keeping with the rule
+that an action which cannot be honoured is shown disabled rather than as a tap
+that does nothing.
+
+Full cover is the square preset with the artwork fitted inside the card instead
+of cropped to fill it: the whole cover is visible, letterboxed, whatever its own
+proportions are. The size presets still apply to it.
+
+The focused card carries an icon-only action at its bottom-end corner that clears
+focus and returns the block to its ordinary mosaic. Focus and playback are
+independent states, so the wall needs a way back out that does not depend on
+tapping another cover.
 
 - A card can represent either a folder or an audio file; a small overlay glyph
   distinguishes the type.

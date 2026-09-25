@@ -104,6 +104,20 @@
       would have hit. 93/93 tests pass, lint 0 errors with the same 12 warnings, and
       a clean `assembleDebug` produces the APK. Not installed -- the size presets
       need the owner's eye on the phone, and the heart silhouette is the next slice.
+- [x] Add the heart and circle silhouettes, a sixth "full cover" shape and an
+      icon-only way out of focus. A silhouette is the focused card itself drawn as
+      the block cells that spell the shape -- a pixel outline, not an outline over a
+      picture -- with the eleven neighbours tiling the rest of the block exactly; it
+      is written for one place and one size, so it ignores the tapped slot and the
+      size control (shown disabled) unlike a rectangular hero. The two new shapes
+      are appended to the enum so persisted ordinals keep their meaning. Full cover
+      is the square preset drawn with the artwork fitted instead of cropped, so it
+      keeps the square's footprint and the size control. The unfocus button is a
+      close glyph in a 38 dp disc at the focused card's bottom-end corner, with no
+      label. 97/97 tests pass, lint 0 errors with the same 12 warnings, a clean
+      `assembleDebug` produces the APK. Not installed -- whether a silhouette reads
+      as the shape it is named for, and whether taps in its bounding-box corners
+      reach the card underneath, need the owner's eye on the phone.
 - [ ] Review focus-wall V2, notification permission and paused task-swipe behavior
       on the phone.
 - [x] Review the new Folia-style wall's focus transitions on the phone. Verified by

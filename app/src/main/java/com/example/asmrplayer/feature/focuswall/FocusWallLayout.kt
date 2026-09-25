@@ -1,5 +1,7 @@
 package com.example.asmrplayer.feature.focuswall
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.IntSize
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -35,7 +37,28 @@ data class FocusWallPlacement(
     val width: Float,
     val height: Float,
     val blockIndex: Int,
+    /**
+     * Set when the card fills only part of its own rectangle -- a focused cover that is a
+     * silhouette rather than a rectangle. The card is still placed and animated by its
+     * rectangle; the silhouette decides what it paints and where it can be touched.
+     */
+    val shape: FocusWallShape? = null,
+    /**
+     * Letterbox the whole artwork inside the card instead of cropping it to fill. Set by
+     * the 完整封面 preset, whose point is that no part of the cover is hidden.
+     */
+    val fitArtwork: Boolean = false,
 )
+
+/**
+ * A card that is not a plain rectangle: the cells it fills, as rectangles in the card's
+ * own 0..1 box.
+ *
+ * The cells keep the block's grid, so a silhouette is one card with a pixel outline
+ * rather than a picture with a mask over it. [rects] is only ever read to build a path.
+ */
+@Immutable
+data class FocusWallShape(val rects: List<Rect>)
 
 private data class BlockSlot(
     val x: Int,
