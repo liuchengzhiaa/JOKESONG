@@ -105,6 +105,7 @@ import coil3.request.ImageRequest
 import coil3.size.Precision
 import com.example.asmrplayer.R
 import com.example.asmrplayer.core.artwork.CoverAccentLoader
+import com.example.asmrplayer.core.artwork.CoverFacts
 import com.example.asmrplayer.core.media.PlaybackState
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
@@ -586,6 +587,15 @@ private fun FocusWallCanvas(
         val layoutItems = remember(items) {
             items.map { FocusWallLayoutItem(it.id, it.paletteSeed) }
         }
+        // The focused cover is read once, here, rather than inside its card: its
+        // proportions decide the hero's shape while the block is being laid out, and the
+        // accent that comes back with them is what the card is outlined in. Nothing else
+        // on the wall pays the decode.
+        val context = LocalContext.current.applicationContext
+        val focusedArtworkUri = items.firstOrNull { it.id == focusedItemId }?.artworkUri
+        val focusedCoverFacts by produceState<CoverFacts?>(null, focusedArtworkUri) {
+            value = CoverAccentLoader.resolve(context, focusedArtworkUri)
+        }
         val placements = remember(
             layoutItems,
             viewportWidth,
@@ -595,6 +605,7 @@ private fun FocusWallCanvas(
             viewportState.focusShapeOrdinal,
             viewportState.focusSizeOrdinal,
             focusedItemId,
+            focusedCoverFacts,
             style,
             wallGapPx,
         ) {
@@ -618,6 +629,7 @@ private fun FocusWallCanvas(
                     gapPx = wallGapPx,
                     focusShape = viewportState.focusShape,
                     focusSize = viewportState.focusSize,
+                    focusArtworkAspect = focusedCoverFacts?.aspect,
                 )
             }
         }
@@ -796,6 +808,7 @@ private fun FocusWallCanvas(
                         ),
                         silhouette = placement.shape,
                         fitArtwork = placement.fitArtwork,
+                        coverAccentArgb = if (isFocused) focusedCoverFacts?.accentArgb else null,
                         onClick = { onCardClick(item) },
                         onPlayPause = { onPlayPause(item) },
                         onSeekTo = onSeekTo,
@@ -850,13 +863,18 @@ private fun FocusCoverCard(
     silhouette: FocusWallShape?,
     /** Letterbox the artwork instead of cropping it, so none of it is hidden. */
     fitArtwork: Boolean,
+    /**
+     * The accent sampled from this card's own cover, or null when it is not the focused
+     * card or its artwork held no colour worth sampling. The wall reads the focused cover
+     * once for the whole block, so the card is handed the colour rather than loading it.
+     */
+    coverAccentArgb: Int?,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onClearFocus: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current.applicationContext
     val platformContext = LocalPlatformContext.current
     // The card is composed at its zoom-1 layout size and then magnified by the canvas,
     // so it asks for artwork at the size it will actually be painted at. Layout
@@ -872,18 +890,7 @@ private fun FocusCoverCard(
                 .build()
         }
     }
-    val sampledAccentArgb by produceState<Int?>(
-        null,
-        item.artworkUri,
-        isFocused,
-    ) {
-        value = if (isFocused) {
-            CoverAccentLoader.resolve(context, item.artworkUri)
-        } else {
-            null
-        }
-    }
-    val coverAccent = sampledAccentArgb?.let { Color(it) } ?: artworkAccent(item.paletteSeed)
+    val coverAccent = coverAccentArgb?.let { Color(it) } ?: artworkAccent(item.paletteSeed)
     val borderColor by animateColorAsState(
         targetValue = if (isFocused) coverAccent.copy(alpha = 0.76f) else Color.Transparent,
         label = "focusBorder",

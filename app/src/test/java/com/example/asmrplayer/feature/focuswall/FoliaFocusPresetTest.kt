@@ -20,59 +20,12 @@ class FoliaFocusPresetTest {
                 hero.xs.forEach { heroX ->
                     hero.ys.forEach { heroY ->
                         (0..1).forEach { variant ->
-                            val pieces = FoliaWallLayoutEngine.focusCoverCells(shape, size, heroX, heroY, variant)
-                            val where = "$shape/$size at ($heroX, $heroY) variant $variant"
-
-                            assertEquals("$where did not produce twelve slots", 12, pieces.size)
-                            assertEquals(
-                                "$where did not put the hero first",
-                                hero.piece.copy(x = heroX, y = heroY),
-                                pieces.first(),
+                            assertCover(
+                                pieces = FoliaWallLayoutEngine
+                                    .focusCoverCells(shape, size, heroX, heroY, variant),
+                                hero = hero.piece.copy(x = heroX, y = heroY),
+                                where = "$shape/$size at ($heroX, $heroY) variant $variant",
                             )
-
-                            val cells = mutableSetOf<Pair<Int, Int>>()
-                            var cellCount = 0
-                            pieces.forEach { piece ->
-                                assertTrue("$where produced an empty piece", piece.area > 0)
-                                assertTrue(
-                                    "$where made a ${piece.columns}x${piece.rows} piece",
-                                    piece.columns > 0 && piece.rows > 0,
-                                )
-                                assertTrue(
-                                    "$where placed a piece outside the block",
-                                    piece.x >= 0 && piece.y >= 0 &&
-                                        piece.x + piece.columns <= BlockColumns &&
-                                        piece.y + piece.rows <= BlockRows,
-                                )
-                                val covered = piece.coveredCells()
-                                // A shaped piece draws the cells it lists, so a cell it
-                                // lists outside its own box would be drawn off its own
-                                // card. Rectangles have no cell list, so this is only a
-                                // statement about the shaped ones.
-                                covered.forEach { (x, y) ->
-                                    assertTrue(
-                                        "$where listed a cell outside the ${piece.columns}x${piece.rows} box",
-                                        x in piece.x until piece.x + piece.columns &&
-                                            y in piece.y until piece.y + piece.rows,
-                                    )
-                                }
-                                cellCount += covered.size
-                                covered.forEach { cell ->
-                                    assertTrue("$where stacked two cards on $cell", cells.add(cell))
-                                }
-                            }
-                            assertEquals("$where did not cover the block", BlockCells, cellCount)
-                            assertEquals("$where did not cover the block", BlockCells, cells.size)
-
-                            // A neighbour of one or two cells reads as a sliver beside
-                            // the hero rather than as a card, which is what the sizes
-                            // and the silhouettes both stop short of.
-                            pieces.drop(1).forEach { piece ->
-                                assertTrue(
-                                    "$where made a ${piece.columns}x${piece.rows} sliver",
-                                    piece.area >= MinNeighbourCells,
-                                )
-                            }
                         }
                     }
                 }
@@ -98,8 +51,11 @@ class FoliaFocusPresetTest {
                 val hero = FoliaWallLayoutEngine.heroCells(shape, size).piece
                 val where = "$shape/$size is ${hero.columns}x${hero.rows}"
                 when (shape) {
-                    FoliaFocusShape.Square, FoliaFocusShape.FullCover ->
-                        assertEquals(where, hero.columns, hero.rows)
+                    FoliaFocusShape.Square -> assertEquals(where, hero.columns, hero.rows)
+                    // 完整封面 is left out on purpose: its proportions are the cover's,
+                    // not the preset's. Without a cover to read they fall back to the
+                    // square, which is checked on its own below.
+                    FoliaFocusShape.FullCover -> Unit
                     FoliaFocusShape.Portrait -> assertTrue(where, hero.rows > hero.columns)
                     FoliaFocusShape.Landscape -> assertTrue(where, hero.columns > hero.rows)
                     FoliaFocusShape.Heart, FoliaFocusShape.Circle ->
@@ -110,19 +66,124 @@ class FoliaFocusPresetTest {
     }
 
     /**
-     * 完整封面 shows the whole artwork but is otherwise the square preset, so it has to
-     * have the square's footprint: it is the same card, drawn with the artwork fitted
-     * inside it instead of cropped to fill.
+     * 完整封面 draws the artwork inside a card cut to the artwork's own shape, so its hero
+     * is not a preset at all: it is whichever rectangle the block can cover comes closest
+     * to the cover's proportions. The card is then still letterboxed by whatever is left
+     * over, which is why the search only has to come near rather than match.
      */
     @Test
-    fun `the full-cover shape is the square presets`() {
+    fun `the full-cover hero is the closest rectangle to the cover's shape`() {
+        CoverAspects.forEach { aspect ->
+            FoliaFocusSize.entries.forEach { size ->
+                val hero = FoliaWallLayoutEngine
+                    .heroCells(FoliaFocusShape.FullCover, size, aspect)
+                    .piece
+                val error = maxOf(hero.aspectRatio, aspect) / minOf(hero.aspectRatio, aspect)
+
+                assertTrue(
+                    "完整封面/$size put a $aspect cover in a ${hero.columns}x${hero.rows} card",
+                    error <= MaxAspectError,
+                )
+                assertTrue(
+                    "完整封面/$size chose a ${hero.columns}x${hero.rows} card the block cannot cover",
+                    hero in FoliaHeroRectangles,
+                )
+            }
+        }
+    }
+
+    /**
+     * A square cover -- and a cover the wall has not read yet, which is the frame or two
+     * between focusing a card and its artwork being decoded -- still gets exactly the
+     * square presets, so the wall does not shift under a folder that was already using
+     * 完整封面 before it could follow a cover's shape.
+     */
+    @Test
+    fun `a square or unread cover keeps the square presets`() {
         FoliaFocusSize.entries.forEach { size ->
+            val square = FoliaWallLayoutEngine.heroCells(FoliaFocusShape.Square, size).piece
             assertEquals(
-                "完整封面/$size does not match the square preset",
-                FoliaWallLayoutEngine.heroCells(FoliaFocusShape.Square, size).piece,
-                FoliaWallLayoutEngine.heroCells(FoliaFocusShape.FullCover, size).piece,
+                "完整封面/$size is not the square preset before the cover has been read",
+                square,
+                FoliaWallLayoutEngine.heroCells(FoliaFocusShape.FullCover, size, null).piece,
+            )
+            assertEquals(
+                "完整封面/$size is not the square preset for a square cover",
+                square,
+                FoliaWallLayoutEngine.heroCells(FoliaFocusShape.FullCover, size, 1f).piece,
             )
         }
+    }
+
+    /**
+     * The size preset still chooses the hero of a full cover: it narrows the search to
+     * areas around the one its square preset would have taken, and the shape picks within
+     * that. So the card grows with the size wherever the block holds more than one
+     * rectangle of the cover's shape.
+     */
+    @Test
+    fun `the size preset still chooses the full-cover hero`() {
+        CoverAspects.filter { it != 1f / 2f }.forEach { aspect ->
+            val areas = FoliaFocusSize.entries.map { size ->
+                FoliaWallLayoutEngine.heroCells(FoliaFocusShape.FullCover, size, aspect).piece.area
+            }
+
+            assertEquals("完整封面/$aspect does not grow with the size", areas.sorted(), areas)
+            assertNotEquals("完整封面/$aspect ignores the size preset", areas.first(), areas.last())
+        }
+    }
+
+    /**
+     * The other side of that trade: for a shape the block only holds small, the shape wins
+     * over the size. A one-to-two cover has one rectangle within tolerance -- 3 x 6, and
+     * the largest is 4 x 7 at 13 per cent off -- so all three sizes give the same hero
+     * rather than a large card the cover would sit letterboxed inside. This is the
+     * documented trade-off, and it is pinned here so it cannot change quietly.
+     */
+    @Test
+    fun `a shape the block has no large rectangle for keeps the size of its shape`() {
+        val heroes = FoliaFocusSize.entries.map { size ->
+            FoliaWallLayoutEngine.heroCells(FoliaFocusShape.FullCover, size, 1f / 2f).piece
+        }
+
+        assertEquals("完整封面 no longer follows a one-to-two cover exactly", listOf(FoliaPiece(0, 0, 3, 6)), heroes.distinct())
+    }
+
+    /**
+     * Every rectangle the full-cover rule can return has to be one the block can still
+     * cover: the hero's shape and the area left for eleven neighbours are one decision,
+     * and the rule chooses the shape without knowing that. The table is a measured edge
+     * rather than a formula, so this re-derives it instead of trusting it.
+     */
+    @Test
+    fun `every rectangle a full cover can choose covers its block exactly`() {
+        FoliaHeroRectangles.forEach { hero ->
+            val where = "完整封面 ${hero.columns}x${hero.rows}"
+            assertTrue("$where is not a rectangle the block can hold", hero.area in 1..BlockCells)
+            foliaHeroXRange(hero.columns, hero.rows).forEach { heroX ->
+                foliaHeroYRange(hero.columns, hero.rows).forEach { heroY ->
+                    (0..1).forEach { variant ->
+                        val pieces = FoliaWallLayoutEngine
+                            .coverCellsForHero(hero, heroX, heroY, variant)
+                        assertCover(pieces, hero.copy(x = heroX, y = heroY), "$where at ($heroX, $heroY) v$variant")
+                    }
+                }
+            }
+        }
+    }
+
+    /** The table itself: five heights, each with the widths the block was measured to hold. */
+    @Test
+    fun `the full-cover rectangle table has one row per usable height`() {
+        assertEquals(
+            "the full-cover rectangle table changed shape",
+            listOf(3, 4, 5, 6, 7),
+            FoliaHeroRectangles.map { it.rows }.distinct(),
+        )
+        assertTrue(
+            "a full-cover rectangle reaches the block's own height, which cannot be covered",
+            FoliaHeroRectangles.none { it.rows >= BlockRows },
+        )
     }
 
     /**
@@ -260,6 +321,57 @@ class FoliaFocusPresetTest {
     }
 
     /**
+     * Asserts that [pieces] is an exact cover of the block around [hero]: twelve slots, the
+     * hero first and where it was asked for, every cell of the block painted exactly once,
+     * nothing drawn outside it, and no neighbour small enough to read as a sliver. A piece
+     * this small is also the one that paints no cell at all.
+     */
+    private fun assertCover(pieces: List<FoliaPiece>, hero: FoliaPiece, where: String) {
+        assertEquals("$where did not produce twelve slots", 12, pieces.size)
+        assertEquals("$where did not put the hero first", hero, pieces.first())
+
+        val cells = mutableSetOf<Pair<Int, Int>>()
+        var cellCount = 0
+        pieces.forEach { piece ->
+            assertTrue("$where produced an empty piece", piece.area > 0)
+            assertTrue(
+                "$where made a ${piece.columns}x${piece.rows} piece",
+                piece.columns > 0 && piece.rows > 0,
+            )
+            assertTrue(
+                "$where placed a piece outside the block",
+                piece.x >= 0 && piece.y >= 0 &&
+                    piece.x + piece.columns <= BlockColumns &&
+                    piece.y + piece.rows <= BlockRows,
+            )
+            val covered = piece.coveredCells()
+            // A shaped piece draws the cells it lists, so a cell it lists outside its own
+            // box would be drawn off its own card. Rectangles have no cell list, so this
+            // is only a statement about the shaped ones.
+            covered.forEach { (x, y) ->
+                assertTrue(
+                    "$where listed a cell outside the ${piece.columns}x${piece.rows} box",
+                    x in piece.x until piece.x + piece.columns &&
+                        y in piece.y until piece.y + piece.rows,
+                )
+            }
+            cellCount += covered.size
+            covered.forEach { cell ->
+                assertTrue("$where stacked two cards on $cell", cells.add(cell))
+            }
+        }
+        assertEquals("$where did not cover the block", BlockCells, cellCount)
+        assertEquals("$where did not cover the block", BlockCells, cells.size)
+
+        pieces.drop(1).forEach { piece ->
+            assertTrue(
+                "$where made a ${piece.columns}x${piece.rows} sliver",
+                piece.area >= MinNeighbourCells,
+            )
+        }
+    }
+
+    /**
      * The cells a piece fills, as (column, row), whether it is a rectangle or a shape.
      * This decodes the packing `FoliaPiece.filledCells` documents.
      */
@@ -291,5 +403,29 @@ class FoliaFocusPresetTest {
 
         /** A card this small is a sliver, not a neighbour. */
         const val MinNeighbourCells = 3
+
+        /**
+         * A spread of cover shapes: wider than the block is, taller than it is, square,
+         * and the near-square ratios an album cover actually comes in.
+         */
+        val CoverAspects = listOf(
+            2f,
+            16f / 9f,
+            3f / 2f,
+            4f / 3f,
+            1f,
+            3f / 4f,
+            2f / 3f,
+            0.625f,
+            9f / 16f,
+            1f / 2f,
+        )
+
+        /**
+         * How far a full-cover hero may miss the cover's proportions, which is the
+         * engine's own tolerance. Above it the search drops the size preset's area band
+         * rather than keep a card of the wrong shape.
+         */
+        const val MaxAspectError = 1.10f
     }
 }

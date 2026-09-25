@@ -63,7 +63,8 @@ assignment of neighbouring cards to slots is unchanged.
 The Folia focus shape and size are per-folder settings, chosen from the wall's tools
 panel beside the density control, and both default to what the wall did before they
 existed: a square 6 x 6 hero. Six shapes are offered: square, portrait, landscape,
-full cover, and the heart and circle silhouettes. The Bento wall is unaffected, since
+full cover, and the heart and circle silhouettes. Five of them are fixed footprints; full
+cover is the one whose footprint follows the artwork. The Bento wall is unaffected, since
 its focused block is a hand-written template rather than a generated cover. Sizes are
 deliberately capped below what the block could hold: an 8 x 8 hero leaves eleven
 neighbours thirty two cells between them, and the block stops reading as a mosaic with
@@ -80,9 +81,25 @@ is shown disabled rather than being given a second, differently drawn silhouette
 each preset. They live at the end of the shape enum so the ordinals a folder has
 already persisted keep their meaning.
 
-Full cover is the square preset with the artwork fitted rather than cropped, so the
-whole cover is visible; it deliberately keeps the square's footprint and the size
-control, since it is the same card drawn differently rather than a new geometry.
+Full cover is the whole artwork, uncropped, in a card cut to the artwork's own
+proportions rather than to a preset. A card is a number of the block's columns and rows,
+so its proportions are always one of the rectangles the block can hold, and the cover's
+proportions are not known until the artwork is read: the file listing carries a name and a
+MIME type and no dimensions. So the focused cover is read once per focus, at the wall, and
+the nearest of those rectangles is the hero. The size control still applies and still
+means the same thing; it narrows the search to areas around the one its square preset
+would have taken, and when nothing there comes within a tenth of the cover's proportions
+the size gives way rather than the shape, because a card of the wrong shape letterboxes
+the very thing this shape exists to show. A cover the block has no large rectangle of the
+right shape for therefore keeps a smaller card at every size. A square cover gets exactly
+the square presets, and so does a cover whose artwork has not been read yet.
+
+The grid is the reason the rule has to be a nearest rather than an exact, and it is also
+why the search is over a measured table instead of over every rectangle that fits: past
+certain widths a hero's complement cannot produce eleven neighbours of three cells or
+more, so 9 x 6 and everything wider than 7 x 7 are not coverable at all and an eight-row
+hero is not coverable at any width. Whenever fitting leaves an edge, it is drawn in the
+card's own palette gradient rather than left black.
 
 The focused card also carries an icon-only action that clears focus, at its bottom-end
 corner. Focus is independent of playback, so without it the only way out of a focused

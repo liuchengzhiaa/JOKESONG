@@ -115,9 +115,18 @@ row is offered disabled while a silhouette is selected, in keeping with the rule
 that an action which cannot be honoured is shown disabled rather than as a tap
 that does nothing.
 
-Full cover is the square preset with the artwork fitted inside the card instead
-of cropped to fill it: the whole cover is visible, letterboxed, whatever its own
-proportions are. The size presets still apply to it.
+Full cover shows the whole artwork with nothing cropped and nothing letterboxed to
+speak of: the card takes the cover's own proportions, and the artwork is fitted
+inside a card that already has its shape. A card can only be as many columns and
+rows of the block as the grid holds, so the proportions are the nearest the block
+can come rather than the cover's exactly; the size control still chooses how large
+that card is, and picks within the range of areas its square preset would have
+taken. A cover the block has no large rectangle of the right shape for keeps the
+size its shape fits instead of taking a large card it would sit letterboxed
+inside. A square cover gets exactly the square presets, and so does a cover whose
+artwork has not been read yet, so an unread cover cannot make the wall shift.
+Whatever is left over after fitting is the card's own palette gradient, never a
+black bar.
 
 The focused card carries an icon-only action at its bottom-end corner that clears
 focus and returns the block to its ordinary mosaic. Focus and playback are

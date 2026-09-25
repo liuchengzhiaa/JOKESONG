@@ -800,7 +800,9 @@ written cover per origin (and one per size). The owner's answer to "「完整显
 哪里？" was "作为形状列表的第六项" -- and full cover turned out to be the cheap one: it is
 the square preset with `ContentScale.Fit` instead of `Crop`, so it keeps the square's
 footprint and the size control, and it is asserted equal to the square preset in the tests
-rather than maintained as a second table.
+rather than maintained as a second table. **That last part did not survive the owner's
+next look at it** -- see "The full cover takes the cover's own shape" below, which is what
+the shape does now.
 
 **The third request is the unfocus icon.** `ClearFocusButton` is icon-only -- `Icons.Default.Close`
 in a 38 dp translucent disc at the card's bottom-end corner, no label, as asked. It sits at
@@ -877,7 +879,115 @@ one only an eye on the phone can answer:
   clip-aware hit testing sends those taps to the neighbour. If it does not, the fallback is an
   explicit pointer check on the box corners, and that has not been written;
 - whether the unfocus icon is big enough and far enough from the card's own tap target;
-- whether full cover letterboxes a portrait cover readably inside a square card.
+- ~~whether full cover letterboxes a portrait cover readably inside a square card~~ -- the
+  owner answered this by rejecting the square footprint entirely; see the next section.
+
+### The full cover takes the cover's own shape
+
+The owner's follow-up to the slice above: "完整封面的实现方式有些问题，不够优雅。你现在是
+无论封面是矩形还是正方形，都是用一个足够大的正方形装著，边长等于封面图片的最长边就好，
+可是这样呈现的有些臭，因为有的封面本身是矩形，边长不一定相等的。你懂我意思吗". A square
+hero with the artwork fitted inside it letterboxes every cover that is not square, and the
+bars are as wide as the cover is far from square. He asked for the card itself to take the
+cover's proportions. When asked what to do about the mismatch that is left over, he chose
+**完整显示优先**: never crop, show the whole cover.
+
+**Two constraints decided the whole design**, and they are worth stating plainly because
+every number below follows from them:
+
+- A card is a whole number of the block's 12 x 8 cells, so it can only take the proportions
+  the grid can express -- 5 x 7, 4 x 6, 8 x 5 and so on. There is no arbitrary scale here.
+- The cover's proportions are *not in the file listing*. `SafDirectoryScanner` queries a
+  document's id, name and MIME type and never opens an image, and `LibraryItem` has no
+  dimensions. The shape can only be known after the artwork has been read.
+
+So `CoverAccentLoader` grew into the thing that reads it. It already ran
+`BitmapFactory.Options { inJustDecodeBounds = true }` to choose a sample size and then threw
+the size away, so the intrinsic width and height cost nothing extra; `resolve` now returns
+`CoverFacts(accentArgb, width, height)` instead of a bare `Int`. The size comes from the
+*bounds*, not from the decoded bitmap, which is a downsampled copy -- a card cut to the
+sample's proportions would be cut to whatever the sample size ladder happened to pick. The
+accent stayed independently nullable, so a cover with no colour worth sampling still
+reports its shape.
+
+**Where the read happens was hoisted**: the focused cover is read once, at `FocusCoverWall`,
+in a `produceState` keyed on the focused item's artwork URI. That was forced by the data
+flow -- the hero's footprint has to be known while `FoliaWallLayoutEngine.layout` runs, and
+the placement `remember` is keyed on the aspect -- and it simplified the card on the way:
+`FocusCoverCard` no longer loads its own accent, it is handed `coverAccentArgb`, so the
+focused cover is decoded once per focus instead of once per reader.
+
+**The candidate table is measured, not derived.** A hero's complement has to yield eleven
+neighbours of three cells or more, and past a certain width it does not: 10 x 5 and 9 x 6
+leave a 1 x 2 or 2 x 1 piece, and from 11 x 6 up there are not eleven pieces to hand out at
+all; an eight-row hero is not coverable at any width, because it fills the block's height
+and eleven cards do not fit in the two side bands it leaves. So the usable rectangles are
+`FoliaHeroMaxColumnsByRows = 12, 12, 9, 8, 7` for three rows through seven -- 45 rectangles.
+That edge was found by a temporary test that enumerated everything and printed the reason
+each rejection failed, run once and deleted; `FoliaHeroRectangles` is the table itself and
+`FoliaFocusPresetTest` now re-derives every entry through the real cover generator, so a
+change to the splitting or the allocator that moves the edge fails in the tests rather than
+on the phone. `coverCellsForHero` was added to the engine for exactly that: the table's
+rectangles are not presets, so nothing else could reach them.
+
+**The selection rule is aspect first, size second.** Among the 45, the closest proportions
+win; `FoliaFocusSize` narrows the search to areas within half to one and a half times the
+area its square preset would have taken (16, 36, 49 cells), and inside that band the closest
+proportions still win with the closest area as the tie-break. If even the band's best is
+more than a tenth off, the band is dropped rather than the shape -- a card of the wrong
+shape letterboxes the cover it exists to show, while a card of the wrong *size* is still a
+mosaic with a focus in it. Consequences worth knowing:
+
+- A square cover, and a cover that has not been read yet, get exactly the square presets,
+  because 4 x 4, 6 x 6 and 7 x 7 are the best rectangles in their bands. That is what keeps
+  the default and the first frame of every focus unchanged.
+- The size control moves the card for nearly every cover shape: 10 of the 13 ratios
+  measured grow from small to medium and 4 of 13 from medium to large.
+- Two alternatives were measured and rejected. Picking by area band first costs up to 27%
+  aspect error (a 9:16 cover at Large has no large tall rectangle, so it was offered 5 x 7),
+  and picking by aspect alone with neither band nor tolerance makes the size control dead --
+  for most ratios the block holds exactly one rectangle of that shape, so all three sizes
+  returned the same card.
+- The worst case left is a 16:10 cover at Large, which takes 4 x 7 at 9.4% off, and a 1:2
+  cover, for which the block holds one rectangle within tolerance, so all three sizes give
+  3 x 6. Both are asserted, the second on purpose, so the trade-off cannot change quietly.
+- Whatever is left after fitting is already the card's own palette gradient --
+  `artworkBrush(item.paletteSeed)` has always been painted under the artwork -- so no black
+  bars were ever at risk.
+
+**Tests: six added, one replaced.** `the full-cover shape is the square presets` asserted
+the very thing the owner rejected and was replaced by four: the hero is the closest
+rectangle to a spread of cover shapes and is always one the block can cover; a square or
+unread cover keeps the square presets; the size preset still chooses the hero; and a shape
+the block has no large rectangle for keeps the size of its shape (the 1:2 case). A fifth
+re-derives the whole 45-rectangle table through `coverCellsForHero`, and a sixth pins the
+table's shape. `FoliaWallLayoutTest` gained one that drives the real engine for a spread of
+shapes, sizes and tapped cards, which is the path the preset test cannot reach: the origin
+comes from the tapped card and the rule chooses the rectangle without knowing it. The cell-cube
+assertions the preset test already had moved into an `assertCover` helper so both tests use
+one.
+
+Verified: **103/103 unit tests** across 18 suites, 0 failures, 0 errors, 0 skipped, read
+back from the JUnit XML under `.asmrplayer-build/app/test-results/testDebugUnitTest/` rather
+than from the Gradle console; the baseline before this slice was 97. `lintDebug` reports
+**0 errors and 12 warnings**, the same twelve. A `clean testDebugUnitTest assembleDebug`
+produces a 74,311,416-byte debug APK, SHA-256
+`d329cdd98049b0b42ab3e69d44f5a2d1e2b92da6bc5ffe34cf4dcbe634538524`, and the tests in that
+same clean run are the 103 counted above.
+
+**The hash identifies a build, not a source revision**, and the previous slice's
+"byte-identical" claim does not generalise. Two APKs of the same 74,311,416 bytes came out
+of trees that differed only in comments and in whether one helper was `private` or
+`internal` -- `d329cdd9...524`, then `665f879a...3ed` for the final tree. The size is
+stable across both; the digest is not, so anything comparing hashes across builds should
+compare the sources instead. **Not installed and not driven by hand**:
+
+- whether a portrait cover at the three sizes reads as "the card is the cover's shape"
+  rather than as a card that happens to be a bit narrower;
+- whether the leftover edge is unobtrusive now that the bars are a few per cent rather than
+  a couple of dozen;
+- whether the 320 ms transition between two differently-shaped heroes looks like the card
+  turning into the cover's shape or like a bounce.
 
 ### Git identity: one author per agent
 

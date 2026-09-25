@@ -99,9 +99,10 @@ enum class FoliaFocusShape {
     Landscape,
 
     /**
-     * A square that shows the whole cover: the artwork is letterboxed inside the card
-     * instead of being cropped to fill it, so nothing is hidden whatever the artwork's
-     * own proportions are.
+     * The whole cover, in a card cut to the artwork's own proportions: nothing is
+     * cropped away and nothing is letterboxed inside a card of the wrong shape. Its
+     * footprint comes from the cover rather than from this list, so it is the one shape
+     * whose hero is chosen by what the file actually contains.
      */
     FullCover,
 
@@ -127,10 +128,11 @@ enum class FoliaFocusSize {
 }
 
 /**
- * The hero's bounding box. Square, portrait, landscape and 完整封面 are rectangles: the
+ * The hero's bounding box. Square, portrait and landscape are fixed rectangles: the
  * preset decides the shape and [FoliaFocusSize] the area, and the item's own slot then
  * decides where inside the block the rectangle lands, which is what makes a focused card
- * grow where it already is instead of jumping to a block corner.
+ * grow where it already is instead of jumping to a block corner. 完整封面 takes
+ * [artworkAspect] into account as well -- see [foliaCoverHeroSlot].
  *
  * The sizes stop short of what the block could hold. An 8 x 8 hero leaves 32 cells
  * for eleven neighbours, and at the origins a card in the middle of a block asks for,
@@ -143,8 +145,16 @@ enum class FoliaFocusSize {
  * block. That place is fixed: the outline of a shape that is not a rectangle cannot be
  * re-cut for every slot a card might have been tapped in, so those two ignore the tapped
  * card rather than growing in place.
+ *
+ * [artworkAspect] is the focused cover's own width divided by its height, or null while
+ * it is not known yet -- the file listing carries no image size, so the first frame of a
+ * focus is laid out before the artwork has been read. Only 完整封面 uses it.
  */
-private fun foliaHeroSlot(shape: FoliaFocusShape, size: FoliaFocusSize): FoliaPiece = when (shape) {
+private fun foliaHeroSlot(
+    shape: FoliaFocusShape,
+    size: FoliaFocusSize,
+    artworkAspect: Float? = null,
+): FoliaPiece = when (shape) {
     FoliaFocusShape.Square -> when (size) {
         FoliaFocusSize.Small -> FoliaPiece(0, 0, 4, 4)
         FoliaFocusSize.Medium -> FoliaPiece(0, 0, 6, 6)
@@ -160,12 +170,88 @@ private fun foliaHeroSlot(shape: FoliaFocusShape, size: FoliaFocusSize): FoliaPi
         FoliaFocusSize.Medium -> FoliaPiece(0, 0, 7, 5)
         FoliaFocusSize.Large -> FoliaPiece(0, 0, 8, 6)
     }
-    // The whole cover is the square card with the artwork fitted inside it instead of
-    // cropped to fill; the footprint the neighbours have to cover is the square's.
-    FoliaFocusShape.FullCover -> foliaHeroSlot(FoliaFocusShape.Square, size)
+    // The whole cover is drawn in a card of the cover's own shape, so that fitting it
+    // inside leaves no letterboxing to speak of. Until the artwork has been read there
+    // is no shape to take, and the square preset is what it falls back to.
+    FoliaFocusShape.FullCover ->
+        foliaCoverHeroSlot(size, artworkAspect) ?: foliaHeroSlot(FoliaFocusShape.Square, size)
     FoliaFocusShape.Heart -> FoliaHeart.piece
     FoliaFocusShape.Circle -> FoliaCircle.piece
 }
+
+/**
+ * The widest hero each usable height allows, three rows tall through seven. Eight rows is
+ * absent because no eight-row hero can be covered at all: it fills the block's height, so
+ * the complement is two side bands, and eleven neighbours do not fit in them at any width.
+ *
+ * The widths are not a tidy formula but the measured edge of what the block can still
+ * cover. Past them the eleven neighbours either come out as slivers of one or two cells or
+ * cannot be given three cells apiece at all -- 9 x 6 leaves a 1 x 2 piece, and from 11 x 6
+ * on there are not eleven pieces to hand out.
+ */
+private val FoliaHeroMaxColumnsByRows = intArrayOf(12, 12, 9, 8, 7)
+
+/**
+ * Every rectangle a hero may take, by height then width so the choice is deterministic:
+ * forty-five of them, from the three-row strips the whole block wide down to 7 x 7.
+ *
+ * 完整封面 picks from this table rather than from every rectangle that fits, because these
+ * are the ones the block was measured to cover -- see [FoliaHeroMaxColumnsByRows]. The
+ * preset test re-derives every entry through the real cover generator, so a change to the
+ * splitting or the allocator that moves that edge fails there rather than on the phone.
+ */
+internal val FoliaHeroRectangles: List<FoliaPiece> = FoliaHeroMaxColumnsByRows
+    .flatMapIndexed { index, maxColumns ->
+        (3..maxColumns).map { columns -> FoliaPiece(0, 0, columns, index + 3) }
+    }
+
+/** The area each size aims for: the areas of the three square presets. */
+private fun FoliaFocusSize.targetCells(): Int = when (this) {
+    FoliaFocusSize.Small -> 16
+    FoliaFocusSize.Medium -> 36
+    FoliaFocusSize.Large -> 49
+}
+
+/** How far 完整封面 may miss a cover's proportions before it gives up the size instead. */
+private const val FoliaCoverAspectTolerance = 0.10f
+
+/**
+ * The rectangle 完整封面 draws a cover of [artworkAspect] in, or null when the artwork's
+ * shape is not known yet.
+ *
+ * The closest rectangle wins, not the closest area: a card the wrong shape letterboxes the
+ * cover it exists to show, whereas a card the wrong size is still a mosaic with a focus in
+ * it. So [size] only narrows the search to areas around the one its square preset would
+ * have taken, and when even that band holds nothing within [FoliaCoverAspectTolerance] of
+ * the cover's proportions the band is dropped rather than the shape. A square cover comes
+ * out with exactly the three square presets, since those are the best rectangles in their
+ * bands and the bands hold nothing nearer.
+ */
+private fun foliaCoverHeroSlot(size: FoliaFocusSize, artworkAspect: Float?): FoliaPiece? {
+    if (artworkAspect == null || !artworkAspect.isFinite() || artworkAspect <= 0f) return null
+    val target = size.targetCells()
+    val rank = compareBy<FoliaPiece>(
+        { foliaAspectError(it, artworkAspect) },
+        { abs(it.area - target) },
+    )
+    // Half to one and a half times the target, doubled because the band is in whole cells.
+    val inBand = FoliaHeroRectangles
+        .filter { it.area * 2 >= target && it.area * 2 <= target * 3 }
+        .minWithOrNull(rank)
+    return if (inBand != null && foliaAspectError(inBand, artworkAspect) <= 1f + FoliaCoverAspectTolerance) {
+        inBand
+    } else {
+        FoliaHeroRectangles.minWith(rank)
+    }
+}
+
+/**
+ * How far a hero's proportions are from the artwork's, as a factor rather than a
+ * difference, so that being twice as wide and twice as tall are equally wrong. Comparing
+ * this to `1 + tolerance` is the "within ten per cent" the selection rule means.
+ */
+private fun foliaAspectError(hero: FoliaPiece, artworkAspect: Float): Float =
+    maxOf(hero.aspectRatio, artworkAspect) / minOf(hero.aspectRatio, artworkAspect)
 
 /** A silhouette hero and the neighbour regions that cover the rest of the block. */
 private data class FoliaSilhouette(val piece: FoliaPiece, val regions: List<FoliaPiece>)
@@ -328,6 +414,13 @@ object FoliaWallLayoutEngine {
         gapPx: Float = 2f,
         focusShape: FoliaFocusShape = FoliaFocusShape.Square,
         focusSize: FoliaFocusSize = FoliaFocusSize.Medium,
+        /**
+         * The focused cover's width divided by its height, when it is known. 完整封面
+         * takes its footprint from this: the block can only draw rectangles, so the
+         * cover's own shape picks which one. Null leaves that shape as the square
+         * preset, which is what the wall shows until the artwork has been read.
+         */
+        focusArtworkAspect: Float? = null,
     ): List<FocusWallPlacement> {
         if (items.isEmpty() || viewportWidth <= 0f || viewportHeight <= 0f) return emptyList()
 
@@ -371,6 +464,7 @@ object FoliaWallLayoutEngine {
                     seed = blockSeed xor items[focusedIndex].stableSeed,
                     shape = focusShape,
                     size = focusSize,
+                    artworkAspect = focusArtworkAspect,
                 )
             } else {
                 baseSlots.take(itemCount)
@@ -411,6 +505,7 @@ object FoliaWallLayoutEngine {
         seed: Int,
         shape: FoliaFocusShape,
         size: FoliaFocusSize,
+        artworkAspect: Float?,
     ): List<FoliaPiece> {
         // The hero keeps the configured focus shape, so the closest it can get to
         // "where the card already was" is to centre that shape on the card's own
@@ -418,7 +513,7 @@ object FoliaWallLayoutEngine {
         // therefore grows almost exactly in place; only a card that already sat in
         // a corner still ends up in one. A silhouette cannot be re-cut for every
         // slot, so it takes the one place it is drawn for instead.
-        val hero = foliaHeroSlot(shape, size)
+        val hero = foliaHeroSlot(shape, size, artworkAspect)
         val originalFocusSlot = baseSlots[focusedSlotIndex]
         val heroX = if (shape.isSilhouette) {
             hero.x
@@ -440,6 +535,7 @@ object FoliaWallLayoutEngine {
             heroX = heroX,
             heroY = heroY,
             variant = stableFoliaBucket(seed, 2),
+            artworkAspect = artworkAspect,
         )
         // A hero whose complement cannot yield one slot per remaining item would
         // otherwise leave the assignment loop below with nothing to pick and crash
@@ -492,10 +588,11 @@ object FoliaWallLayoutEngine {
         heroX: Int,
         heroY: Int,
         variant: Int,
+        artworkAspect: Float? = null,
     ): List<FoliaPiece> {
         val silhouette = shape.silhouette()
         if (silhouette != null) return foliaSilhouetteCover(shape, silhouette, variant)
-        return foliaRectCover(foliaHeroSlot(shape, size), heroX, heroY, variant)
+        return foliaRectCover(foliaHeroSlot(shape, size, artworkAspect), heroX, heroY, variant)
     }
 
     /**
@@ -578,8 +675,12 @@ object FoliaWallLayoutEngine {
      * enumerates exactly this, so a preset that cannot be covered fails there rather
      * than on the phone.
      */
-    internal fun heroCells(shape: FoliaFocusShape, size: FoliaFocusSize): FoliaHeroCells {
-        val hero = foliaHeroSlot(shape, size)
+    internal fun heroCells(
+        shape: FoliaFocusShape,
+        size: FoliaFocusSize,
+        artworkAspect: Float? = null,
+    ): FoliaHeroCells {
+        val hero = foliaHeroSlot(shape, size, artworkAspect)
         return FoliaHeroCells(
             piece = hero,
             xs = if (shape.isSilhouette) hero.x..hero.x else foliaHeroXRange(hero.columns, hero.rows),
@@ -598,7 +699,21 @@ object FoliaWallLayoutEngine {
         heroX: Int,
         heroY: Int,
         variant: Int,
-    ): List<FoliaPiece> = foliaFocusCover(shape, size, heroX, heroY, variant)
+        artworkAspect: Float? = null,
+    ): List<FoliaPiece> = foliaFocusCover(shape, size, heroX, heroY, variant, artworkAspect)
+
+    /**
+     * The exact cover one arbitrary hero rectangle produces at one origin, hero first.
+     * 完整封面 is the one shape whose footprint is not a fixed preset -- it is read off the
+     * artwork's own proportions -- so the cover it gets has to be checked over the whole
+     * table of rectangles that rule can return, not over three hand-written rows.
+     */
+    internal fun coverCellsForHero(
+        hero: FoliaPiece,
+        heroX: Int,
+        heroY: Int,
+        variant: Int,
+    ): List<FoliaPiece> = foliaRectCover(hero, heroX, heroY, variant)
 
     /**
      * Hands out [budget] pieces over [regions] in proportion to their area, one at

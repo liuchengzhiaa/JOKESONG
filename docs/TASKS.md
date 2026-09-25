@@ -118,6 +118,18 @@
       `assembleDebug` produces the APK. Not installed -- whether a silhouette reads
       as the shape it is named for, and whether taps in its bounding-box corners
       reach the card underneath, need the owner's eye on the phone.
+- [x] Cut the full-cover card to the cover's own shape instead of laying a square one
+      over it. The owner rejected the square footprint -- "无论封面是矩形还是正方形，都是用
+      一个足够大的正方形装著……呈现的有些臭" -- and chose 完整显示优先 for what is left over:
+      never crop, show the whole cover. The hero is now the rectangle out of the block's
+      45 coverable ones whose proportions come nearest the artwork's, read once per focus
+      in `CoverAccentLoader` (which already computed the intrinsic size and discarded it);
+      the size preset narrows the search to an area band and gives way when nothing there
+      comes within a tenth of the cover's shape, and a square or unread cover still gets
+      exactly the old square presets. 103/103 tests pass, lint 0 errors with the same 12
+      warnings, a clean `assembleDebug` produces the APK. Not installed -- whether a card
+      cut to a cover's proportions reads that way, and whether the leftover edge is
+      unobtrusive, need the owner's eye on the phone.
 - [ ] Review focus-wall V2, notification permission and paused task-swipe behavior
       on the phone.
 - [x] Review the new Folia-style wall's focus transitions on the phone. Verified by

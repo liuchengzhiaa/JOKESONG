@@ -163,6 +163,33 @@ class FoliaWallLayoutTest {
         }
     }
 
+    /**
+     * 完整封面's hero comes from the artwork's proportions rather than from a preset, so it
+     * is the one shape the enumeration above cannot sweep as a shape: the rectangles it can
+     * choose from are the whole table, and the ones it will choose depend on what is in the
+     * folder. This drives the real layout for a spread of cover shapes instead, which is
+     * the path that has to hold -- including the origin the tapped card implies, which the
+     * rule knows nothing about when it picks a rectangle.
+     */
+    @Test
+    fun `a full cover laid out from its artwork shape still covers its block`() {
+        listOf(2f, 3f / 2f, 1f, 3f / 4f, 9f / 16f).forEach { aspect ->
+            FoliaFocusSize.entries.forEach { size ->
+                (0 until completeBlockItems).forEach { index ->
+                    val id = "item-$index"
+                    val focused = layout(focusedItemId = id, shape = FoliaFocusShape.FullCover, size = size, aspect = aspect)
+                    val blockIndex = focused.associateBy(FocusWallPlacement::itemId).getValue(id).blockIndex
+                    val block = focused.filter { it.blockIndex == blockIndex }
+                    val where = "完整封面/$size at $aspect on $id"
+
+                    assertEquals("$where lost a card", 12, block.size)
+                    assertPaintedOnce(block, where)
+                    assertNoOverlap(block)
+                }
+            }
+        }
+    }
+
     @Test
     fun `large scene visibility remains bounded`() {
         val largeItems = List(40_000) { index -> FocusWallLayoutItem("large-$index", index) }
@@ -189,6 +216,7 @@ class FoliaWallLayoutTest {
         focusedItemId: String? = null,
         shape: FoliaFocusShape = FoliaFocusShape.Square,
         size: FoliaFocusSize = FoliaFocusSize.Medium,
+        aspect: Float? = null,
     ) = FoliaWallLayoutEngine.layout(
         items = items,
         viewportWidth = 1080f,
@@ -198,6 +226,7 @@ class FoliaWallLayoutTest {
         focusedItemId = focusedItemId,
         focusShape = shape,
         focusSize = size,
+        focusArtworkAspect = aspect,
     )
 
     /**

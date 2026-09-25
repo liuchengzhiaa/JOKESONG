@@ -15,24 +15,43 @@ private const val DecodeTargetEdge = 96
 private const val MaximumSampledPixels = 4_096
 
 /**
- * Loads only a thumbnail-sized version of the focused cover, then caches its
+ * What reading one cover tells the wall about it: the colour the focused card is outlined
+ * with, and the artwork's own size.
+ *
+ * The size is free here -- the decoder has already read the image's bounds to choose a
+ * sample size -- and it is the only thing that can supply it. A file listing carries a
+ * name and a MIME type and no dimensions, so 完整封面 can only be cut to a cover's shape
+ * after the cover itself has been opened.
+ */
+internal data class CoverFacts(
+    /** The card's accent, or null when the artwork holds no colour worth sampling. */
+    val accentArgb: Int?,
+    val width: Int,
+    val height: Int,
+) {
+    /** The artwork's own proportions, which is what a card has to take the shape of. */
+    val aspect: Float get() = width.toFloat() / height
+}
+
+/**
+ * Loads only a thumbnail-sized version of the focused cover, then caches its size and
  * representative colour. Non-focused cards never pay this decoding cost.
  */
 internal object CoverAccentLoader {
-    private val cache = LruCache<String, Int>(96)
+    private val cache = LruCache<String, CoverFacts>(96)
 
-    suspend fun resolve(context: Context, artworkUri: String?): Int? {
+    suspend fun resolve(context: Context, artworkUri: String?): CoverFacts? {
         artworkUri ?: return null
         synchronized(cache) { cache.get(artworkUri) }?.let { return it }
 
         val result = withContext(Dispatchers.IO) {
-            decodeBoundedBitmap(context, artworkUri.toUri())?.usePixels(::dominantCoverArgb)
+            decodeCoverFacts(context, artworkUri.toUri())
         }
         if (result != null) synchronized(cache) { cache.put(artworkUri, result) }
         return result
     }
 
-    private fun decodeBoundedBitmap(context: Context, uri: Uri): Bitmap? {
+    private fun decodeCoverFacts(context: Context, uri: Uri): CoverFacts? {
         return try {
             val resolver = context.contentResolver
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -51,7 +70,17 @@ internal object CoverAccentLoader {
                     inSampleSize = sampleSize
                     inPreferredConfig = Bitmap.Config.ARGB_8888
                 }
-                resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+                val bitmap = resolver.openInputStream(uri)
+                    ?.use { BitmapFactory.decodeStream(it, null, options) }
+                    ?: return null
+                // The size comes from the bounds, not from the bitmap: the bitmap is a
+                // downsampled copy, and a card cut to its proportions would be cut to
+                // the proportions of whatever sample size happened to be chosen.
+                CoverFacts(
+                    accentArgb = bitmap.usePixels(::dominantCoverArgb),
+                    width = bounds.outWidth,
+                    height = bounds.outHeight,
+                )
             }
         } catch (_: IOException) {
             null
