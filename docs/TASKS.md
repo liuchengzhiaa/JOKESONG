@@ -37,6 +37,9 @@
       going blank. Extracted into one shared, unit-tested helper after the layout
       and focus-wall copies had drifted into duplicates; 54/54 tests pass and lint
       reports 0 errors.
+- [x] Commit the accumulated work. `master` was the only branch and there is no
+      remote, so the slice went to `master` as `ebf121f` rather than to a side
+      branch; `bash.exe.stackdump` was left untracked.
 
 ## Next
 

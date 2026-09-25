@@ -160,9 +160,23 @@ replacing three private duplicates.
   artwork precedence is complete.
 - Extend the bounded direct-folder scanner into a full-library scanner.
 
-The Poweramp-inspired player-detail work is still uncommitted in the working tree
-alongside this slice. Preserve it when continuing; do not reset or overwrite the
-working tree.
+All of the above is now committed on `master` as `ebf121f` ("Make SAF audio
+playable and finish the library surfaces"), on top of Codex's `fbea40e` ("封面墙V1").
+The working tree is clean apart from an untracked `bash.exe.stackdump`, which is a
+shell crash dump and deliberately not committed.
+
+### Git identity is not configured
+
+`user.name` and `user.email` are set neither locally nor globally, so a bare
+`git commit` fails. Codex's commit is authored `Codex <codex@local>`; `ebf121f` is
+authored `Claude <claude@local>` the same way, passed per command:
+
+```powershell
+git -c user.name='Claude' -c user.email='claude@local' commit ...
+```
+
+Set a real identity in the repository if these placeholder authors are unwanted --
+but do not change the user's global Git configuration without explicit approval.
 
 ## Local environment
 
