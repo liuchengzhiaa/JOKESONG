@@ -79,6 +79,8 @@ fun AsmrPlayerApp(
     onFocusedItemChange: (String?) -> Unit,
     onViewportChange: (Float, Float, Float) -> Unit,
     onWallDensityChange: (Int) -> Unit,
+    onWallFocusShapeChange: (Int) -> Unit,
+    onWallFocusSizeChange: (Int) -> Unit,
     onPlayItem: (LibraryItem) -> Unit,
     onRevealPlayingItem: (String) -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -243,6 +245,8 @@ fun AsmrPlayerApp(
                     onFocusedItemChange = onFocusedItemChange,
                     onViewportChange = onViewportChange,
                     onWallDensityChange = onWallDensityChange,
+                    onWallFocusShapeChange = onWallFocusShapeChange,
+                    onWallFocusSizeChange = onWallFocusSizeChange,
                     onPlayItem = onPlayItem,
                     onRevealPlayingItem = onRevealPlayingItem,
                     onTogglePlayPause = onTogglePlayPause,
@@ -271,6 +275,8 @@ private fun LibraryContent(
     onFocusedItemChange: (String?) -> Unit,
     onViewportChange: (Float, Float, Float) -> Unit,
     onWallDensityChange: (Int) -> Unit,
+    onWallFocusShapeChange: (Int) -> Unit,
+    onWallFocusSizeChange: (Int) -> Unit,
     onPlayItem: (LibraryItem) -> Unit,
     onRevealPlayingItem: (String) -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -295,6 +301,8 @@ private fun LibraryContent(
             initialPanX = state.panX,
             initialPanY = state.panY,
             initialDensityOrdinal = state.wallDensityOrdinal,
+            initialFocusShapeOrdinal = state.wallFocusShapeOrdinal,
+            initialFocusSizeOrdinal = state.wallFocusSizeOrdinal,
             restored = state.isRestored,
         )
     }
@@ -310,6 +318,8 @@ private fun LibraryContent(
             initialPanX = 0f,
             initialPanY = 0f,
             initialDensityOrdinal = state.wallDensityOrdinal,
+            initialFocusShapeOrdinal = state.wallFocusShapeOrdinal,
+            initialFocusSizeOrdinal = state.wallFocusSizeOrdinal,
             restored = false,
         )
     }
@@ -384,6 +394,8 @@ private fun LibraryContent(
                     onTogglePlayPause = onTogglePlayPause,
                     onSeekTo = onSeekTo,
                     onDensityChange = onWallDensityChange,
+                    onFocusShapeChange = onWallFocusShapeChange,
+                    onFocusSizeChange = onWallFocusSizeChange,
                     onActivate = { item ->
                         if (item.type == LibraryItemType.Folder) {
                             onOpenFolder(item)
@@ -406,6 +418,8 @@ private fun LibraryContent(
                     onTogglePlayPause = onTogglePlayPause,
                     onSeekTo = onSeekTo,
                     onDensityChange = onWallDensityChange,
+                    onFocusShapeChange = onWallFocusShapeChange,
+                    onFocusSizeChange = onWallFocusSizeChange,
                     onActivate = { item ->
                         if (item.type == LibraryItemType.Folder) {
                             onOpenFolder(item)

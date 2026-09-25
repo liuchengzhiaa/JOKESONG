@@ -32,6 +32,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CropLandscape
+import androidx.compose.material.icons.filled.CropPortrait
+import androidx.compose.material.icons.filled.CropSquare
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -125,6 +131,13 @@ fun FocusCoverWall(
     onDensityChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
     style: FocusWallStyle = FocusWallStyle.Bento,
+    /**
+     * Folia only. The Bento wall's focused block is a hand-written template, so it
+     * has no shape or size to choose; both callbacks are still passed by every wall
+     * so the shared tools panel needs no special case.
+     */
+    onFocusShapeChange: (Int) -> Unit = {},
+    onFocusSizeChange: (Int) -> Unit = {},
     onActivate: (LibraryItem) -> Unit = {},
     onPlay: (LibraryItem) -> Unit = {},
     /**
@@ -216,19 +229,38 @@ fun FocusCoverWall(
             )
             WallToolsOverlay(
                 contentKey = contentKey,
+                style = style,
+                viewportState = viewportState,
                 onRevealPlayingItem = onRevealPlayingItem,
+                onFocusShapeChange = onFocusShapeChange,
+                onFocusSizeChange = onFocusSizeChange,
             )
         }
     }
 }
 
-/** One entry of the wall's tools panel. Adding a tool is adding a row here. */
+/**
+ * One entry of the wall's tools panel. Adding a tool is adding a row here.
+ *
+ * A row either acts ([onClick]) or, for a setting whose value is a short list,
+ * opens a page of options. Rows that open a page carry [valueRes] so the panel
+ * shows what is currently chosen without having to open it.
+ */
 private data class WallTool(
     val icon: ImageVector,
     val labelRes: Int,
     val enabled: Boolean,
     val onClick: () -> Unit,
+    val valueRes: Int? = null,
+    val selected: Boolean = false,
 )
+
+/** Which page of the tools panel is showing. */
+private sealed interface WallPanelPage {
+    data object Root : WallPanelPage
+    data object FocusShape : WallPanelPage
+    data object FocusSize : WallPanelPage
+}
 
 /**
  * The wall's floating tools button and the small panel that opens beside it.
@@ -249,11 +281,17 @@ private data class WallTool(
 @Composable
 private fun WallToolsOverlay(
     contentKey: String,
+    style: FocusWallStyle,
+    viewportState: FocusWallViewportState,
     onRevealPlayingItem: (() -> Unit)?,
+    onFocusShapeChange: (Int) -> Unit,
+    onFocusSizeChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Keyed on the content, so changing folder or wall style closes the panel.
+    // Keyed on the content, so changing folder or wall style closes the panel and
+    // returns it to its first page.
     var expanded by remember(contentKey) { mutableStateOf(false) }
+    var page by remember(contentKey) { mutableStateOf<WallPanelPage>(WallPanelPage.Root) }
 
     // The overlay fills the wall, so the scrim below covers all of it -- the button
     // and the panel are placed inside, at the bottom end.
@@ -265,6 +303,7 @@ private fun WallToolsOverlay(
                     .fillMaxSize()
                     .clickable(interactionSource = interactionSource, indication = null) {
                         expanded = false
+                        page = WallPanelPage.Root
                     },
             )
         }
@@ -276,19 +315,74 @@ private fun WallToolsOverlay(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             AnimatedVisibility(visible = expanded) {
-                WallToolsPanel(
-                    tools = listOf(
-                        WallTool(
-                            icon = Icons.Default.MyLocation,
-                            labelRes = R.string.focus_playing_item,
-                            enabled = onRevealPlayingItem != null,
-                            onClick = {
-                                expanded = false
-                                onRevealPlayingItem?.invoke()
-                            },
-                        ),
-                    ),
-                )
+                when (page) {
+                    WallPanelPage.Root -> WallToolsPanel(
+                        tools = listOf(
+                            WallTool(
+                                icon = Icons.Default.MyLocation,
+                                labelRes = R.string.focus_playing_item,
+                                enabled = onRevealPlayingItem != null,
+                                onClick = {
+                                    expanded = false
+                                    onRevealPlayingItem?.invoke()
+                                },
+                            ),
+                        ) + if (style == FocusWallStyle.Folia) {
+                            listOf(
+                                WallTool(
+                                    icon = Icons.Default.CropSquare,
+                                    labelRes = R.string.wall_focus_shape,
+                                    enabled = true,
+                                    onClick = { page = WallPanelPage.FocusShape },
+                                    valueRes = viewportState.focusShape.labelResource(),
+                                ),
+                                WallTool(
+                                    icon = Icons.Default.AspectRatio,
+                                    labelRes = R.string.wall_focus_size,
+                                    enabled = true,
+                                    onClick = { page = WallPanelPage.FocusSize },
+                                    valueRes = viewportState.focusSize.labelResource(),
+                                ),
+                            )
+                        } else {
+                            emptyList()
+                        },
+                    )
+                    WallPanelPage.FocusShape -> WallOptionsPanel(
+                        titleRes = R.string.wall_focus_shape,
+                        onBack = { page = WallPanelPage.Root },
+                        options = FoliaFocusShape.entries.map { shape ->
+                            WallTool(
+                                icon = shape.icon(),
+                                labelRes = shape.labelResource(),
+                                enabled = true,
+                                selected = shape == viewportState.focusShape,
+                                onClick = {
+                                    viewportState.focusShapeOrdinal = shape.ordinal
+                                    onFocusShapeChange(shape.ordinal)
+                                    page = WallPanelPage.Root
+                                },
+                            )
+                        },
+                    )
+                    WallPanelPage.FocusSize -> WallOptionsPanel(
+                        titleRes = R.string.wall_focus_size,
+                        onBack = { page = WallPanelPage.Root },
+                        options = FoliaFocusSize.entries.map { size ->
+                            WallTool(
+                                icon = Icons.Default.AspectRatio,
+                                labelRes = size.labelResource(),
+                                enabled = true,
+                                selected = size == viewportState.focusSize,
+                                onClick = {
+                                    viewportState.focusSizeOrdinal = size.ordinal
+                                    onFocusSizeChange(size.ordinal)
+                                    page = WallPanelPage.Root
+                                },
+                            )
+                        },
+                    )
+                }
             }
             SmallFloatingActionButton(
                 onClick = { expanded = !expanded },
@@ -313,27 +407,84 @@ private fun WallToolsPanel(tools: List<WallTool>) {
         shadowElevation = 8.dp,
     ) {
         Column(modifier = Modifier.padding(vertical = 6.dp)) {
-            tools.forEach { tool ->
-                Row(
-                    modifier = Modifier
-                        .clickable(enabled = tool.enabled, onClick = tool.onClick)
-                        .padding(horizontal = 16.dp, vertical = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Icon(
-                        imageVector = tool.icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = if (tool.enabled) Color.White else Color.White.copy(alpha = 0.38f),
-                    )
-                    Text(
-                        text = stringResource(tool.labelRes),
-                        color = if (tool.enabled) Color.White else Color.White.copy(alpha = 0.38f),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+            tools.forEach { tool -> WallToolRow(tool) }
+        }
+    }
+}
+
+/**
+ * A page of options for one setting. It carries its own back row rather than a
+ * breadcrumb: the panel is a small floating list, and one row that returns to the
+ * page above is quicker to hit than a title with a target beside it.
+ */
+@Composable
+private fun WallOptionsPanel(titleRes: Int, onBack: () -> Unit, options: List<WallTool>) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xFF17181D),
+        tonalElevation = 6.dp,
+        shadowElevation = 8.dp,
+    ) {
+        Column(modifier = Modifier.padding(vertical = 6.dp)) {
+            Row(
+                modifier = Modifier
+                    .clickable(onClick = onBack)
+                    .padding(horizontal = 16.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(titleRes),
+                    modifier = Modifier.size(18.dp),
+                    tint = Color.White,
+                )
+                Text(
+                    text = stringResource(titleRes),
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
+            options.forEach { option -> WallToolRow(option) }
+        }
+    }
+}
+
+@Composable
+private fun WallToolRow(tool: WallTool) {
+    val contentAlpha = if (tool.enabled) 1f else 0.38f
+    Row(
+        modifier = Modifier
+            .clickable(enabled = tool.enabled, onClick = tool.onClick)
+            .padding(horizontal = 16.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(
+            imageVector = tool.icon,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = Color.White.copy(alpha = contentAlpha),
+        )
+        Text(
+            text = stringResource(tool.labelRes),
+            color = Color.White.copy(alpha = contentAlpha),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        // The chosen option is the only row that can carry a trailing affordance:
+        // a setting row shows its current value instead, so it never needs both.
+        when {
+            tool.selected -> Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = Color.White,
+            )
+            tool.valueRes != null -> Text(
+                text = stringResource(tool.valueRes),
+                color = Color.White.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }
@@ -422,6 +573,8 @@ private fun FocusWallCanvas(
             viewportHeight,
             orientation,
             viewportState.densityOrdinal,
+            viewportState.focusShapeOrdinal,
+            viewportState.focusSizeOrdinal,
             focusedItemId,
             style,
             wallGapPx,
@@ -444,6 +597,8 @@ private fun FocusWallCanvas(
                     density = viewportState.density,
                     focusedItemId = focusedItemId,
                     gapPx = wallGapPx,
+                    focusShape = viewportState.focusShape,
+                    focusSize = viewportState.focusSize,
                 )
             }
         }
@@ -917,4 +1072,24 @@ private fun FocusWallDensity.labelResource(): Int = when (this) {
     FocusWallDensity.Small -> R.string.density_small
     FocusWallDensity.Medium -> R.string.density_medium
     FocusWallDensity.Large -> R.string.density_large
+}
+
+/** The size presets are the same three words the density chip already uses. */
+private fun FoliaFocusSize.labelResource(): Int = when (this) {
+    FoliaFocusSize.Small -> R.string.density_small
+    FoliaFocusSize.Medium -> R.string.density_medium
+    FoliaFocusSize.Large -> R.string.density_large
+}
+
+private fun FoliaFocusShape.labelResource(): Int = when (this) {
+    FoliaFocusShape.Square -> R.string.focus_shape_square
+    FoliaFocusShape.Portrait -> R.string.focus_shape_portrait
+    FoliaFocusShape.Landscape -> R.string.focus_shape_landscape
+}
+
+/** A glyph whose own proportions say which shape the option picks. */
+private fun FoliaFocusShape.icon(): ImageVector = when (this) {
+    FoliaFocusShape.Square -> Icons.Default.CropSquare
+    FoliaFocusShape.Portrait -> Icons.Default.CropPortrait
+    FoliaFocusShape.Landscape -> Icons.Default.CropLandscape
 }

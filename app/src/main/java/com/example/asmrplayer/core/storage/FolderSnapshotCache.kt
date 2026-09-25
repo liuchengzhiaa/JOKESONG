@@ -22,10 +22,20 @@ data class FolderSnapshot(
     val panY: Float = 0f,
     /** Mirrors `FocusWallDensity` ordinal; the cache stays free of UI types. */
     val wallDensityOrdinal: Int = DefaultWallDensityOrdinal,
+    /** Mirrors `FoliaFocusShape` ordinal; the cache stays free of UI types. */
+    val wallFocusShapeOrdinal: Int = DefaultWallFocusShapeOrdinal,
+    /** Mirrors `FoliaFocusSize` ordinal; the cache stays free of UI types. */
+    val wallFocusSizeOrdinal: Int = DefaultWallFocusSizeOrdinal,
 ) {
     companion object {
         /** `FocusWallDensity.Medium.ordinal`. */
         const val DefaultWallDensityOrdinal: Int = 1
+
+        /** `FoliaFocusShape.Square.ordinal`. */
+        const val DefaultWallFocusShapeOrdinal: Int = 0
+
+        /** `FoliaFocusSize.Medium.ordinal`. */
+        const val DefaultWallFocusSizeOrdinal: Int = 1
     }
 }
 

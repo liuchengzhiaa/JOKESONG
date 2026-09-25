@@ -137,6 +137,39 @@ class FoliaWallLayoutTest {
         }
     }
 
+    /**
+     * The same guarantee as `every focus shape remains an exact cover of its block`,
+     * for every shape and size the panel can ask for. This is the one that would catch
+     * a preset the cover generator cannot honour, since the engine would otherwise
+     * throw while placing the neighbours.
+     */
+    @Test
+    fun `every focus preset still lays out a whole block without a hole`() {
+        FoliaFocusShape.entries.forEach { shape ->
+            FoliaFocusSize.entries.forEach { size ->
+                (0 until completeBlockItems).forEach { index ->
+                    val id = "item-$index"
+                    val focused = layout(focusedItemId = id, shape = shape, size = size)
+                    val blockIndex = focused.associateBy(FocusWallPlacement::itemId).getValue(id).blockIndex
+                    val block = focused.filter { it.blockIndex == blockIndex }
+                    val where = "$shape/$size on $id"
+
+                    assertEquals("$where lost a card", 12, block.size)
+                    val unit = blockUnit(block)
+                    val cells = block.sumOf { placement ->
+                        val columns = ((placement.width + GapPx) / unit).roundToInt()
+                        val rows = ((placement.height + GapPx) / unit).roundToInt()
+                        assertTrue("$where produced a sliver", columns >= 1 && rows >= 1)
+                        columns * rows
+                    }
+
+                    assertEquals("$where did not cover its block", BlockCells, cells)
+                    assertNoOverlap(block)
+                }
+            }
+        }
+    }
+
     @Test
     fun `large scene visibility remains bounded`() {
         val largeItems = List(40_000) { index -> FocusWallLayoutItem("large-$index", index) }
@@ -159,13 +192,19 @@ class FoliaWallLayoutTest {
         assertTrue(visible.size < 260)
     }
 
-    private fun layout(focusedItemId: String? = null) = FoliaWallLayoutEngine.layout(
+    private fun layout(
+        focusedItemId: String? = null,
+        shape: FoliaFocusShape = FoliaFocusShape.Square,
+        size: FoliaFocusSize = FoliaFocusSize.Medium,
+    ) = FoliaWallLayoutEngine.layout(
         items = items,
         viewportWidth = 1080f,
         viewportHeight = 1800f,
         orientation = FocusWallOrientation.Portrait,
         density = FocusWallDensity.Medium,
         focusedItemId = focusedItemId,
+        focusShape = shape,
+        focusSize = size,
     )
 
     /**

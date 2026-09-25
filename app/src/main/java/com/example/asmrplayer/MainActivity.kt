@@ -51,6 +51,8 @@ class MainActivity : ComponentActivity() {
                     onFocusedItemChange = libraryViewModel::onFocusedItemChange,
                     onViewportChange = libraryViewModel::onViewportChange,
                     onWallDensityChange = libraryViewModel::onWallDensityChange,
+                    onWallFocusShapeChange = libraryViewModel::onWallFocusShapeChange,
+                    onWallFocusSizeChange = libraryViewModel::onWallFocusSizeChange,
                     onPlayItem = { item ->
                         // The queue is built from the listing on screen, so this is
                         // the one moment that knows which folder the queue belongs

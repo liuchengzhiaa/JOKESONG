@@ -89,12 +89,21 @@ This is a signature feature, not a decorative grid.
 The original centred-bento wall remains available unchanged. A second wall mode,
 shown immediately to its right in the layout switcher, uses a denser Folia-style
 12-item lattice. In that mode the focused item grows where it already is: the
-hero keeps the fixed 6 x 6 focus shape, its position inside the block is derived
+hero keeps the configured focus shape, its position inside the block is derived
 from the slot the card already occupied, and the remaining eleven slots are
 regenerated as an exact cover around it, so neighbours change shape and move
 rather than the hero jumping to a block corner. A card that already sat in a
 corner still focuses in that corner. Both modes share the same focus, playback
 and gesture semantics below.
+
+The Folia focus shape and size are per-folder settings, offered from the wall's
+tools panel beside the density control. Both default to the wall's original
+behaviour, a square 6 x 6 hero, so a folder that never opens the panel looks
+exactly as it always has. Shapes are square, portrait and landscape; sizes are
+three presets, and the largest of each is capped so the eleven neighbours around
+the hero still have room to be cards rather than slivers. The Bento wall has no
+such setting: its focused block is a hand-written template, not a generated
+cover.
 
 - A card can represent either a folder or an audio file; a small overlay glyph
   distinguishes the type.

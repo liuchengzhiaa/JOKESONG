@@ -94,6 +94,16 @@
       inexact so Coil stops upscaling small sources. 87/87 tests pass, lint 0 errors
       with the same 12 warnings, `assembleDebug` produces an APK. Not installed --
       sharpness needs the owner's eye on the phone.
+- [x] Make the Folia hero's shape and size settings instead of a fixed 6 x 6 square:
+      `FoliaFocusShape` (square / portrait / landscape) x `FoliaFocusSize` (three
+      presets), chosen from the wall's tools panel beside the density control, per
+      folder and restored with the snapshot, defaulting to exactly the old hero. The
+      largest presets are capped so every neighbour still gets at least three cells:
+      an 8 x 8 hero covers the block but leaves six slivers, so the largest square is
+      7 x 7. Two guards close the `targetSlots[-1]` crash path an uncoverable hero
+      would have hit. 93/93 tests pass, lint 0 errors with the same 12 warnings, and
+      a clean `assembleDebug` produces the APK. Not installed -- the size presets
+      need the owner's eye on the phone, and the heart silhouette is the next slice.
 - [ ] Review focus-wall V2, notification permission and paused task-swipe behavior
       on the phone.
 - [x] Review the new Folia-style wall's focus transitions on the phone. Verified by

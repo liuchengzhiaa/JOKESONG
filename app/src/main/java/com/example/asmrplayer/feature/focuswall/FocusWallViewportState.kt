@@ -25,6 +25,8 @@ class FocusWallViewportState(
     initialPanX: Float = 0f,
     initialPanY: Float = 0f,
     initialDensityOrdinal: Int = FocusWallDensity.Medium.ordinal,
+    initialFocusShapeOrdinal: Int = FoliaFocusShape.Square.ordinal,
+    initialFocusSizeOrdinal: Int = FoliaFocusSize.Medium.ordinal,
     restored: Boolean = false,
 ) {
     var zoom by mutableFloatStateOf(initialZoom.coerceIn(MinimumCanvasZoom, MaximumCanvasZoom))
@@ -35,6 +37,16 @@ class FocusWallViewportState(
         initialDensityOrdinal.coerceIn(FocusWallDensity.entries.indices),
     )
 
+    /** Shape of the focused cover. Folia only; the Bento wall ignores it. */
+    var focusShapeOrdinal by mutableIntStateOf(
+        initialFocusShapeOrdinal.coerceIn(FoliaFocusShape.entries.indices),
+    )
+
+    /** How large the focused cover grows. Folia only. */
+    var focusSizeOrdinal by mutableIntStateOf(
+        initialFocusSizeOrdinal.coerceIn(FoliaFocusSize.entries.indices),
+    )
+
     /**
      * True while the viewport comes from a restored snapshot. The first focus
      * reconciliation then keeps the restored pan instead of animating over it.
@@ -42,4 +54,8 @@ class FocusWallViewportState(
     var restored by mutableStateOf(restored)
 
     val density: FocusWallDensity get() = FocusWallDensity.entries[densityOrdinal]
+
+    val focusShape: FoliaFocusShape get() = FoliaFocusShape.entries[focusShapeOrdinal]
+
+    val focusSize: FoliaFocusSize get() = FoliaFocusSize.entries[focusSizeOrdinal]
 }

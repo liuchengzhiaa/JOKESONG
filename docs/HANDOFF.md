@@ -682,6 +682,92 @@ APK (SHA-256 `c245a454ff8806aba3a011f5265d402369fc6fbf998a428f7244afdfd8883817`)
 Not installed and not driven by hand: the owner installs APKs himself, and sharpness
 is a judgement only he can make on the phone.
 
+### The Folia focus shape and size are settings
+
+The owner asked for the focused cover to offer more than one shape and more than one
+size. Scope is the Folia wall only: the Bento wall's focused block is a hand-written
+`FocusedBlockTemplate`, so there is no generated cover there to parameterise.
+
+`FoliaWallLayout.kt` no longer holds `FoliaHeroColumns` / `FoliaHeroRows`. In their
+place are `FoliaFocusShape` (Square, Portrait, Landscape — Heart is the next slice),
+`FoliaFocusSize` (Small, Medium, Large) and one table, `foliaHeroSlot`, mapping the
+two to a rectangle. `foliaFocusCover`, `focusedSlotsByItem` and `layout` take the hero
+dimensions as parameters, and `layout`'s new `focusShape` / `focusSize` default to
+`Square` / `Medium`, which is exactly the 6 x 6 hero the wall shipped with. Every
+existing layout test therefore still runs against unchanged behaviour and none of them
+was edited except the helper that now passes the two parameters through.
+
+**The size caps are the interesting part.** A preset is only legal if eleven
+neighbours can still tile the rest of a 12 x 8 block, and that is a much tighter
+constraint than it looks. The plan's starting table had an 8 x 8 large square, which
+does cover the block — but it leaves 32 cells for eleven neighbours, and at the
+origins a card in the middle of a block asks for, six of them come out at two cells or
+less. The block then reads as one huge cover with slivers around it. The sizes were
+chosen from a table of measurements rather than by eye: each preset was scored on its
+smallest neighbour and on how many origins it still allows, and the largest square
+that keeps every neighbour at three cells or more is 7 x 7. Final table, in cells:
+
+| | Small | Medium | Large |
+|---|---|---|---|
+| Square | 4 x 4 | 6 x 6 | 7 x 7 |
+| Portrait | 3 x 4 | 4 x 6 | 5 x 7 |
+| Landscape | 5 x 3 | 7 x 5 | 8 x 6 |
+
+Every preset still leaves at least twelve reachable hero origins, so "the hero grows
+where the card already was" survives all nine.
+
+**Two guards, because the failure mode was a crash.** `allocateFoliaPieces` starts
+every region at one piece and stops when a region hits its cap, so a hero whose
+complement cannot yield eleven pieces used to leave the nearest-pair loop with nothing
+to pick and index `targetSlots[-1]`. `focusedSlotsByItem` now carries
+`require(targetSlots.size >= itemCount)` with a message naming the hero, and
+`foliaHeroXRange` / `foliaHeroYRange` keep a hero that fills the block's height (or
+width) at least one cell from each edge, since such a hero has only the two side bands
+left to hold its neighbours. No preset is that tall today; the rule is there so one
+that is fails in the test rather than on a phone, and it is tested directly.
+
+**Tests.** `FoliaWallLayoutTest` gained `every focus preset still lays out a whole
+block without a hole`, which drives all nine presets through the engine for the first
+twenty-four items and re-checks the pixel-level exact cover. `FoliaFocusPresetTest` is
+new and goes at the cover itself: for every preset, every legal origin and both
+variants it asserts twelve slots, the hero first and where it was asked to be, 96
+cells covered exactly once, nothing outside the block, and no neighbour under three
+cells; plus ascending preset areas, each shape's aspect, and the two edge rules.
+`FoliaCellRect` / `FoliaHeroCells` and the two `internal` engine functions
+(`heroCells`, `focusCoverCells`) exist for those tests — the same shapes the engine
+uses, not a re-implementation of them.
+
+Plumbing follows `wallDensityOrdinal` exactly: `FolderSnapshot.wallFocusShapeOrdinal`
+/ `wallFocusSizeOrdinal` (memory-only LRU cache, ordinals only, no UI types),
+`FocusWallViewportState.focusShapeOrdinal` / `focusSizeOrdinal` with `focusShape` /
+`focusSize`, `LibraryUiState` and two ViewModel callbacks, `MainActivity`, and
+`AsmrPlayerApp`. The wall's tools panel became two-level (`WallPanelPage`: Root / Shape
+/ Size) with a back row and a check on the chosen option; the two setting rows appear
+only for Folia. Size labels reuse `density_small` / `density_medium` /
+`density_large`.
+
+**Recorded trade-offs.** The shape and size are per folder, not global, because they
+travel with the snapshot the density already lives in; a global preference would need
+a second storage path for one setting. The presets stop short of the largest cover the
+block could hold, for the reason above — the wall is a mosaic with a focus, not a
+focus with a frame. And the choice is a per-folder override with no "apply to all
+folders" action yet; if the owner wants one, that is a product decision, not a bug.
+
+Verified: 93/93 unit tests (18 suites, 0 failures, 0 errors — `FoliaFocusPresetTest`
+adds five and `FoliaWallLayoutTest` one), lint 0 errors with the same 12 warnings,
+`assembleDebug` produces a 74,260,656-byte debug APK (SHA-256
+`36c2cb6e9838e8308d2eefc82bae5e5ee8c17aedadc8a54b040fc4583a75215a`). Not installed and
+not driven by hand: the owner installs APKs himself, and whether a 7 x 7 hero reads as
+"large" next to a 6 x 6 one is a judgement only he can make on the phone.
+
+One correction to how earlier slices recorded this. A debug APK's size and hash are
+only meaningful from a `clean` build: two clean builds of the same tree here produced
+byte-identical APKs, but an incremental `assembleDebug` after a source edit produced a
+different, larger one from the same sources (74,904,758 and then 75,157,238 bytes for
+code that only differed by a comment). Recording an incremental APK's hash as if it
+identified the source revision was wrong; the numbers above are the clean build, and a
+future reader comparing hashes should rebuild `clean` first.
+
 ### Git identity: one author per agent
 
 `user.name` and `user.email` are unset both globally and in this repository, so a

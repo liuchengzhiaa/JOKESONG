@@ -51,15 +51,24 @@ selected item's original slot instead of applying one universal surrounding
 frame. The implementation may learn interaction concepts from Folia Major but
 must keep independently authored geometry and code.
 
-A focused Folia card grows where it already is. The focus shape stays a fixed
-6 x 6 hero -- that shape is the configured focus shape and is not negotiable -- so
-what the item's original slot decides is where inside the block the hero sits: the
-hero is centred on the card's own centre and clamped to the block, and the other
-eleven slots are regenerated as an exact cover around it. Only a card that already
-sat in a corner therefore focuses in a corner. The earlier design pinned the hero
-to one of two written corner templates and mirrored it, so every focus landed on a
-block corner regardless of where the card had been. The greedy nearest-neighbour
+A focused Folia card grows where it already is. The hero keeps the configured
+focus shape, so what the item's original slot decides is where inside the block the
+hero sits: the hero is centred on the card's own centre and clamped to the block, and
+the other eleven slots are regenerated as an exact cover around it. Only a card that
+already sat in a corner therefore focuses in a corner. The earlier design pinned the
+hero to one of two written corner templates and mirrored it, so every focus landed on
+a block corner regardless of where the card had been. The greedy nearest-neighbour
 assignment of neighbouring cards to slots is unchanged.
+
+The Folia focus shape and size are per-folder settings, chosen from the wall's tools
+panel beside the density control, and both default to what the wall did before they
+existed: a square 6 x 6 hero. The shape is a rectangle -- square, portrait or
+landscape -- at one of three sizes; the Bento wall is unaffected, since its focused
+block is a hand-written template rather than a generated cover. Sizes are deliberately
+capped below what the block could hold: an 8 x 8 hero leaves eleven neighbours thirty
+two cells between them, and the block stops reading as a mosaic with a focus. Whatever
+the preset, the eleven neighbours must still tile the rest of the block exactly, which
+is what the enumerating cover test enforces.
 
 The wall also exposes a floating tools button at its bottom-end corner that opens
 a small panel of wall actions, the first being "focus the playing item". Focus and

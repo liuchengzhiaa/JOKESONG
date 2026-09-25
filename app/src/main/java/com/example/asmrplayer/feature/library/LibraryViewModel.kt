@@ -12,6 +12,8 @@ import com.example.asmrplayer.core.storage.FolderSnapshotCache
 import com.example.asmrplayer.core.storage.RootPreferences
 import com.example.asmrplayer.core.storage.SafDirectoryScanner
 import com.example.asmrplayer.feature.focuswall.FocusWallDensity
+import com.example.asmrplayer.feature.focuswall.FoliaFocusShape
+import com.example.asmrplayer.feature.focuswall.FoliaFocusSize
 import java.util.ArrayDeque
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -43,6 +45,10 @@ data class LibraryUiState(
     val panX: Float = 0f,
     val panY: Float = 0f,
     val wallDensityOrdinal: Int = FocusWallDensity.Medium.ordinal,
+    /** Shape of the Folia wall's focused cover; the Bento wall ignores it. */
+    val wallFocusShapeOrdinal: Int = FoliaFocusShape.Square.ordinal,
+    /** How large the Folia wall's focused cover grows. */
+    val wallFocusSizeOrdinal: Int = FoliaFocusSize.Medium.ordinal,
 )
 
 /**
@@ -198,6 +204,16 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         folderSnapshots.update(folderKey) { it.copy(wallDensityOrdinal = ordinal) }
     }
 
+    fun onWallFocusShapeChange(ordinal: Int) {
+        val folderKey = currentFolderKey() ?: return
+        folderSnapshots.update(folderKey) { it.copy(wallFocusShapeOrdinal = ordinal) }
+    }
+
+    fun onWallFocusSizeChange(ordinal: Int) {
+        val folderKey = currentFolderKey() ?: return
+        folderSnapshots.update(folderKey) { it.copy(wallFocusSizeOrdinal = ordinal) }
+    }
+
     private fun currentFolderKey(): String? = folderStack.peekLast()?.toString()
 
     private fun loadFolder(folderUri: Uri, forceRefresh: Boolean = false) {
@@ -324,4 +340,6 @@ private fun FolderSnapshot.toUiState(
     panX = panX,
     panY = panY,
     wallDensityOrdinal = wallDensityOrdinal,
+    wallFocusShapeOrdinal = wallFocusShapeOrdinal,
+    wallFocusSizeOrdinal = wallFocusSizeOrdinal,
 )

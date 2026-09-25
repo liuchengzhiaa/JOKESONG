@@ -61,14 +61,83 @@ private val FoliaBaseTemplates = listOf(
     ),
 )
 
+/** Aspect of the focused cover. Square, the default, is the original 6 x 6 hero. */
+enum class FoliaFocusShape {
+    Square,
+    Portrait,
+    Landscape,
+}
+
+/** How large the focused cover grows. */
+enum class FoliaFocusSize {
+    Small,
+    Medium,
+    Large,
+}
+
 /**
- * The focus shape is fixed: a focused cover is always a 6 x 6 square. Inside a
- * 12 x 8 block that leaves 21 places it can sit, and where it sits is what makes
- * a focused card grow where it already is instead of jumping to a block corner.
- * The shape itself is not negotiable, so the origin is the only free variable.
+ * The hero is the only card that changes shape, and it is a rectangle in every
+ * preset: the eleven neighbours have to be packed around it as an exact cover, and a
+ * rectangular complement is what keeps that cover four clean regions. The preset
+ * decides the shape and [FoliaFocusSize] decides the area; the item's own slot then
+ * decides where inside the block it lands, which is what makes a focused card grow
+ * where it already is instead of jumping to a block corner.
+ *
+ * The sizes stop short of what the block could hold. An 8 x 8 hero leaves 32 cells
+ * for eleven neighbours, and at the origins a card in the middle of a block asks for,
+ * six of them come out two cells or less: the block then reads as one huge cover with
+ * slivers around it rather than as a mosaic with a focus. 7 x 7 is the largest square,
+ * 5 x 7 the tallest and 8 x 6 the widest that still gives every neighbour room, and
+ * the cover test holds the whole table to a floor of three cells each.
  */
-private const val FoliaHeroColumns = 6
-private const val FoliaHeroRows = 6
+private fun foliaHeroSlot(shape: FoliaFocusShape, size: FoliaFocusSize): FoliaSlot = when (shape) {
+    FoliaFocusShape.Square -> when (size) {
+        FoliaFocusSize.Small -> FoliaSlot(0, 0, 4, 4)
+        FoliaFocusSize.Medium -> FoliaSlot(0, 0, 6, 6)
+        FoliaFocusSize.Large -> FoliaSlot(0, 0, 7, 7)
+    }
+    FoliaFocusShape.Portrait -> when (size) {
+        FoliaFocusSize.Small -> FoliaSlot(0, 0, 3, 4)
+        FoliaFocusSize.Medium -> FoliaSlot(0, 0, 4, 6)
+        FoliaFocusSize.Large -> FoliaSlot(0, 0, 5, 7)
+    }
+    FoliaFocusShape.Landscape -> when (size) {
+        FoliaFocusSize.Small -> FoliaSlot(0, 0, 5, 3)
+        FoliaFocusSize.Medium -> FoliaSlot(0, 0, 7, 5)
+        FoliaFocusSize.Large -> FoliaSlot(0, 0, 8, 6)
+    }
+}
+
+/**
+ * Columns the hero may occupy. No preset fills the block's height, so this is normally
+ * the whole range the hero fits in. A taller one would have nothing above or below it
+ * and only the two side bands to hold eleven neighbours, so it would have to keep at
+ * least one column on each side -- that rule is here so such a preset fails loudly in
+ * the cover test rather than at runtime.
+ */
+internal fun foliaHeroXRange(heroColumns: Int, heroRows: Int): IntRange {
+    val max = FoliaBlockColumns - heroColumns
+    return if (heroRows >= FoliaBlockRows) 1..(max - 1) else 0..max
+}
+
+/** Rows the hero may occupy, mirroring [foliaHeroXRange]. */
+internal fun foliaHeroYRange(heroColumns: Int, heroRows: Int): IntRange {
+    val max = FoliaBlockRows - heroRows
+    return if (heroColumns >= FoliaBlockColumns) 1..(max - 1) else 0..max
+}
+
+/** One rectangle of a block cover, in block cells. */
+internal data class FoliaCellRect(val x: Int, val y: Int, val columns: Int, val rows: Int) {
+    val cells: Int get() = columns * rows
+}
+
+/** Where a preset's hero may sit, and how big it is, in block cells. */
+internal data class FoliaHeroCells(
+    val columns: Int,
+    val rows: Int,
+    val xs: IntRange,
+    val ys: IntRange,
+)
 
 /**
  * Dense alternate wall modelled after Folia's observable interaction rules:
@@ -86,6 +155,8 @@ object FoliaWallLayoutEngine {
         density: FocusWallDensity,
         focusedItemId: String? = null,
         gapPx: Float = 2f,
+        focusShape: FoliaFocusShape = FoliaFocusShape.Square,
+        focusSize: FoliaFocusSize = FoliaFocusSize.Medium,
     ): List<FocusWallPlacement> {
         if (items.isEmpty() || viewportWidth <= 0f || viewportHeight <= 0f) return emptyList()
 
@@ -103,6 +174,7 @@ object FoliaWallLayoutEngine {
         val safeGap = gapPx.coerceIn(0.5f, unit * 0.06f)
         val focusedIndex = focusedItemId?.let { id -> items.indexOfFirst { it.id == id } } ?: -1
         val focusedBlock = focusedIndex.takeIf { it >= 0 }?.div(FoliaItemsPerBlock)
+        val hero = foliaHeroSlot(focusShape, focusSize)
         val placements = ArrayList<FocusWallPlacement>(items.size)
 
         val blockCount = ceil(items.size / FoliaItemsPerBlock.toDouble()).toInt()
@@ -127,6 +199,8 @@ object FoliaWallLayoutEngine {
                     focusedSlotIndex = localFocusedIndex,
                     itemCount = itemCount,
                     seed = blockSeed xor items[focusedIndex].stableSeed,
+                    heroColumns = hero.columns,
+                    heroRows = hero.rows,
                 )
             } else {
                 baseSlots.take(itemCount)
@@ -162,6 +236,8 @@ object FoliaWallLayoutEngine {
         focusedSlotIndex: Int,
         itemCount: Int,
         seed: Int,
+        heroColumns: Int,
+        heroRows: Int,
     ): List<FoliaSlot> {
         // The hero keeps the configured focus shape, so the closest it can get to
         // "where the card already was" is to centre that shape on the card's own
@@ -169,17 +245,25 @@ object FoliaWallLayoutEngine {
         // therefore grows almost exactly in place; only a card that already sat in
         // a corner still ends up in one.
         val originalFocusSlot = baseSlots[focusedSlotIndex]
-        val heroX = (originalFocusSlot.centerX - FoliaHeroColumns / 2f)
+        val heroX = (originalFocusSlot.centerX - heroColumns / 2f)
             .roundToInt()
-            .coerceIn(0, FoliaBlockColumns - FoliaHeroColumns)
-        val heroY = (originalFocusSlot.centerY - FoliaHeroRows / 2f)
+            .coerceIn(foliaHeroXRange(heroColumns, heroRows))
+        val heroY = (originalFocusSlot.centerY - heroRows / 2f)
             .roundToInt()
-            .coerceIn(0, FoliaBlockRows - FoliaHeroRows)
+            .coerceIn(foliaHeroYRange(heroColumns, heroRows))
         val targetSlots = foliaFocusCover(
             heroX = heroX,
             heroY = heroY,
+            heroColumns = heroColumns,
+            heroRows = heroRows,
             variant = stableFoliaBucket(seed, 2),
         )
+        // A hero whose complement cannot yield one slot per remaining item would
+        // otherwise leave the assignment loop below with nothing to pick and crash
+        // on a -1 index. Failing here instead names the shape that does not fit.
+        require(targetSlots.size >= itemCount) {
+            "a ${heroColumns}x$heroRows hero cannot cover a $itemCount-item block"
+        }
 
         val assignment = arrayOfNulls<FoliaSlot>(itemCount)
         assignment[focusedSlotIndex] = targetSlots.first()
@@ -215,34 +299,40 @@ object FoliaWallLayoutEngine {
     }
 
     /**
-     * Builds an exact cover of the 12 x 8 block whose first slot is the hero at
-     * ([heroX], [heroY]). The hero's shape is fixed, so it is the rest of the block
-     * that has to move around it.
+     * Builds an exact cover of the 12 x 8 block whose first slot is the
+     * [heroColumns] x [heroRows] hero at ([heroX], [heroY]). The hero's shape is
+     * fixed, so it is the rest of the block that has to move around it.
      *
-     * The complement of a 6 x 6 window is four rectangles: a strip above it, a
-     * strip below it, and a band on each side that spans only the hero's own rows.
-     * Splitting each of those by recursive halving fills the block with pieces that
-     * stay close to square, and a hero in a corner reproduces the tightly packed
-     * corner arrangement the wall used before the hero could move.
+     * The complement of any rectangular window is four rectangles: a strip above
+     * it, a strip below it, and a band on each side that spans only the hero's own
+     * rows. Splitting each of those by recursive halving fills the block with
+     * pieces that stay close to square, and a hero in a corner reproduces the
+     * tightly packed corner arrangement the wall used before the hero could move.
      */
-    private fun foliaFocusCover(heroX: Int, heroY: Int, variant: Int): List<FoliaSlot> {
-        require(heroX in 0..FoliaBlockColumns - FoliaHeroColumns) { "heroX out of block" }
-        require(heroY in 0..FoliaBlockRows - FoliaHeroRows) { "heroY out of block" }
-        val hero = FoliaSlot(heroX, heroY, FoliaHeroColumns, FoliaHeroRows)
+    private fun foliaFocusCover(
+        heroX: Int,
+        heroY: Int,
+        heroColumns: Int,
+        heroRows: Int,
+        variant: Int,
+    ): List<FoliaSlot> {
+        require(heroX in 0..FoliaBlockColumns - heroColumns) { "heroX out of block" }
+        require(heroY in 0..FoliaBlockRows - heroRows) { "heroY out of block" }
+        val hero = FoliaSlot(heroX, heroY, heroColumns, heroRows)
         val regions = listOf(
             FoliaSlot(0, 0, FoliaBlockColumns, heroY),
             FoliaSlot(
                 x = 0,
-                y = heroY + FoliaHeroRows,
+                y = heroY + heroRows,
                 columns = FoliaBlockColumns,
-                rows = FoliaBlockRows - heroY - FoliaHeroRows,
+                rows = FoliaBlockRows - heroY - heroRows,
             ),
-            FoliaSlot(0, heroY, heroX, FoliaHeroRows),
+            FoliaSlot(0, heroY, heroX, heroRows),
             FoliaSlot(
-                x = heroX + FoliaHeroColumns,
+                x = heroX + heroColumns,
                 y = heroY,
-                columns = FoliaBlockColumns - heroX - FoliaHeroColumns,
-                rows = FoliaHeroRows,
+                columns = FoliaBlockColumns - heroX - heroColumns,
+                rows = heroRows,
             ),
         ).filterNot { it.columns <= 0 || it.rows <= 0 }
 
@@ -253,10 +343,47 @@ object FoliaWallLayoutEngine {
     }
 
     /**
+     * The hero a preset produces and every origin it may take. The cover test
+     * enumerates exactly this, so a preset that cannot be covered fails there rather
+     * than on the phone.
+     */
+    internal fun heroCells(shape: FoliaFocusShape, size: FoliaFocusSize): FoliaHeroCells {
+        val hero = foliaHeroSlot(shape, size)
+        return FoliaHeroCells(
+            columns = hero.columns,
+            rows = hero.rows,
+            xs = foliaHeroXRange(hero.columns, hero.rows),
+            ys = foliaHeroYRange(hero.columns, hero.rows),
+        )
+    }
+
+    /**
+     * The exact cover a preset produces at one origin, hero first. Exposed for the
+     * same reason: the eleven neighbours have to partition the rest of the block
+     * whatever the preset and wherever the hero lands.
+     */
+    internal fun focusCoverCells(
+        shape: FoliaFocusShape,
+        size: FoliaFocusSize,
+        heroX: Int,
+        heroY: Int,
+        variant: Int,
+    ): List<FoliaCellRect> {
+        val hero = foliaHeroSlot(shape, size)
+        return foliaFocusCover(heroX, heroY, hero.columns, hero.rows, variant)
+            .map { FoliaCellRect(it.x, it.y, it.columns, it.rows) }
+    }
+
+    /**
      * Hands out [budget] pieces over [regions] in proportion to their area, one at
      * a time, always to whichever region is furthest below its share. The total is
      * therefore exact, and no region is asked for more pieces than it has cells
      * along its longer side -- which is what keeps slivers out.
+     *
+     * A region that reaches its cap stops taking pieces, so a budget the regions
+     * cannot hold comes back short rather than overfilling one of them. The caller
+     * turns that into a failure, and the cover test is what keeps it from reaching
+     * a phone.
      */
     private fun allocateFoliaPieces(
         regions: List<FoliaSlot>,

@@ -15,6 +15,11 @@
     <string name="wall_tools">墙面功能</string>
     <string name="focus_playing_item">聚焦当前播放位置</string>
     <string name="wall_density_value">密度：%1$s</string>
+    <string name="wall_focus_shape">聚焦形状</string>
+    <string name="wall_focus_size">聚焦大小</string>
+    <string name="focus_shape_square">正方形</string>
+    <string name="focus_shape_portrait">竖矩形</string>
+    <string name="focus_shape_landscape">横矩形</string>
     <string name="density_small">小</string>
     <string name="density_medium">中</string>
     <string name="density_large">大</string>
