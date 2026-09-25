@@ -160,23 +160,34 @@ replacing three private duplicates.
   artwork precedence is complete.
 - Extend the bounded direct-folder scanner into a full-library scanner.
 
-All of the above is now committed on `master` as `ebf121f` ("Make SAF audio
-playable and finish the library surfaces"), on top of Codex's `fbea40e` ("封面墙V1").
+All of the above is now committed on `master`, on top of Codex's `fbea40e` ("封面墙V1"):
+
+- `9118f80` "Make SAF audio playable and finish the library surfaces" -- the slice
+  itself, 28 files, +3133/-293.
+- `3838063` "Record the commit and the missing Git identity in the docs" -- the doc
+  correction, including this section.
+
 The working tree is clean apart from an untracked `bash.exe.stackdump`, which is a
 shell crash dump and deliberately not committed.
 
-### Git identity is not configured
+### Git identity: one shared author for both agents
 
-`user.name` and `user.email` are set neither locally nor globally, so a bare
-`git commit` fails. Codex's commit is authored `Codex <codex@local>`; `ebf121f` is
-authored `Claude <claude@local>` the same way, passed per command:
+`user.name` and `user.email` are still unset globally, so a bare `git commit` fails
+anywhere else. They are now set **in this repository only**, to the same placeholder
+Codex used, so both agents' commits are indistinguishable in the log:
 
 ```powershell
-git -c user.name='Claude' -c user.email='claude@local' commit ...
+git config --local user.name  'Codex'
+git config --local user.email 'codex@local'
 ```
 
-Set a real identity in the repository if these placeholder authors are unwanted --
-but do not change the user's global Git configuration without explicit approval.
+This lives in `.git/config`, is not part of any commit, and does not touch the
+user's global configuration -- which must still not be changed without explicit
+approval. If a real identity is wanted later, set it the same way and the existing
+commits can be rewritten; the two above were themselves rewritten to this author,
+which is why their hashes are not the ones first reported. Their trees are
+unchanged: `9118f80^{tree}` is `72085c65...` and `3838063^{tree}` is `5c0796d3...`,
+identical to the pre-rewrite objects.
 
 ## Local environment
 

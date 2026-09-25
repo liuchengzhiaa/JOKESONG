@@ -38,8 +38,12 @@
       and focus-wall copies had drifted into duplicates; 54/54 tests pass and lint
       reports 0 errors.
 - [x] Commit the accumulated work. `master` was the only branch and there is no
-      remote, so the slice went to `master` as `ebf121f` rather than to a side
+      remote, so the slice went to `master` as `9118f80` rather than to a side
       branch; `bash.exe.stackdump` was left untracked.
+- [x] Give this repository a single shared git author so Claude's and Codex's
+      commits are indistinguishable: `user.name`/`user.email` are now set
+      repo-locally to `Codex <codex@local>` (not globally), and the two commits
+      above were rewritten to it.
 
 ## Next
 
