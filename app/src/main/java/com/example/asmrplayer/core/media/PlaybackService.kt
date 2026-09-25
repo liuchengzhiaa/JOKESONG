@@ -38,7 +38,7 @@ class PlaybackService : MediaSessionService() {
      */
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player ?: return
-        if (!player.playWhenReady || player.mediaItemCount == 0) stopSelf()
+        if (shouldStopPlaybackServiceAfterTaskRemoved(player.mediaItemCount)) stopSelf()
     }
 
     override fun onDestroy() {
@@ -50,3 +50,11 @@ class PlaybackService : MediaSessionService() {
         super.onDestroy()
     }
 }
+
+/**
+ * The product default keeps a paused queue alive after the task is swiped away.
+ * Only an empty session can be stopped here. A future "swipe to stop" setting
+ * can become an explicit second input instead of inferring intent from pause.
+ */
+internal fun shouldStopPlaybackServiceAfterTaskRemoved(mediaItemCount: Int): Boolean =
+    mediaItemCount <= 0

@@ -385,6 +385,7 @@ private fun LibraryContent(
                     playbackState = playbackState,
                     onOpen = openItem,
                     onPlay = onPlayItem,
+                    onTogglePlayPause = onTogglePlayPause,
                 )
             }
         }

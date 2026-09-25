@@ -147,6 +147,37 @@ replacing three private duplicates.
 
 ## Immediate next work
 
+### Codex review after the Claude implementation
+
+Codex reviewed the committed implementation and found three transport-edge
+issues that are fixed in the current working tree:
+
+- The grid rendered a Pause icon for the current playing item but still invoked
+  `onPlay`, replacing/restarting the queue. `LibraryGrid` now receives the shared
+  `onTogglePlayPause` callback and uses it for the current item, matching both
+  list layouts and the focus wall.
+- `PlaybackService.onTaskRemoved()` stopped the service whenever the queue was
+  paused. The agreed default is to retain the service and queue after a task
+  swipe, whether playing or paused, so it now stops only for an empty session.
+  `PlaybackServicePolicyTest` covers empty and populated queues.
+- `POST_NOTIFICATIONS` was declared but never requested. On Android 13+ the first
+  explicit Play action now requests it once per saved Activity state; playback
+  proceeds whether the user grants or denies it.
+
+The formal Gradle XML reports produced in Claude's ordinary terminal were read
+back independently and contain 54 tests, 0 failures, 0 errors and 0 skipped.
+Codex's restricted command environment still fails before project evaluation
+with `java.io.IOException: Unable to establish loopback connection`, even with
+`--no-daemon`; therefore the new review changes and the two added policy tests
+still need these commands from Android Studio or a normal terminal:
+
+```powershell
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle testDebugUnitTest
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle lintDebug
+```
+
+No APK was built or installed during this Codex review.
+
 - Room schema and persistence for the queue and playback positions. The queue is
   currently rebuilt from the folder listing on each play and is not durable.
 - Durable bookmarks: the full player's bookmark list is still local UI state only.
@@ -154,8 +185,8 @@ replacing three private duplicates.
   because it was wired to an empty lambda; bringing it back needs a queue-insertion
   API on `PlaybackConnection` and the durable queue above, or an appended item is
   lost on the next play.
-- Request `POST_NOTIFICATIONS` at runtime before relying on the playback
-  notification on API 33+.
+- Verify the first-play `POST_NOTIFICATIONS` request and the paused task-swipe
+  behavior on the phone.
 - Embedded artwork and recursive child-folder artwork fallback, so the documented
   artwork precedence is complete.
 - Extend the bounded direct-folder scanner into a full-library scanner.

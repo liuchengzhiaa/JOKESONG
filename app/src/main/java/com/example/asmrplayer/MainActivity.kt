@@ -1,14 +1,21 @@
 package com.example.asmrplayer
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.asmrplayer.core.media.rememberPlaybackConnection
 import com.example.asmrplayer.feature.library.LibraryViewModel
 import com.example.asmrplayer.ui.AsmrPlayerApp
@@ -28,6 +35,11 @@ class MainActivity : ComponentActivity() {
                 contract = ActivityResultContracts.OpenDocumentTree(),
                 onResult = { uri -> uri?.let(libraryViewModel::selectRoot) },
             )
+            var notificationPermissionRequested by rememberSaveable { mutableStateOf(false) }
+            val notificationPermission = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission(),
+                onResult = { /* Playback is allowed even when notification access is denied. */ },
+            )
             AsmrPlayerTheme {
                 AsmrPlayerApp(
                     libraryState = libraryState,
@@ -39,7 +51,19 @@ class MainActivity : ComponentActivity() {
                     onFocusedItemChange = libraryViewModel::onFocusedItemChange,
                     onViewportChange = libraryViewModel::onViewportChange,
                     onWallDensityChange = libraryViewModel::onWallDensityChange,
-                    onPlayItem = { item -> playback.playFromFolder(libraryState.items, item) },
+                    onPlayItem = { item ->
+                        val needsNotificationPermission =
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                ContextCompat.checkSelfPermission(
+                                    this,
+                                    Manifest.permission.POST_NOTIFICATIONS,
+                                ) != PackageManager.PERMISSION_GRANTED
+                        if (needsNotificationPermission && !notificationPermissionRequested) {
+                            notificationPermissionRequested = true
+                            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        playback.playFromFolder(libraryState.items, item)
+                    },
                     onTogglePlayPause = playback::togglePlayPause,
                     onSeekTo = playback::seekTo,
                     onSeekBy = playback::seekBy,

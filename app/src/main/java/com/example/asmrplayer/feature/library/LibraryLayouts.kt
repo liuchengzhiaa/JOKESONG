@@ -120,6 +120,7 @@ fun LibraryGrid(
     playbackState: PlaybackState,
     onOpen: (LibraryItem) -> Unit,
     onPlay: (LibraryItem) -> Unit,
+    onTogglePlayPause: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyVerticalGrid(
@@ -135,6 +136,7 @@ fun LibraryGrid(
                 playbackState = playbackState,
                 onOpen = { onOpen(item) },
                 onPlay = { onPlay(item) },
+                onTogglePlayPause = onTogglePlayPause,
             )
         }
     }
@@ -298,6 +300,7 @@ private fun GridCell(
     playbackState: PlaybackState,
     onOpen: () -> Unit,
     onPlay: () -> Unit,
+    onTogglePlayPause: () -> Unit,
 ) {
     val isCurrent = playbackState.isCurrent(item.id)
     Column(modifier = Modifier.clickable(onClick = onOpen)) {
@@ -357,7 +360,7 @@ private fun GridCell(
             // folder cover carries no affordance glyph of its own.
             if (item.type != LibraryItemType.Folder) {
                 IconButton(
-                    onClick = onPlay,
+                    onClick = { if (isCurrent) onTogglePlayPause() else onPlay() },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(4.dp)

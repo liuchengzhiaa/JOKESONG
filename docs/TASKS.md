@@ -47,6 +47,12 @@
       still untouched), so each commit passes its own with `-c` and a bare commit
       fails loudly rather than misattributing the work. The rewrite left every
       tree byte-identical.
+- [x] Review Claude's playback implementation and fix three edge cases: the grid
+      Pause button restarted instead of pausing, a paused queue was discarded on
+      task swipe, and Android 13+ notification permission was never requested.
+- [ ] Re-run Gradle tests/lint and verify those three review fixes on the phone.
+      Codex's restricted runner still blocks Gradle loopback; use the two commands
+      recorded in `docs/HANDOFF.md` from Android Studio or a normal terminal.
 
 ## Next
 
@@ -56,8 +62,8 @@
 - [ ] Complete artwork resolution (embedded art and recursive fallback); direct image covers and bounded Coil thumbnails are working.
 - [ ] Persist the Media3 queue and playback positions in Room.
 - [ ] Restore queue insertion on the focused card, on top of the durable queue.
-- [ ] Request `POST_NOTIFICATIONS` at runtime so the playback notification appears
-      on API 33+.
+- [x] Request `POST_NOTIFICATIONS` on the first explicit Play action on API 33+;
+      playback remains available if the user denies it.
 
 ## Later
 
