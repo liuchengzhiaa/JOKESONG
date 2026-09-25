@@ -162,32 +162,42 @@ replacing three private duplicates.
 
 All of the above is now committed on `master`, on top of Codex's `fbea40e` ("封面墙V1"):
 
-- `9118f80` "Make SAF audio playable and finish the library surfaces" -- the slice
+- `1360e23` "Make SAF audio playable and finish the library surfaces" -- the slice
   itself, 28 files, +3133/-293.
-- `3838063` "Record the commit and the missing Git identity in the docs" -- the doc
+- `461220e` "Record the commit and the missing Git identity in the docs" -- the doc
   correction, including this section.
+- `053921a` "Correct the docs for the rewritten commits and shared author" -- first
+  gave both agents one shared author.
+- the tip commit reverses that again and gives each agent its own name.
 
 The working tree is clean apart from an untracked `bash.exe.stackdump`, which is a
 shell crash dump and deliberately not committed.
 
-### Git identity: one shared author for both agents
+### Git identity: one author per agent
 
-`user.name` and `user.email` are still unset globally, so a bare `git commit` fails
-anywhere else. They are now set **in this repository only**, to the same placeholder
-Codex used, so both agents' commits are indistinguishable in the log:
+`user.name` and `user.email` are unset both globally and in this repository, so a
+bare `git commit` fails. That is deliberate. Two agents work in this repository, so
+any repo-local default would silently stamp one agent's name on the other's commits;
+a refusal is a bug report, a wrong author is not. Each commit names its own author
+on the command line instead:
 
 ```powershell
-git config --local user.name  'Codex'
-git config --local user.email 'codex@local'
+git -c user.name='Codex'  -c user.email='codex@local'  commit ...
+git -c user.name='Claude' -c user.email='claude@local' commit ...
 ```
 
-This lives in `.git/config`, is not part of any commit, and does not touch the
-user's global configuration -- which must still not be changed without explicit
-approval. If a real identity is wanted later, set it the same way and the existing
-commits can be rewritten; the two above were themselves rewritten to this author,
-which is why their hashes are not the ones first reported. Their trees are
-unchanged: `9118f80^{tree}` is `72085c65...` and `3838063^{tree}` is `5c0796d3...`,
-identical to the pre-rewrite objects.
+`fbea40e` is Codex's and is untouched. The three commits that carry this slice are
+Claude's, so `git log --author=Claude` and `--author=Codex` cleanly separate the two
+agents. Both addresses are placeholders, not real mailboxes.
+
+Those three were rewritten twice: once to move them off a per-command author onto a
+shared one, then again to split that shared author apart. Their hashes therefore do
+not match the ones first reported. No content changed either time -- every tree is
+byte-identical to its pre-rewrite object, which is why the working tree stayed clean
+across both rewrites.
+
+The user's global Git configuration is still untouched and must not be changed
+without explicit approval.
 
 ## Local environment
 

@@ -38,12 +38,15 @@
       and focus-wall copies had drifted into duplicates; 54/54 tests pass and lint
       reports 0 errors.
 - [x] Commit the accumulated work. `master` was the only branch and there is no
-      remote, so the slice went to `master` as `9118f80` rather than to a side
+      remote, so the slice went to `master` as `1360e23` rather than to a side
       branch; `bash.exe.stackdump` was left untracked.
-- [x] Give this repository a single shared git author so Claude's and Codex's
-      commits are indistinguishable: `user.name`/`user.email` are now set
-      repo-locally to `Codex <codex@local>` (not globally), and the two commits
-      above were rewritten to it.
+- [x] Give each agent its own git identity instead of one shared author: Codex's
+      `fbea40e` stays `Codex <codex@local>`, and this slice's commits now carry
+      `Claude <claude@local>`, so `git log --author` separates the two. No
+      `user.name`/`user.email` is configured in any scope (the global config is
+      still untouched), so each commit passes its own with `-c` and a bare commit
+      fails loudly rather than misattributing the work. The rewrite left every
+      tree byte-identical.
 
 ## Next
 
