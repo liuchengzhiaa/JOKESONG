@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.SpaceDashboard
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -142,7 +143,7 @@ fun LibraryGrid(
     }
 }
 
-/** Switching affordance shared by all four modes. */
+/** Switching affordance shared by all library presentation modes. */
 @Composable
 fun LibraryLayoutSwitcher(
     selected: LibraryLayoutMode,
@@ -496,4 +497,5 @@ private fun LibraryLayoutMode.icon(): ImageVector = when (this) {
     LibraryLayoutMode.CompactList -> Icons.AutoMirrored.Filled.List
     LibraryLayoutMode.Grid -> Icons.Default.GridView
     LibraryLayoutMode.FocusWall -> Icons.Default.ViewComfy
+    LibraryLayoutMode.FoliaWall -> Icons.Default.SpaceDashboard
 }

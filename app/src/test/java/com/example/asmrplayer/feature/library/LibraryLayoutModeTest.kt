@@ -25,6 +25,14 @@ class LibraryLayoutModeTest {
     }
 
     @Test
+    fun `folia wall is immediately to the right of the original focus wall`() {
+        assertEquals(
+            LibraryLayoutMode.FoliaWall,
+            LibraryLayoutMode.entries[LibraryLayoutMode.FocusWall.ordinal + 1],
+        )
+    }
+
+    @Test
     fun `an ordinal round trips`() {
         LibraryLayoutMode.entries.forEach { mode ->
             assertEquals(mode, LibraryLayoutMode.fromOrdinal(mode.ordinal))
@@ -34,6 +42,6 @@ class LibraryLayoutModeTest {
     @Test
     fun `an out of range ordinal falls back to a valid layout`() {
         assertEquals(LibraryLayoutMode.DetailedList, LibraryLayoutMode.fromOrdinal(-3))
-        assertEquals(LibraryLayoutMode.FocusWall, LibraryLayoutMode.fromOrdinal(99))
+        assertEquals(LibraryLayoutMode.FoliaWall, LibraryLayoutMode.fromOrdinal(99))
     }
 }

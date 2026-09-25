@@ -32,12 +32,87 @@ data class FocusWallPlacement(
     val centerY: Float,
     val width: Float,
     val height: Float,
+    val blockIndex: Int,
+)
+
+private data class BlockSlot(
+    val x: Int,
+    val y: Int,
+    val columns: Int,
+    val rows: Int,
+)
+
+private const val BlockColumns = 12
+private const val BlockRows = 10
+private const val ItemsPerBlock = 10
+
+/**
+ * Three independently-authored exact covers for a 12 x 10 logical block. They
+ * deliberately mix squares, portrait cards and two widths of landscape card.
+ * Mirroring each template from a stable block hash creates variety without ever
+ * making layout depend on mutable or random state.
+ */
+private val BaseBlockTemplates = listOf(
+    listOf(
+        BlockSlot(0, 0, 5, 3),
+        BlockSlot(0, 3, 5, 2),
+        BlockSlot(0, 5, 2, 5),
+        BlockSlot(2, 5, 3, 5),
+        BlockSlot(5, 0, 4, 4),
+        BlockSlot(9, 0, 3, 4),
+        BlockSlot(5, 4, 7, 3),
+        BlockSlot(5, 7, 2, 3),
+        BlockSlot(7, 7, 2, 3),
+        BlockSlot(9, 7, 3, 3),
+    ),
+    listOf(
+        BlockSlot(0, 0, 3, 5),
+        BlockSlot(3, 0, 4, 5),
+        BlockSlot(7, 0, 5, 3),
+        BlockSlot(7, 3, 5, 2),
+        BlockSlot(0, 5, 5, 3),
+        BlockSlot(0, 8, 5, 2),
+        BlockSlot(5, 5, 3, 5),
+        BlockSlot(8, 5, 2, 5),
+        BlockSlot(10, 5, 2, 2),
+        BlockSlot(10, 7, 2, 3),
+    ),
+    listOf(
+        BlockSlot(0, 0, 5, 5),
+        BlockSlot(0, 5, 5, 3),
+        BlockSlot(0, 8, 2, 2),
+        BlockSlot(2, 8, 3, 2),
+        BlockSlot(5, 0, 3, 3),
+        BlockSlot(8, 0, 4, 3),
+        BlockSlot(5, 3, 4, 4),
+        BlockSlot(9, 3, 3, 4),
+        BlockSlot(5, 7, 4, 3),
+        BlockSlot(9, 7, 3, 3),
+    ),
 )
 
 /**
- * Pure spatial layout for the focus wall. Positions are world coordinates around
- * the viewport center. Canvas zoom and pan are deliberately not inputs so pinch
- * gestures can never cause a reflow.
+ * Reflow for the one block containing the focused item. The focused card takes
+ * the centred 6 x 6 slot. The other nine cards re-pack the surrounding frame,
+ * leaving the block's outer footprint unchanged and preventing a cascade into
+ * neighbouring blocks.
+ */
+private val FocusedBlockTemplate = listOf(
+    BlockSlot(3, 2, 6, 6),
+    BlockSlot(0, 0, 3, 2),
+    BlockSlot(3, 0, 2, 2),
+    BlockSlot(5, 0, 4, 2),
+    BlockSlot(9, 0, 3, 2),
+    BlockSlot(0, 2, 3, 6),
+    BlockSlot(9, 2, 3, 6),
+    BlockSlot(0, 8, 4, 2),
+    BlockSlot(4, 8, 5, 2),
+    BlockSlot(9, 8, 3, 2),
+)
+
+/**
+ * Pure deterministic geometry for the focus wall. Pan and canvas zoom are not
+ * inputs, so a pinch never causes cards to jump to a different template.
  */
 object FocusWallLayoutEngine {
     fun layout(
@@ -46,96 +121,94 @@ object FocusWallLayoutEngine {
         viewportHeight: Float,
         orientation: FocusWallOrientation,
         density: FocusWallDensity,
+        focusedItemId: String? = null,
+        gapPx: Float = 4f,
     ): List<FocusWallPlacement> {
         if (items.isEmpty() || viewportWidth <= 0f || viewportHeight <= 0f) return emptyList()
-        return when (orientation) {
-            FocusWallOrientation.Portrait -> portrait(items, viewportWidth, viewportHeight, density)
-            FocusWallOrientation.Landscape -> landscape(items, viewportWidth, viewportHeight, density)
+
+        val scale = when (density) {
+            FocusWallDensity.Small -> 0.84f
+            FocusWallDensity.Medium -> 1f
+            FocusWallDensity.Large -> 1.16f
         }
+        val unit = when (orientation) {
+            FocusWallOrientation.Portrait -> viewportWidth * scale / BlockColumns
+            FocusWallOrientation.Landscape -> viewportHeight * 0.92f * scale / BlockRows
+        }
+        val blockWidth = unit * BlockColumns
+        val blockHeight = unit * BlockRows
+        val safeGap = gapPx.coerceIn(1f, unit * 0.08f)
+        val focusedIndex = focusedItemId?.let { id -> items.indexOfFirst { it.id == id } } ?: -1
+        val focusedBlock = focusedIndex.takeIf { it >= 0 }?.div(ItemsPerBlock)
+        val placements = ArrayList<FocusWallPlacement>(items.size)
+
+        val blockCount = ceil(items.size / ItemsPerBlock.toDouble()).toInt()
+        repeat(blockCount) { blockIndex ->
+            val start = blockIndex * ItemsPerBlock
+            val end = min(items.size, start + ItemsPerBlock)
+            val (rawColumn, rawRow) = mosaicCoordinate(blockIndex)
+            val blockColumn = if (orientation == FocusWallOrientation.Portrait) rawRow else rawColumn
+            val blockRow = if (orientation == FocusWallOrientation.Portrait) rawColumn else rawRow
+            val originX = blockColumn * blockWidth - blockWidth / 2f
+            val originY = blockRow * blockHeight - blockHeight / 2f
+            val blockSeed = mixBlockSeed(blockColumn, blockRow, items[start].stableSeed)
+            val mirrorX = (blockSeed and 1) != 0
+            val mirrorY = (blockSeed and 2) != 0
+            val isFocusedBlock = blockIndex == focusedBlock
+            val template = if (isFocusedBlock) {
+                FocusedBlockTemplate
+            } else {
+                BaseBlockTemplates[stableBucket(blockSeed, BaseBlockTemplates.size)]
+            }
+            val itemIndices = if (isFocusedBlock) {
+                buildList {
+                    add(focusedIndex)
+                    for (index in start until end) if (index != focusedIndex) add(index)
+                }
+            } else {
+                (start until end).toList()
+            }
+
+            itemIndices.forEachIndexed { slotIndex, itemIndex ->
+                val item = items[itemIndex]
+                val slot = template[slotIndex].mirrored(mirrorX, mirrorY)
+                val left = originX + slot.x * unit + safeGap / 2f
+                val top = originY + slot.y * unit + safeGap / 2f
+                val width = slot.columns * unit - safeGap
+                val height = slot.rows * unit - safeGap
+                placements += FocusWallPlacement(
+                    itemId = item.id,
+                    index = itemIndex,
+                    centerX = left + width / 2f,
+                    centerY = top + height / 2f,
+                    width = width,
+                    height = height,
+                    blockIndex = blockIndex,
+                )
+            }
+        }
+
+        // The visibility query performs a binary search on this ordering.
+        return placements.sortedWith(
+            compareBy<FocusWallPlacement> { it.centerY }.thenBy { it.centerX },
+        )
     }
 
-    private fun portrait(
-        items: List<FocusWallLayoutItem>,
-        viewportWidth: Float,
-        viewportHeight: Float,
-        density: FocusWallDensity,
-    ): List<FocusWallPlacement> {
-        val baseWidth = viewportWidth * when (density) {
-            FocusWallDensity.Small -> 0.48f
-            FocusWallDensity.Medium -> 0.58f
-            FocusWallDensity.Large -> 0.68f
-        }
-        val horizontalStep = baseWidth * 0.78f
-        val verticalStep = min(baseWidth * 0.82f, viewportHeight * 0.25f)
+    private fun BlockSlot.mirrored(horizontal: Boolean, vertical: Boolean): BlockSlot = copy(
+        x = if (horizontal) BlockColumns - x - columns else x,
+        y = if (vertical) BlockRows - y - rows else y,
+    )
 
-        return mosaic(
-            items = items,
-            horizontalStep = horizontalStep,
-            verticalStep = verticalStep,
-        ) { item ->
-            val widthVariation = 0.92f + stableBucket(item.stableSeed, 6) * 0.025f
-            val aspectVariation = 0.82f + stableBucket(item.stableSeed / 11, 7) * 0.055f
-            val width = min(baseWidth * widthVariation, viewportWidth * 0.72f)
-            val height = (width * aspectVariation)
-                .coerceIn(viewportHeight * 0.12f, viewportHeight * 0.36f)
-            width to height
-        }
+    private fun mixBlockSeed(column: Int, row: Int, itemSeed: Int): Int {
+        var mixed = itemSeed xor (column * 0x45D9F3B) xor (row * 0x119DE1F3)
+        mixed = mixed xor (mixed ushr 16)
+        mixed *= 0x45D9F3B
+        return mixed xor (mixed ushr 16)
     }
-
-    private fun landscape(
-        items: List<FocusWallLayoutItem>,
-        viewportWidth: Float,
-        viewportHeight: Float,
-        density: FocusWallDensity,
-    ): List<FocusWallPlacement> {
-        val columns = when (density) {
-            FocusWallDensity.Small -> 6
-            FocusWallDensity.Medium -> 5
-            FocusWallDensity.Large -> 4
-        }
-        val baseWidth = viewportWidth / (columns - 1.2f)
-        val horizontalStep = baseWidth * 0.88f
-        val verticalStep = min(baseWidth * 0.70f, viewportHeight * 0.46f)
-
-        return mosaic(
-            items = items,
-            horizontalStep = horizontalStep,
-            verticalStep = verticalStep,
-        ) { item ->
-            val widthVariation = 0.86f + stableBucket(item.stableSeed, 6) * 0.045f
-            val aspectVariation = 0.74f + stableBucket(item.stableSeed / 13, 7) * 0.075f
-            val width = min(baseWidth * widthVariation, viewportWidth * 0.34f)
-            val height = (width * aspectVariation)
-                .coerceIn(viewportHeight * 0.22f, viewportHeight * 0.62f)
-            width to height
-        }
-    }
-
-    private inline fun mosaic(
-        items: List<FocusWallLayoutItem>,
-        horizontalStep: Float,
-        verticalStep: Float,
-        size: (FocusWallLayoutItem) -> Pair<Float, Float>,
-    ): List<FocusWallPlacement> = items.mapIndexed { index, item ->
-            val (column, row) = mosaicCoordinate(index)
-            val (width, height) = size(item)
-            FocusWallPlacement(
-                itemId = item.id,
-                index = index,
-                centerX = column * horizontalStep,
-                centerY = row * verticalStep,
-                width = width,
-                height = height,
-            )
-        }.sortedWith(compareBy<FocusWallPlacement> { it.centerY }.thenBy { it.centerX })
 
     private fun stableBucket(seed: Int, count: Int): Int = (abs(seed.toLong()) % count).toInt()
 
-    /**
-     * Keeps the first visible ring balanced around the hero, then continues on a
-     * deterministic square spiral. Small folders therefore fill both sides of
-     * the screen instead of growing as a one-sided chain.
-     */
+    /** Balanced square spiral used for whole blocks, never individual cards. */
     private fun mosaicCoordinate(index: Int): Pair<Int, Int> = when (index) {
         0 -> 0 to 0
         1 -> -1 to 0
@@ -149,9 +222,7 @@ object FocusWallLayoutEngine {
         else -> spiralCoordinate(index)
     }
 
-    /** Maps the remaining sorted item positions onto an outward square spiral. */
     private fun spiralCoordinate(index: Int): Pair<Int, Int> {
-        if (index == 0) return 0 to 0
         val layer = ceil((sqrt(index + 1.0) - 1.0) / 2.0).toInt()
         val legLength = layer * 2
         val maxIndex = (layer * 2 + 1) * (layer * 2 + 1) - 1
@@ -198,11 +269,7 @@ fun placementsNearVerticalRange(
     return placements.subList(start, endExclusive)
 }
 
-/**
- * Two-dimensional viewport query for the mosaic. The binary y lookup avoids a
- * full-scene walk; the x filter prevents a wide row in a 40,000-item library from
- * producing an unbounded composition set.
- */
+/** Two-dimensional viewport query for the mosaic. */
 fun placementsNearWorldRect(
     placements: List<FocusWallPlacement>,
     minCenterX: Float,
@@ -216,10 +283,7 @@ fun placementsNearWorldRect(
     edgePaddingItems = 0,
 ).filter { it.centerX in minCenterX..maxCenterX }
 
-/**
- * Cover-flow depth projection. The item crossing the viewport centre is always
- * visually dominant; cards recede smoothly instead of changing size in steps.
- */
+/** Used only for subtle distance dimming; card dimensions come from the mosaic. */
 fun focusWallDepthScale(
     offsetFromCenterX: Float,
     offsetFromCenterY: Float,
@@ -230,4 +294,58 @@ fun focusWallDepthScale(
     val normalizedY = offsetFromCenterY / (viewportHeight * 0.48f).coerceAtLeast(1f)
     val proximity = (1f - hypot(normalizedX, normalizedY)).coerceIn(0f, 1f)
     return 0.52f + proximity * 0.48f
+}
+
+/** Axis-aligned extent of the whole laid-out wall, in world coordinates. */
+data class FocusWallWorldBounds(
+    val minX: Float,
+    val maxX: Float,
+    val minY: Float,
+    val maxY: Float,
+)
+
+/** A pan offset in screen pixels, kept plain so [clampWallPan] stays unit-testable. */
+data class FocusWallPan(val x: Float, val y: Float)
+
+/** Returns null when there is nothing to bound. */
+fun wallWorldBounds(placements: List<FocusWallPlacement>): FocusWallWorldBounds? {
+    if (placements.isEmpty()) return null
+    var minX = Float.POSITIVE_INFINITY
+    var maxX = Float.NEGATIVE_INFINITY
+    var minY = Float.POSITIVE_INFINITY
+    var maxY = Float.NEGATIVE_INFINITY
+    placements.forEach { placement ->
+        val halfWidth = placement.width / 2f
+        val halfHeight = placement.height / 2f
+        minX = min(minX, placement.centerX - halfWidth)
+        maxX = max(maxX, placement.centerX + halfWidth)
+        minY = min(minY, placement.centerY - halfHeight)
+        maxY = max(maxY, placement.centerY + halfHeight)
+    }
+    return FocusWallWorldBounds(minX, maxX, minY, maxY)
+}
+
+/**
+ * Keeps the viewport's *centre* inside [bounds]. Panning stays completely free
+ * within that box; the clamp is a safety rail, not a snapping rule.
+ *
+ * It exists because release is inertial and no longer snaps to a card: without a
+ * bound, one fast fling could carry the entire wall off screen with nothing left
+ * to grab. Bounding the centre rather than the edges means the wall is always at
+ * least partly visible, and lets content smaller than the viewport still be
+ * centred.
+ */
+fun clampWallPan(
+    panX: Float,
+    panY: Float,
+    zoom: Float,
+    bounds: FocusWallWorldBounds?,
+): FocusWallPan {
+    bounds ?: return FocusWallPan(panX, panY)
+    // pan = -centre * zoom, so the centre's box maps to a reversed, scaled range.
+    val safeZoom = zoom.coerceAtLeast(0.01f)
+    return FocusWallPan(
+        x = panX.coerceIn(-bounds.maxX * safeZoom, -bounds.minX * safeZoom),
+        y = panY.coerceIn(-bounds.maxY * safeZoom, -bounds.minY * safeZoom),
+    )
 }

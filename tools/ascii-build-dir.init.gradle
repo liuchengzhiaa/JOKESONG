@@ -21,15 +21,18 @@
 //   ./gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest
 //   ./gradlew.bat -I tools/ascii-build-dir.init.gradle lintDebug
 //
-// Override the output root with -PasciiBuildDir=<path> when the default is not
-// writable. Delete this file and the two commands above become unnecessary on a
+// The default is an ASCII-named sibling of the repository. Keeping it on the same
+// drive is required by KSP, which relativizes generated sources against the app
+// module and rejects paths whose Windows roots differ. Override the output root
+// with -PasciiBuildDir=<same-drive-path> when the default is not writable. Delete
+// this file and the two commands above become unnecessary on a
 // machine whose home directory and repository path are both ASCII -- or once the
 // JDK launcher honours UTF-8 argfiles on a UTF-8 system locale.
 
 def configured = gradle.startParameter.projectProperties['asciiBuildDir']
 def root = configured
     ? new File(configured)
-    : new File(System.getProperty('user.home'), '.asmrplayer-build')
+    : new File(gradle.startParameter.currentDir.parentFile, '.asmrplayer-build')
 
 gradle.projectsLoaded {
     gradle.rootProject.allprojects { p ->

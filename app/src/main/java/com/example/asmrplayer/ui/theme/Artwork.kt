@@ -16,3 +16,6 @@ private val ArtworkPalettes = listOf(
  * yet. The same seed always produces the same gradient.
  */
 fun artworkBrush(seed: Int): Brush = Brush.linearGradient(ArtworkPalettes[(seed - 1).mod(ArtworkPalettes.size)])
+
+/** Accent used while a real cover is absent or its colour sample is loading. */
+fun artworkAccent(seed: Int): Color = ArtworkPalettes[(seed - 1).mod(ArtworkPalettes.size)].first()
