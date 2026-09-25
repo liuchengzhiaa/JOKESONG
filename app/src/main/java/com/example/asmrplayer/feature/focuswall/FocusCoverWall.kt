@@ -78,9 +78,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import coil3.size.Precision
 import com.example.asmrplayer.R
 import com.example.asmrplayer.core.artwork.CoverAccentLoader
 import com.example.asmrplayer.core.media.PlaybackState
@@ -405,6 +409,10 @@ private fun FocusWallCanvas(
         val viewportWidth = with(localDensity) { maxWidth.toPx() }
         val viewportHeight = with(localDensity) { maxHeight.toPx() }
         val wallGapPx = with(localDensity) { 2.dp.toPx() }
+        // Read here, in a composition scope, so a pinch re-decodes artwork at the new
+        // bucket. The cards are placed by a layout pass, not by a recomposition, so a
+        // zoom read inside the canvas would never reach them.
+        val artworkScale = artworkDecodeScale(viewportState.zoom)
         val layoutItems = remember(items) {
             items.map { FocusWallLayoutItem(it.id, it.paletteSeed) }
         }
@@ -607,6 +615,11 @@ private fun FocusWallCanvas(
                         isCurrent = isCurrent,
                         isPlaying = isCurrent && playbackState.isPlaying,
                         playbackState = playbackState,
+                        decodeSize = artworkDecodeSize(
+                            widthPx = placement.width,
+                            heightPx = placement.height,
+                            zoom = artworkScale,
+                        ),
                         onClick = { onCardClick(item) },
                         onPlayPause = { onPlayPause(item) },
                         onSeekTo = onSeekTo,
@@ -651,12 +664,28 @@ private fun FocusCoverCard(
     isCurrent: Boolean,
     isPlaying: Boolean,
     playbackState: PlaybackState,
+    decodeSize: IntSize,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current.applicationContext
+    val platformContext = LocalPlatformContext.current
+    // The card is composed at its zoom-1 layout size and then magnified by the canvas,
+    // so it asks for artwork at the size it will actually be painted at. Layout
+    // constraints would otherwise pin the request to the smaller layout size.
+    val artworkRequest = remember(item.artworkUri, decodeSize) {
+        item.artworkUri?.let { uri ->
+            ImageRequest.Builder(platformContext)
+                .data(uri)
+                .size(decodeSize.width, decodeSize.height)
+                // Inexact keeps Coil from upscaling a small source to the request: it
+                // returns what the artwork actually has and lets the card scale it.
+                .precision(Precision.INEXACT)
+                .build()
+        }
+    }
     val sampledAccentArgb by produceState<Int?>(
         null,
         item.artworkUri,
@@ -694,9 +723,9 @@ private fun FocusCoverCard(
                 .background(artworkBrush(item.paletteSeed)),
         ) {
             val compactCard = !isFocused && (maxWidth < 116.dp || maxHeight < 112.dp)
-            if (item.artworkUri != null) {
+            if (artworkRequest != null) {
                 AsyncImage(
-                    model = item.artworkUri,
+                    model = artworkRequest,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,

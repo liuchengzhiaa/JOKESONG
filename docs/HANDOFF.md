@@ -593,11 +593,14 @@ archive.
   never had this problem, and the owner raised only Folia. It does get the tools
   button, since that is shared.
 
-**Still unverified.** Nothing here has been driven by hand. Two things need the
-owner's eyes on the phone: (a) tapping a Folia cover that is not in a block corner
-and checking the focus shape appears where the cover already was with its
-neighbours reshaping around it; (b) the tools button and its panel, once for a
-track in the current folder and once for one in another folder.
+**Verified by hand by the owner on 2026-09-25**, on the phone: the Folia focus
+shape now appears where the tapped cover already was with its neighbours reshaping
+around it, and the wall tools button and its panel work. No defect was reported
+from that pass. The pan bound was not part of it: the owner asked what it was for
+and then accepted it as it is, so it is now a settled product decision recorded in
+`docs/DECISIONS.md` D-004 rather than an open question. Note that the earlier
+"Claude's own addition, not something the owner asked for" wording elsewhere in
+this file is now history -- the acceptance is what stands.
 
 **How this was committed, and why it is two commits.** The working tree had
 accumulated several slices that had never been committed: Codex's Room schema
@@ -634,6 +637,50 @@ Two consequences, recorded rather than papered over:
 The commit that carries the code another agent wrote does not also carry the
 `Co-Authored-By: Claude Code` trailer, so `git log` does not imply Claude co-wrote
 it; `git log --author` separates the two agents as before.
+
+### Wall artwork decodes at the size it is drawn
+
+The owner asked why some covers go soft once the wall is zoomed. The cause was
+structural, not a Coil defect. World units equal physical pixels at zoom 1
+(`FocusCoverWall.kt`, `viewportWidth = maxWidth.toPx()`), so the engine's
+placements are pixel sizes for an unmagnified canvas. Each card is composed and
+measured at exactly that size (`Constraints.fixed(placement.width, ...)`) and is
+then magnified by `graphicsLayer { scaleX = zoom * animatedWidth / placement.width }`.
+`AsyncImage` sized its request from those layout constraints, so the bitmap was
+decoded for the *unmagnified* card and every bit of zoom — up to 1.35 by the canvas
+and another 1.16 by the large density preset — magnified a bitmap that was never
+asked to be bigger. It stays soft because nothing ever re-decodes it.
+
+Two new pure functions in `FocusWallLayout.kt` sit beside `focusWallDepthScale`:
+
+- `artworkDecodeScale(zoom)` rounds up into one of three buckets
+  (`1f`, `1.15f`, `MaximumCanvasZoom`). Bucketing matters: a pinch crosses a bucket
+  a couple of times instead of re-decoding on every frame, and every bucket already
+  used stays in Coil's memory cache.
+- `artworkDecodeSize(widthPx, heightPx, zoom)` multiplies the layout size by that
+  bucket and caps each side at `MaximumArtworkDecodePx` (1536).
+
+`FocusCoverCard` now builds an explicit `ImageRequest` with that size and
+`Precision.INEXACT`. Inexact is deliberate: it stops Coil upscaling a source that is
+smaller than the request, so the card scales what the artwork actually has instead of
+paying for an interpolated bitmap. The bucket is read in `BoxWithConstraints`'s
+composition scope, not inside the canvas, because cards are placed by a layout pass;
+a zoom read inside the canvas would never reach them.
+
+**Recorded trade-offs.** The 320 ms focus transition still softens the cards that are
+*shrinking* — the old hero slot is composed at its new, smaller size and scaled up
+from it for the length of the animation. Keeping the previous decode size alive for
+one transition would fix it at the cost of tracking that state per card; not worth it
+now. And a cover whose source is smaller than the card cannot be rescued at all: the
+request is inexact, so a low-resolution source stays soft however far the wall is
+zoomed. Both are properties of the design, not defects to be chased later.
+
+Verified: 87/87 unit tests (`ArtworkDecodeSizeTest` adds four: unmagnified decode,
+never shrinking below the layout size, monotonic bucketing, and the cap), lint 0
+errors with the same 12 warnings, `assembleDebug` produces a 74,209,472-byte debug
+APK (SHA-256 `c245a454ff8806aba3a011f5265d402369fc6fbf998a428f7244afdfd8883817`).
+Not installed and not driven by hand: the owner installs APKs himself, and sharpness
+is a judgement only he can make on the phone.
 
 ### Git identity: one author per agent
 

@@ -1,10 +1,12 @@
 package com.example.asmrplayer.feature.focuswall
 
+import androidx.compose.ui.unit.IntSize
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 enum class FocusWallDensity {
@@ -294,6 +296,47 @@ fun focusWallDepthScale(
     val normalizedY = offsetFromCenterY / (viewportHeight * 0.48f).coerceAtLeast(1f)
     val proximity = (1f - hypot(normalizedX, normalizedY)).coerceIn(0f, 1f)
     return 0.52f + proximity * 0.48f
+}
+
+/**
+ * Canvas magnifications artwork is decoded for. The canvas zoom range is
+ * [MinimumCanvasZoom]..[MaximumCanvasZoom], so these three buckets cover it.
+ */
+private val ArtworkDecodeScales = listOf(1f, 1.15f, MaximumCanvasZoom)
+
+/** Largest side a single wall card ever asks the decoder for. */
+private const val MaximumArtworkDecodePx = 1536
+
+/**
+ * How much larger than its laid-out size a card ends up being drawn at [zoom].
+ *
+ * Cards are composed at their zoom-1 layout size and the canvas magnifies them with a
+ * graphics layer, so artwork decoded at the layout size is magnified along with it and
+ * comes out soft. Decoding at this multiple instead keeps the bitmap at or above the
+ * pixels it is painted into.
+ *
+ * The value is a bucket, rounded up: a pinch then re-decodes at most once per bucket
+ * instead of once per frame, and every bucket it has already used stays in Coil's
+ * memory cache.
+ */
+fun artworkDecodeScale(zoom: Float): Float =
+    ArtworkDecodeScales.firstOrNull { it >= zoom } ?: ArtworkDecodeScales.last()
+
+/**
+ * Decode size to request for a card laid out at [widthPx] x [heightPx] and drawn at
+ * [zoom]. Never smaller than the layout size, since a card is only ever magnified.
+ *
+ * This corrects the magnification the wall applies on top of the layout. It cannot
+ * correct artwork whose source is smaller than the card: the request is inexact, so
+ * Coil hands back the source resolution rather than upscaling it, and a
+ * low-resolution cover stays soft however far the wall is zoomed in.
+ */
+fun artworkDecodeSize(widthPx: Float, heightPx: Float, zoom: Float): IntSize {
+    val scale = artworkDecodeScale(zoom)
+    return IntSize(
+        width = (widthPx * scale).roundToInt().coerceIn(1, MaximumArtworkDecodePx),
+        height = (heightPx * scale).roundToInt().coerceIn(1, MaximumArtworkDecodePx),
+    )
 }
 
 /** Axis-aligned extent of the whole laid-out wall, in world coordinates. */

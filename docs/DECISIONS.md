@@ -35,6 +35,15 @@ moving, which made the wall impossible to scroll. Pan is clamped so the viewport
 centre stays inside the wall's extent; that bound exists only to keep a hard fling
 from throwing the wall out of reach, and panning is otherwise free.
 
+That bound was originally Claude's own addition rather than a requested behaviour,
+and the owner has since explicitly accepted it as it is (2026-09-25). It is
+therefore settled, not a temporary rail: inside the bound panning is completely
+free, including the inertial coast, and the coast is cancelled the moment the edge
+is reached. Bounding the viewport *centre* rather than the wall's edges is what
+lets content smaller than the viewport still be centred, and it guarantees the
+screen centre is always over wall content, so there is always something under the
+finger to drag back from.
+
 The approved centred-bento wall is retained as its own layout. A separate
 Folia-style wall sits immediately to its right in the layout switcher. The latter
 uses twelve-item 12 x 8 exact-cover blocks and chooses a focus reflow from the

@@ -87,22 +87,29 @@
       the gesture policy and this slice follow in Claude's commit. The split is by
       file and two of the shared files interleave both agents' work line by line,
       so Codex's commit does not compile on its own -- see `docs/HANDOFF.md`.
+- [x] Decode wall artwork at the size it is drawn instead of at its unmagnified
+      layout size, which is why zoomed covers were soft. The canvas magnifies cards
+      with a graphics layer, so the decode has to follow the magnification; the
+      request is bucketed so a pinch re-decodes twice rather than every frame, and
+      inexact so Coil stops upscaling small sources. 87/87 tests pass, lint 0 errors
+      with the same 12 warnings, `assembleDebug` produces an APK. Not installed --
+      sharpness needs the owner's eye on the phone.
 - [ ] Review focus-wall V2, notification permission and paused task-swipe behavior
       on the phone.
-- [ ] Review the new Folia-style wall's per-slot focus transitions on the phone
-      against the downloaded v0.7.4 demonstration video. In particular: tap a cover
-      that is not in a block corner and check that the focus shape appears where the
-      cover already was, with neighbours reshaping around it.
-- [ ] Review the wall tools button and its panel on the phone, both for a track in
-      the current folder and for one in another folder (the reveal should navigate
-      there and centre on it).
+- [x] Review the new Folia-style wall's focus transitions on the phone. Verified by
+      the owner on 2026-09-25: the focus shape appears where the tapped cover
+      already was, with neighbours reshaping around it, including covers that were
+      not in a block corner.
+- [x] Review the wall tools button and its panel on the phone. Verified by the owner
+      on 2026-09-25; no defect reported.
 - [ ] Review the single-tap focus policy and the added pan bounds on the phone. The
       build installed at 21:11 carried an earlier double-tap policy and is
       superseded; the single-tap build has been assembled but not installed and
       nothing has been driven by hand.
-- [ ] Decide whether to keep the pan bound. It is Claude's own safety rail, added
-      because removing release-snapping left pan unbounded; the owner has not yet
-      accepted or rejected it.
+- [x] Decide whether to keep the pan bound. Claude's own safety rail, added because
+      removing release-snapping left pan unbounded; the owner asked what it was for
+      and then **accepted it as it is** on 2026-09-25. It is now a settled product
+      decision, recorded in `docs/DECISIONS.md` D-004, not an open question.
 
 ## Next
 
