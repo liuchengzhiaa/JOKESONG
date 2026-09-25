@@ -7,8 +7,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
+import com.example.asmrplayer.core.storage.FolderSnapshot
+import com.example.asmrplayer.core.storage.FolderSnapshotCache
 import com.example.asmrplayer.core.storage.RootPreferences
 import com.example.asmrplayer.core.storage.SafDirectoryScanner
+import com.example.asmrplayer.feature.focuswall.FocusWallDensity
 import java.util.ArrayDeque
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -28,12 +31,27 @@ data class LibraryUiState(
     val isTruncated: Boolean = false,
     val canNavigateUp: Boolean = false,
     val hasError: Boolean = false,
+    /** True when this listing came from the in-memory snapshot, not a scan. */
+    val isRestored: Boolean = false,
+    val focusedItemId: String? = null,
+    val canvasZoom: Float = 1f,
+    val panX: Float = 0f,
+    val panY: Float = 0f,
+    val wallDensityOrdinal: Int = FocusWallDensity.Medium.ordinal,
 )
 
+/**
+ * Folder browsing with memory-backed back navigation.
+ *
+ * A visited folder is kept in a bounded [FolderSnapshotCache], so pressing Back
+ * restores the parent instantly from memory instead of scanning the provider
+ * again. Only an explicit refresh invalidates the current folder's entry.
+ */
 class LibraryViewModel(application: Application) : AndroidViewModel(application) {
     private val contentResolver = application.contentResolver
     private val rootPreferences = RootPreferences(application)
     private val scanner = SafDirectoryScanner(contentResolver)
+    private val folderSnapshots = FolderSnapshotCache()
     private val folderStack = ArrayDeque<Uri>()
     private var treeUri: Uri? = null
     private var scanJob: Job? = null
@@ -46,6 +64,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             rootPreferences.rootUri.collectLatest { persistedRoot ->
                 scanJob?.cancel()
                 folderStack.clear()
+                folderSnapshots.clear()
                 treeUri = persistedRoot
                 if (persistedRoot == null) {
                     mutableUiState.value = LibraryUiState()
@@ -84,44 +103,91 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun navigateUp(): Boolean {
         if (folderStack.size <= 1) return false
         folderStack.removeLast()
-        loadFolder(folderStack.peekLast())
+        folderStack.lastOrNull()?.let(::loadFolder)
         return true
     }
 
+    /** Explicit refresh: drop the snapshot and scan the folder again. */
     fun refresh() {
-        folderStack.peekLast()?.let(::loadFolder)
+        folderStack.peekLast()?.let { loadFolder(it, forceRefresh = true) }
     }
 
-    private fun loadFolder(folderUri: Uri) {
+    /** Focus is discrete, so it is also published as UI state. */
+    fun onFocusedItemChange(itemId: String?) {
+        val folderKey = currentFolderKey() ?: return
+        folderSnapshots.update(folderKey) { it.copy(focusedItemId = itemId) }
+        mutableUiState.update { state ->
+            if (state.folderKey == folderKey) state.copy(focusedItemId = itemId) else state
+        }
+    }
+
+    /**
+     * Viewport updates arrive on every drag frame. They are written straight to
+     * the snapshot and deliberately do not publish UI state, so panning never
+     * triggers a recomposition of the library.
+     */
+    fun onViewportChange(zoom: Float, panX: Float, panY: Float) {
+        val folderKey = currentFolderKey() ?: return
+        folderSnapshots.update(folderKey) {
+            it.copy(canvasZoom = zoom, panX = panX, panY = panY)
+        }
+    }
+
+    fun onWallDensityChange(ordinal: Int) {
+        val folderKey = currentFolderKey() ?: return
+        folderSnapshots.update(folderKey) { it.copy(wallDensityOrdinal = ordinal) }
+    }
+
+    private fun currentFolderKey(): String? = folderStack.peekLast()?.toString()
+
+    private fun loadFolder(folderUri: Uri, forceRefresh: Boolean = false) {
         val activeTreeUri = treeUri ?: return
+        val folderKey = folderUri.toString()
         scanJob?.cancel()
+
+        if (forceRefresh) folderSnapshots.invalidate(folderKey)
+
+        val restored = if (forceRefresh) null else folderSnapshots.get(folderKey)
+        if (restored != null) {
+            mutableUiState.value = restored.toUiState(canNavigateUp = folderStack.size > 1)
+            return
+        }
+
+        val isFolderChange = mutableUiState.value.folderKey != folderKey
+        mutableUiState.value = if (isFolderChange) {
+            // A different folder must never inherit the previous viewport.
+            LibraryUiState(
+                hasRoot = true,
+                folderKey = folderKey,
+                isScanning = true,
+                canNavigateUp = folderStack.size > 1,
+            )
+        } else {
+            mutableUiState.value.copy(isScanning = true, hasError = false, isRestored = false)
+        }
+
         scanJob = viewModelScope.launch {
-            mutableUiState.update {
-                val isFolderChange = it.folderKey != folderUri.toString()
-                it.copy(
-                    hasRoot = true,
-                    folderKey = folderUri.toString(),
-                    items = if (isFolderChange) emptyList() else it.items,
-                    supportedItemCount = if (isFolderChange) 0 else it.supportedItemCount,
-                    isTruncated = if (isFolderChange) false else it.isTruncated,
-                    isScanning = true,
-                    hasError = false,
-                    canNavigateUp = folderStack.size > 1,
-                )
-            }
             try {
                 val listing = scanner.scan(activeTreeUri, folderUri)
-                mutableUiState.update {
-                    it.copy(
+                folderSnapshots.put(
+                    FolderSnapshot(
+                        folderKey = folderKey,
                         folderTitle = listing.folderName,
                         items = listing.items,
                         supportedItemCount = listing.supportedItemCount,
-                        isScanning = false,
                         isTruncated = listing.isTruncated,
-                        canNavigateUp = folderStack.size > 1,
-                        hasError = false,
-                    )
-                }
+                    ),
+                )
+                mutableUiState.value = LibraryUiState(
+                    hasRoot = true,
+                    folderKey = folderKey,
+                    folderTitle = listing.folderName,
+                    items = listing.items,
+                    supportedItemCount = listing.supportedItemCount,
+                    isTruncated = listing.isTruncated,
+                    isScanning = false,
+                    canNavigateUp = folderStack.size > 1,
+                )
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
@@ -167,3 +233,20 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 }
+
+private fun FolderSnapshot.toUiState(canNavigateUp: Boolean): LibraryUiState = LibraryUiState(
+    hasRoot = true,
+    folderKey = folderKey,
+    folderTitle = folderTitle,
+    items = items,
+    supportedItemCount = supportedItemCount,
+    isTruncated = isTruncated,
+    isScanning = false,
+    canNavigateUp = canNavigateUp,
+    isRestored = true,
+    focusedItemId = focusedItemId,
+    canvasZoom = canvasZoom,
+    panX = panX,
+    panY = panY,
+    wallDensityOrdinal = wallDensityOrdinal,
+)

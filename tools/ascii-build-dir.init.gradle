@@ -1,0 +1,39 @@
+// Redirect Gradle build outputs to an ASCII path.
+//
+// Why this exists
+// ---------------
+// Gradle 9.6.1 writes the test-worker classpath into a Java `@argfile` encoded as
+// UTF-8. The `java` launcher, however, decodes `@argfile` using `sun.jnu.encoding`,
+// which is GBK (codepage 936) on a Simplified-Chinese Windows install. When this
+// repository lives at a path containing non-ASCII characters -- it does, the parent
+// directory is `安卓音乐播放器` -- every classpath entry in that argfile is decoded as
+// mojibake, no directory resolves, and the test worker fails with
+// `ClassNotFoundException` for every test class even though compilation succeeded.
+//
+// Redirecting `layout.buildDirectory` to a path that is pure ASCII removes every
+// non-ASCII entry from the worker classpath (dependency JARs already live under
+// `~/.gradle`, which is ASCII here), so the UTF-8/GBK mismatch becomes harmless.
+// This is a workaround for the launcher, not a product change: sources, resources
+// and the APK are unaffected.
+//
+// Usage
+// -----
+//   ./gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest
+//   ./gradlew.bat -I tools/ascii-build-dir.init.gradle lintDebug
+//
+// Override the output root with -PasciiBuildDir=<path> when the default is not
+// writable. Delete this file and the two commands above become unnecessary on a
+// machine whose home directory and repository path are both ASCII -- or once the
+// JDK launcher honours UTF-8 argfiles on a UTF-8 system locale.
+
+def configured = gradle.startParameter.projectProperties['asciiBuildDir']
+def root = configured
+    ? new File(configured)
+    : new File(System.getProperty('user.home'), '.asmrplayer-build')
+
+gradle.projectsLoaded {
+    gradle.rootProject.allprojects { p ->
+        p.layout.buildDirectory.set(new File(root, p.name))
+    }
+    gradle.rootProject.logger.lifecycle("ascii-build-dir: build outputs -> ${root}")
+}

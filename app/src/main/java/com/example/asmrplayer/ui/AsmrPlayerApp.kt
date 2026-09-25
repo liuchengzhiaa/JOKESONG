@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -29,22 +30,34 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.asmrplayer.R
+import com.example.asmrplayer.core.media.PlaybackState
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
 import com.example.asmrplayer.feature.focuswall.FocusCoverWall
+import com.example.asmrplayer.feature.focuswall.FocusWallViewportState
+import com.example.asmrplayer.feature.library.CompactLibraryList
+import com.example.asmrplayer.feature.library.DetailedLibraryList
+import com.example.asmrplayer.feature.library.LibraryGrid
+import com.example.asmrplayer.feature.library.LibraryLayoutMode
+import com.example.asmrplayer.feature.library.LibraryLayoutSwitcher
 import com.example.asmrplayer.feature.library.LibraryUiState
 
 private data class Destination(
@@ -56,16 +69,34 @@ private data class Destination(
 @Composable
 fun AsmrPlayerApp(
     libraryState: LibraryUiState,
+    playbackState: PlaybackState,
     onChooseRoot: () -> Unit,
     onRefresh: () -> Unit,
     onOpenFolder: (LibraryItem) -> Unit,
     onNavigateUp: () -> Unit,
+    onFocusedItemChange: (String?) -> Unit,
+    onViewportChange: (Float, Float, Float) -> Unit,
+    onWallDensityChange: (Int) -> Unit,
+    onPlayItem: (LibraryItem) -> Unit,
+    onTogglePlayPause: () -> Unit,
+    onSeekTo: (Long) -> Unit,
+    onSeekBy: (Long) -> Unit,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
 ) {
     var selectedDestination by rememberSaveable { mutableIntStateOf(0) }
-    var playingItemId by rememberSaveable { mutableStateOf<String?>(null) }
     var fullPlayerItemId by rememberSaveable { mutableStateOf<String?>(null) }
-    val fullPlayerItem = fullPlayerItemId?.let { id ->
-        libraryState.items.firstOrNull { it.id == id }
+    var showSubtitleDetail by rememberSaveable { mutableStateOf(false) }
+    var layoutOrdinal by rememberSaveable { mutableIntStateOf(LibraryLayoutMode.Default.ordinal) }
+    val layoutMode = LibraryLayoutMode.fromOrdinal(layoutOrdinal)
+
+    val itemById = remember(libraryState.items) { libraryState.items.associateBy(LibraryItem::id) }
+    val nowPlayingItem = playbackState.mediaId?.let(itemById::get)
+    val openedItem = fullPlayerItemId?.let(itemById::get)
+    // While the player is open it follows the session, so next/previous update it.
+    val fullPlayerItem = if (fullPlayerItemId == null) null else nowPlayingItem ?: openedItem
+    val playerQueue = remember(libraryState.items) {
+        libraryState.items.filter { it.type == LibraryItemType.Audio }
     }
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val destinations = listOf(
@@ -80,18 +111,23 @@ fun AsmrPlayerApp(
     ) {
         if (selectedDestination != 0) selectedDestination = 0 else onNavigateUp()
     }
-    BackHandler(enabled = fullPlayerItem != null) {
+    BackHandler(enabled = showSubtitleDetail) {
+        showSubtitleDetail = false
+    }
+    BackHandler(enabled = fullPlayerItem != null && !showSubtitleDetail) {
         fullPlayerItemId = null
     }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = if (fullPlayerItem != null) Color(0xFF090A0D) else MaterialTheme.colorScheme.background,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = fullPlayerItem?.title
+                        text = if (showSubtitleDetail) {
+                            stringResource(R.string.subtitle_detail)
+                        } else fullPlayerItem?.title
                             ?: libraryState.folderTitle.ifBlank { stringResource(R.string.folders) },
                         maxLines = 1,
                     )
@@ -99,7 +135,15 @@ fun AsmrPlayerApp(
                 navigationIcon = {
                     when {
                         fullPlayerItem != null -> {
-                            IconButton(onClick = { fullPlayerItemId = null }) {
+                            IconButton(
+                                onClick = {
+                                    if (showSubtitleDetail) {
+                                        showSubtitleDetail = false
+                                    } else {
+                                        fullPlayerItemId = null
+                                    }
+                                },
+                            ) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack,
                                     stringResource(R.string.back_to_library),
@@ -128,6 +172,16 @@ fun AsmrPlayerApp(
                         }
                     }
                 },
+                colors = if (fullPlayerItem != null) {
+                    TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = Color(0xFF090A0D),
+                        titleContentColor = Color(0xFFF4F4F6),
+                        navigationIconContentColor = Color(0xFFF4F4F6),
+                        actionIconContentColor = Color(0xFFF4F4F6),
+                    )
+                } else {
+                    TopAppBarDefaults.centerAlignedTopAppBarColors()
+                },
             )
         },
         bottomBar = {
@@ -151,26 +205,44 @@ fun AsmrPlayerApp(
                 .padding(padding),
         ) {
             if (fullPlayerItem != null) {
-                PlayerDetail(
-                    item = fullPlayerItem,
-                    isPlaying = playingItemId == fullPlayerItem.id,
-                    onPlayPause = {
-                        playingItemId = if (playingItemId == fullPlayerItem.id) {
-                            null
-                        } else {
-                            fullPlayerItem.id
-                        }
-                    },
-                )
+                if (showSubtitleDetail) {
+                    SubtitleArtworkDetail(item = fullPlayerItem)
+                } else {
+                    PlayerDetail(
+                        item = fullPlayerItem,
+                        queueItems = playerQueue,
+                        playbackState = playbackState,
+                        onTogglePlayPause = onTogglePlayPause,
+                        onPrevious = onPrevious.takeIf { playbackState.hasPrevious },
+                        onNext = onNext.takeIf { playbackState.hasNext },
+                        onSeekTo = onSeekTo,
+                        onSeekBy = onSeekBy,
+                        onQueueItemSelected = { selected ->
+                            fullPlayerItemId = selected.id
+                            onPlayItem(selected)
+                        },
+                        onArtworkClick = { showSubtitleDetail = true },
+                    )
+                }
             } else if (selectedDestination == 0) {
                 LibraryContent(
                     state = libraryState,
-                    playingItemId = playingItemId,
-                    onPlayingItemChange = { playingItemId = it },
+                    playbackState = playbackState,
+                    layoutMode = layoutMode,
+                    onLayoutModeChange = { layoutOrdinal = it.ordinal },
                     onChooseRoot = onChooseRoot,
                     onRefresh = onRefresh,
                     onOpenFolder = onOpenFolder,
-                    onOpenPlayer = { fullPlayerItemId = it.id },
+                    onOpenPlayer = {
+                        showSubtitleDetail = false
+                        fullPlayerItemId = it.id
+                    },
+                    onFocusedItemChange = onFocusedItemChange,
+                    onViewportChange = onViewportChange,
+                    onWallDensityChange = onWallDensityChange,
+                    onPlayItem = onPlayItem,
+                    onTogglePlayPause = onTogglePlayPause,
+                    onSeekTo = onSeekTo,
                 )
             } else {
                 MessageState(
@@ -185,16 +257,47 @@ fun AsmrPlayerApp(
 @Composable
 private fun LibraryContent(
     state: LibraryUiState,
-    playingItemId: String?,
-    onPlayingItemChange: (String?) -> Unit,
+    playbackState: PlaybackState,
+    layoutMode: LibraryLayoutMode,
+    onLayoutModeChange: (LibraryLayoutMode) -> Unit,
     onChooseRoot: () -> Unit,
     onRefresh: () -> Unit,
     onOpenFolder: (LibraryItem) -> Unit,
     onOpenPlayer: (LibraryItem) -> Unit,
+    onFocusedItemChange: (String?) -> Unit,
+    onViewportChange: (Float, Float, Float) -> Unit,
+    onWallDensityChange: (Int) -> Unit,
+    onPlayItem: (LibraryItem) -> Unit,
+    onTogglePlayPause: () -> Unit,
+    onSeekTo: (Long) -> Unit,
 ) {
-    var focusedItemId by rememberSaveable(state.folderKey) { mutableStateOf<String?>(null) }
-    BackHandler(enabled = focusedItemId != null) {
-        focusedItemId = null
+    val focusedItemId = state.focusedItemId
+    BackHandler(enabled = focusedItemId != null) { onFocusedItemChange(null) }
+
+    // Lives above the layout switch so changing layout keeps the wall viewport,
+    // and is recreated per folder from the snapshot the ViewModel restored.
+    val viewportState = remember(state.folderKey) {
+        FocusWallViewportState(
+            initialZoom = state.canvasZoom,
+            initialPanX = state.panX,
+            initialPanY = state.panY,
+            initialDensityOrdinal = state.wallDensityOrdinal,
+            restored = state.isRestored,
+        )
+    }
+    LaunchedEffect(viewportState) {
+        snapshotFlow { Triple(viewportState.zoom, viewportState.pan.x, viewportState.pan.y) }
+            .collect { (zoom, panX, panY) -> onViewportChange(zoom, panX, panY) }
+    }
+
+    val openItem: (LibraryItem) -> Unit = { item ->
+        when {
+            item.type == LibraryItemType.Folder -> onOpenFolder(item)
+            // Same rule as the wall: the item that is already playing opens the
+            // full player instead of restarting.
+            playbackState.isCurrent(item.id) -> onOpenPlayer(item)
+            else -> onPlayItem(item)
+        }
     }
 
     when {
@@ -203,37 +306,87 @@ private fun LibraryContent(
         state.hasError && state.items.isEmpty() -> ErrorState(onRefresh, onChooseRoot)
         state.items.isEmpty() -> EmptyFolderState(onRefresh)
         else -> Column(Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                LibraryLayoutSwitcher(selected = layoutMode, onSelect = onLayoutModeChange)
+                Spacer(Modifier.weight(1f))
+                if (playbackState.isPlaying) {
+                    Text(
+                        text = stringResource(R.string.now_playing),
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            }
             if (state.isScanning) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
+            // Restoring from the in-memory snapshot is an implementation detail and
+            // is deliberately not announced: the folder simply looks the way it was
+            // left. Only real problems and real truncation still speak up.
             if (state.isTruncated || state.hasError) {
                 Text(
-                    text = if (state.isTruncated) {
-                        stringResource(R.string.library_items_truncated, state.supportedItemCount)
-                    } else {
-                        stringResource(R.string.library_scan_failed_short)
+                    text = when {
+                        state.hasError -> stringResource(R.string.library_scan_failed_short)
+                        else -> stringResource(
+                            R.string.library_items_truncated,
+                            state.supportedItemCount,
+                        )
                     },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            FocusCoverWall(
-                modifier = Modifier.fillMaxSize(),
-                contentKey = state.folderKey,
-                items = state.items,
-                focusedItemId = focusedItemId,
-                playingItemId = playingItemId,
-                onFocusedItemChange = { focusedItemId = it },
-                onPlayingItemChange = onPlayingItemChange,
-                onActivate = { item ->
-                    if (item.type == LibraryItemType.Folder) {
-                        onOpenFolder(item)
-                    } else {
-                        onOpenPlayer(item)
-                    }
-                },
-            )
+            when (layoutMode) {
+                LibraryLayoutMode.FocusWall -> FocusCoverWall(
+                    modifier = Modifier.fillMaxSize(),
+                    items = state.items,
+                    contentKey = state.folderKey,
+                    focusedItemId = focusedItemId,
+                    playbackState = playbackState,
+                    viewportState = viewportState,
+                    onFocusedItemChange = onFocusedItemChange,
+                    onTogglePlayPause = onTogglePlayPause,
+                    onSeekTo = onSeekTo,
+                    onDensityChange = onWallDensityChange,
+                    onActivate = { item ->
+                        if (item.type == LibraryItemType.Folder) {
+                            onOpenFolder(item)
+                        } else {
+                            onOpenPlayer(item)
+                        }
+                    },
+                    onPlay = onPlayItem,
+                )
+                LibraryLayoutMode.DetailedList -> DetailedLibraryList(
+                    modifier = Modifier.fillMaxSize(),
+                    items = state.items,
+                    playbackState = playbackState,
+                    onOpen = openItem,
+                    onPlay = onPlayItem,
+                    onTogglePlayPause = onTogglePlayPause,
+                )
+                LibraryLayoutMode.CompactList -> CompactLibraryList(
+                    modifier = Modifier.fillMaxSize(),
+                    items = state.items,
+                    playbackState = playbackState,
+                    onOpen = openItem,
+                    onPlay = onPlayItem,
+                    onTogglePlayPause = onTogglePlayPause,
+                )
+                LibraryLayoutMode.Grid -> LibraryGrid(
+                    modifier = Modifier.fillMaxSize(),
+                    items = state.items,
+                    playbackState = playbackState,
+                    onOpen = openItem,
+                    onPlay = onPlayItem,
+                )
+            }
         }
     }
 }
