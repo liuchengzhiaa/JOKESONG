@@ -127,9 +127,8 @@
       the size preset narrows the search to an area band and gives way when nothing there
       comes within a tenth of the cover's shape, and a square or unread cover still gets
       exactly the old square presets. 103/103 tests pass, lint 0 errors with the same 12
-      warnings, a clean `assembleDebug` produces the APK. Not installed -- whether a card
-      cut to a cover's proportions reads that way, and whether the leftover edge is
-      unobtrusive, need the owner's eye on the phone.
+      warnings, a clean `assembleDebug` produces the APK. Verified by the owner on the
+      phone on 2026-09-26 -- "我检查了，效果可以" -- with no defect reported.
 - [ ] Review focus-wall V2, notification permission and paused task-swipe behavior
       on the phone.
 - [x] Review the new Folia-style wall's focus transitions on the phone. Verified by

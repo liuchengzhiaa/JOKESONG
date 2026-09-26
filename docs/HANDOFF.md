@@ -980,7 +980,11 @@ same clean run are the 103 counted above.
 of trees that differed only in comments and in whether one helper was `private` or
 `internal` -- `d329cdd9...524`, then `665f879a...3ed` for the final tree. The size is
 stable across both; the digest is not, so anything comparing hashes across builds should
-compare the sources instead. **Not installed and not driven by hand**:
+compare the sources instead.
+
+**Verified by the owner on the phone (2026-09-26)**, who installed the APK himself and
+reported the result as good -- "我检查了，效果可以", no defect named. The three questions
+this slice was written against, and which that look answers:
 
 - whether a portrait cover at the three sizes reads as "the card is the cover's shape"
   rather than as a card that happens to be a bit narrower;
@@ -988,6 +992,9 @@ compare the sources instead. **Not installed and not driven by hand**:
   a couple of dozen;
 - whether the 320 ms transition between two differently-shaped heroes looks like the card
   turning into the cover's shape or like a bounce.
+
+The owner then moved his own work to Codex, so the next session of either agent should
+resume from `ec2f7b4` rather than from this section alone.
 
 ### Git identity: one author per agent
 
