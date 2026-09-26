@@ -1,6 +1,7 @@
 package com.example.asmrplayer.core.storage
 
 import com.example.asmrplayer.core.model.LibraryItem
+import com.example.asmrplayer.core.subtitles.TimedTextMatch
 
 /**
  * The last known listing of one visited folder, together with the focus-wall
@@ -20,22 +21,30 @@ data class FolderSnapshot(
     val canvasZoom: Float = 1f,
     val panX: Float = 0f,
     val panY: Float = 0f,
-    /** Mirrors `FocusWallDensity` ordinal; the cache stays free of UI types. */
-    val wallDensityOrdinal: Int = DefaultWallDensityOrdinal,
+    /** Continuous wall density, where 100 is the product default. */
+    val wallDensityPercent: Int = DefaultWallDensityPercent,
     /** Mirrors `FoliaFocusShape` ordinal; the cache stays free of UI types. */
     val wallFocusShapeOrdinal: Int = DefaultWallFocusShapeOrdinal,
     /** Mirrors `FoliaFocusSize` ordinal; the cache stays free of UI types. */
     val wallFocusSizeOrdinal: Int = DefaultWallFocusSizeOrdinal,
+    /** Continuous ambient-light strength, where 100 is the product default. */
+    val wallAmbientPercent: Int = DefaultWallAmbientPercent,
+    /**
+     * Which track in this folder has lyrics beside it, keyed by item id. Kept so that
+     * stepping back into a folder does not lose the subtitle index until a refresh.
+     */
+    val timedText: Map<String, TimedTextMatch> = emptyMap(),
 ) {
     companion object {
-        /** `FocusWallDensity.Medium.ordinal`. */
-        const val DefaultWallDensityOrdinal: Int = 1
+        const val DefaultWallDensityPercent: Int = 100
 
         /** `FoliaFocusShape.Square.ordinal`. */
         const val DefaultWallFocusShapeOrdinal: Int = 0
 
         /** `FoliaFocusSize.Medium.ordinal`. */
         const val DefaultWallFocusSizeOrdinal: Int = 1
+
+        const val DefaultWallAmbientPercent: Int = 100
     }
 }
 
@@ -79,6 +88,11 @@ class FolderSnapshotCache(private val capacity: Int = DefaultCapacity) {
         val current = entries[folderKey] ?: return false
         entries[folderKey] = transform(current)
         return true
+    }
+
+    /** Applies a settings reset without discarding any cached folder listing. */
+    fun updateAll(transform: (FolderSnapshot) -> FolderSnapshot) {
+        entries.entries.forEach { entry -> entry.setValue(transform(entry.value)) }
     }
 
     fun invalidate(folderKey: String) {

@@ -410,6 +410,7 @@ object FoliaWallLayoutEngine {
         viewportHeight: Float,
         orientation: FocusWallOrientation,
         density: FocusWallDensity,
+        densityScale: Float = density.scale,
         focusedItemId: String? = null,
         gapPx: Float = 2f,
         focusShape: FoliaFocusShape = FoliaFocusShape.Square,
@@ -424,11 +425,7 @@ object FoliaWallLayoutEngine {
     ): List<FocusWallPlacement> {
         if (items.isEmpty() || viewportWidth <= 0f || viewportHeight <= 0f) return emptyList()
 
-        val scale = when (density) {
-            FocusWallDensity.Small -> 0.84f
-            FocusWallDensity.Medium -> 1f
-            FocusWallDensity.Large -> 1.16f
-        }
+        val scale = densityScale.coerceIn(0.70f, 1.30f)
         val unit = when (orientation) {
             FocusWallOrientation.Portrait -> viewportWidth * scale / FoliaBlockColumns
             FocusWallOrientation.Landscape -> viewportHeight * 0.94f * scale / FoliaBlockRows

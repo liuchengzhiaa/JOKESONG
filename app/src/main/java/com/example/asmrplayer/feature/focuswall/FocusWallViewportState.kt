@@ -10,6 +10,17 @@ import androidx.compose.ui.geometry.Offset
 
 internal const val MinimumCanvasZoom = 0.72f
 internal const val MaximumCanvasZoom = 1.35f
+internal const val MinimumWallDensityPercent = 70
+internal const val MaximumWallDensityPercent = 130
+internal const val MaximumAmbientPercent = 150
+
+/**
+ * What every continuous wall setting starts at, and what its reset row restores.
+ * It matches the storage defaults in `FolderSnapshot` and `AppSettings`: the two
+ * are deliberately the same number, because a reset that landed anywhere else
+ * would be a second, invisible default.
+ */
+internal const val DefaultWallPercent = 100
 
 /**
  * Focus-wall viewport that lives outside the wall composable.
@@ -24,17 +35,18 @@ class FocusWallViewportState(
     initialZoom: Float = 1f,
     initialPanX: Float = 0f,
     initialPanY: Float = 0f,
-    initialDensityOrdinal: Int = FocusWallDensity.Medium.ordinal,
+    initialDensityPercent: Int = 100,
     initialFocusShapeOrdinal: Int = FoliaFocusShape.Square.ordinal,
     initialFocusSizeOrdinal: Int = FoliaFocusSize.Medium.ordinal,
+    initialAmbientPercent: Int = 100,
     restored: Boolean = false,
 ) {
     var zoom by mutableFloatStateOf(initialZoom.coerceIn(MinimumCanvasZoom, MaximumCanvasZoom))
 
     var pan by mutableStateOf(Offset(initialPanX, initialPanY))
 
-    var densityOrdinal by mutableIntStateOf(
-        initialDensityOrdinal.coerceIn(FocusWallDensity.entries.indices),
+    var densityPercent by mutableIntStateOf(
+        initialDensityPercent.coerceIn(MinimumWallDensityPercent, MaximumWallDensityPercent),
     )
 
     /** Shape of the focused cover. Folia only; the Bento wall ignores it. */
@@ -47,15 +59,22 @@ class FocusWallViewportState(
         initialFocusSizeOrdinal.coerceIn(FoliaFocusSize.entries.indices),
     )
 
+    /** Strength of the cover-derived full-wall light. Folia only. */
+    var ambientPercent by mutableIntStateOf(
+        initialAmbientPercent.coerceIn(0, MaximumAmbientPercent),
+    )
+
     /**
      * True while the viewport comes from a restored snapshot. The first focus
      * reconciliation then keeps the restored pan instead of animating over it.
      */
     var restored by mutableStateOf(restored)
 
-    val density: FocusWallDensity get() = FocusWallDensity.entries[densityOrdinal]
+    val densityScale: Float get() = densityPercent / 100f
 
     val focusShape: FoliaFocusShape get() = FoliaFocusShape.entries[focusShapeOrdinal]
 
     val focusSize: FoliaFocusSize get() = FoliaFocusSize.entries[focusSizeOrdinal]
+
+    val ambientMultiplier: Float get() = ambientPercent / 100f
 }

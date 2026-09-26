@@ -78,6 +78,23 @@ class FocusWallLayoutTest {
     }
 
     @Test
+    fun `continuous density percentage changes geometry without changing order`() {
+        val compact = layout(
+            FocusWallOrientation.Portrait,
+            FocusWallDensity.Medium,
+            densityScale = 0.70f,
+        )
+        val spacious = layout(
+            FocusWallOrientation.Portrait,
+            FocusWallDensity.Medium,
+            densityScale = 1.30f,
+        )
+
+        assertEquals(compact.map { it.itemId }, spacious.map { it.itemId })
+        assertTrue(spacious.first().width > compact.first().width)
+    }
+
+    @Test
     fun `centre proximity remains available for subtle depth treatment`() {
         val centre = focusWallDepthScale(0f, 0f, 1080f, 1800f)
         val nearby = focusWallDepthScale(0f, 540f, 1080f, 1800f)
@@ -187,12 +204,14 @@ class FocusWallLayoutTest {
         orientation: FocusWallOrientation,
         density: FocusWallDensity,
         focusedItemId: String? = null,
+        densityScale: Float = density.scale,
     ) = FocusWallLayoutEngine.layout(
         items = items,
         viewportWidth = 1080f,
         viewportHeight = 1800f,
         orientation = orientation,
         density = density,
+        densityScale = densityScale,
         focusedItemId = focusedItemId,
     )
 }

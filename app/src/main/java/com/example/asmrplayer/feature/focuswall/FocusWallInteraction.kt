@@ -46,3 +46,32 @@ fun canRevealPlayingItem(
     playingItemId in listedItemIds -> true
     else -> playbackOriginKnown
 }
+
+/** Lights-out never hides the visual subject or the active media controls. */
+fun focusWallPosterAlpha(
+    normalAlpha: Float,
+    lightsOut: Boolean,
+    isFocused: Boolean,
+    isCurrent: Boolean,
+): Float = if (lightsOut && !isFocused && !isCurrent) {
+    normalAlpha.coerceAtMost(0.22f)
+} else {
+    normalAlpha
+}
+
+/** Reduced motion removes transitions rather than merely making them slightly shorter. */
+fun wallMotionDuration(normalDurationMillis: Int, motionPercent: Int): Int =
+    (normalDurationMillis.coerceAtLeast(0) * motionPercent.coerceIn(0, 100) / 100f).toInt()
+
+/** Auto-focus responds to an actual Media3 item change, never merely opening the wall. */
+fun shouldAutoFocusPlayingItem(
+    enabled: Boolean,
+    foliaVisible: Boolean,
+    previousItemId: String?,
+    currentItemId: String?,
+    reachable: Boolean,
+): Boolean = enabled &&
+    foliaVisible &&
+    currentItemId != null &&
+    currentItemId != previousItemId &&
+    reachable

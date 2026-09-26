@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.asmrplayer.core.media.rememberPlaybackConnection
+import com.example.asmrplayer.core.settings.UiAccentPalette
 import com.example.asmrplayer.feature.library.LibraryViewModel
 import com.example.asmrplayer.ui.AsmrPlayerApp
 import com.example.asmrplayer.ui.theme.AsmrPlayerTheme
@@ -29,6 +30,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val libraryState by libraryViewModel.uiState.collectAsStateWithLifecycle()
+            val subtitleState by libraryViewModel.subtitleState.collectAsStateWithLifecycle()
             val playback = rememberPlaybackConnection()
             val playbackState by playback.state.collectAsStateWithLifecycle()
             val rootPicker = rememberLauncherForActivityResult(
@@ -40,19 +42,38 @@ class MainActivity : ComponentActivity() {
                 contract = ActivityResultContracts.RequestPermission(),
                 onResult = { /* Playback is allowed even when notification access is denied. */ },
             )
-            AsmrPlayerTheme {
+            AsmrPlayerTheme(
+                accentPalette = UiAccentPalette.fromOrdinal(
+                    libraryState.uiAccentPaletteOrdinal,
+                ),
+                uiScalePercent = libraryState.uiScalePercent,
+            ) {
                 AsmrPlayerApp(
                     libraryState = libraryState,
                     playbackState = playbackState,
+                    subtitleState = subtitleState,
                     onChooseRoot = { rootPicker.launch(null) },
                     onRefresh = libraryViewModel::refresh,
                     onOpenFolder = libraryViewModel::openFolder,
                     onNavigateUp = { libraryViewModel.navigateUp() },
                     onFocusedItemChange = libraryViewModel::onFocusedItemChange,
                     onViewportChange = libraryViewModel::onViewportChange,
+                    onLibraryLayoutChange = libraryViewModel::onLibraryLayoutChange,
                     onWallDensityChange = libraryViewModel::onWallDensityChange,
                     onWallFocusShapeChange = libraryViewModel::onWallFocusShapeChange,
                     onWallFocusSizeChange = libraryViewModel::onWallFocusSizeChange,
+                    onWallAmbientStrengthChange = libraryViewModel::onWallAmbientStrengthChange,
+                    onWallLightsOutChange = libraryViewModel::onWallLightsOutChange,
+                    onWallAutoFocusPlayingChange = libraryViewModel::onWallAutoFocusPlayingChange,
+                    onWallPosterTintStrengthChange =
+                        libraryViewModel::onWallPosterTintStrengthChange,
+                    onMotionPercentChange = libraryViewModel::onMotionPercentChange,
+                    onUiStylePresetChange = libraryViewModel::onUiStylePresetChange,
+                    onUiAccentPaletteChange = libraryViewModel::onUiAccentPaletteChange,
+                    onUiScalePercentChange = libraryViewModel::onUiScalePercentChange,
+                    onResetAppearanceDefaults = libraryViewModel::resetAppearanceDefaults,
+                    onOpenSubtitleDetail = libraryViewModel::openSubtitleDetail,
+                    onCloseSubtitleDetail = libraryViewModel::closeSubtitleDetail,
                     onPlayItem = { item ->
                         // The queue is built from the listing on screen, so this is
                         // the one moment that knows which folder the queue belongs

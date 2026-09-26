@@ -37,9 +37,10 @@ below), while durable queue/bookmark persistence still belongs to the pending
 Room task.
 
 The UI now uses scanned folders and supported audio instead of fixture data. The
-player reads a small metadata subset on demand for its current item, but the app
-does not yet index complete embedded metadata or embedded artwork, persist a Room
-index, perform a recursive full-library scan, or play media.
+player reads a small metadata subset on demand for its current item. The Room v1
+schema exists, but scan results are not yet integrated into a persistent full
+index; complete embedded metadata/artwork and the recursive full-library scan also
+remain pending.
 
 Direct raster artwork is now resolved for the current folder and for the first 48
 naturally sorted child folders, then loaded through Coil 3.6.3 so decoding and
@@ -47,6 +48,425 @@ memory caching stay display-bounded. Audio inside a folder inherits that folder'
 first direct image for now. Embedded audio artwork and recursive child-folder
 fallback are still pending, so the full product artwork precedence is not yet
 complete.
+
+## Current slice: Folia presentation plan and phase 1 ambient light
+
+The owner asked that the complete Folia research and recommended implementation
+sequence become repository state so Codex and manually started Claude Code can
+alternate without relying on either chat transcript. The new canonical record is
+`docs/FOLIA_PRESENTATION_PLAN.md`. It contains:
+
+- the inspected Folia commit/video and the AGPL clean-room boundary;
+- the observed implementation/effect of ambient light, poster lyrics, the full
+  visualizer host, the bottom-right controls, poster tint, theme, queue,
+  auto-focus, visualization selection and Electron transparency;
+- the Android/Compose translation and performance/privacy/accessibility limits;
+- the dependency-ordered six-phase roadmap and acceptance criteria;
+- the real-device questions that remain visual tuning, not code assumptions.
+
+`PRODUCT_SPEC.md`, `ARCHITECTURE.md` and `DECISIONS.md` D-010 now lock the important
+phase-1 decisions. `TASKS.md` carries the same six phases in recommended order.
+The owner clarified after the first implementation that the effect must follow the
+currently focused cover, not playback. It remains presentation-only, uses bounded
+work, is currently Folia-wall-only, and must eventually receive the privacy alias
+artwork rather than canonical artwork.
+
+### Phase 1 implementation now in the working tree
+
+- An intermediate implementation added the current Media3 item's artwork URI to
+  `PlaybackState`. That was removed after the owner corrected the source-of-truth:
+  playback and wall lighting are independent, so no new playback field remains.
+- `CoverAccentLoader` still does one bounds pass plus one approximately 96 px
+  decode and samples at most 4,096 pixels. The same pass now returns up to four
+  deterministic, population-weighted, sufficiently distinct colour families as
+  well as the existing accent and intrinsic dimensions. Transparent, near-black
+  and near-white samples are ignored; very dark/bright selected swatches are
+  gently balanced for use as light. The existing 96-entry LRU cache is reused.
+- `FocusCoverWall` reuses the focused cover facts it already needs for hero shape
+  and border. Those facts drive the Folia palette; clearing focus supplies an
+  empty palette and fades back to neutral. If the focused item lacks resolved art,
+  its deterministic placeholder accent supplies the temporary palette. The
+  retained Bento/V2 style is still given an empty ambient palette.
+- `CoverAmbientLayer` is composed once below and once above the
+  `SubcomposeLayout`. The backdrop draws three oversized radial gradients and a
+  shallow vignette; a much weaker poster wash repeats only the colour gradients
+  above the opaque mosaic. The second pass was added after review found that a
+  2 dp packed wall hid nearly all of a backdrop and made the first implementation
+  effectively invisible. Neither pass owns pointer input. Light mode uses lower
+  alpha and palette changes cross-fade over 900 ms. There is no full-size bitmap,
+  bitmap blur, shader or permanent animation loop, and animation state does not
+  re-run the wall's spatial layout.
+- The permanent density chip/zoom percentage row above the wall is gone. Both
+  walls now expose density and a continuous 72%–135% zoom slider (plus 100% reset)
+  inside the bottom-right tools panel. The active wall, rather than always the
+  dormant Bento state, now publishes zoom/pan into the folder snapshot.
+- Folia adds an environment-light page in the same panel with
+  off/low/medium/high. Medium preserves the original tuning; the multipliers are
+  0/0.6/1/1.45 and animate for 260 ms. The ordinal is carried through
+  `FocusWallViewportState`, `LibraryUiState` and the bounded `FolderSnapshot`, so
+  returning to a warm-cached folder restores it without introducing UI types into
+  storage.
+- Palette unit coverage now checks stable order, distinct families, alpha/dark
+  filtering, limit handling and the old dominant-colour contract.
+- The five permanent library-layout icons were collapsed into one 36 dp circular
+  layout button. Its glyph is always the current layout. Opening it shows a named
+  five-row menu (detailed, compact, grid, Bento wall, Folia wall); the active row
+  keeps the primary tint and an explicit check mark. Choosing the active row only
+  closes the menu, while another row reuses the existing presentation-only switch
+  and therefore triggers no scan or navigation reset.
+
+### Phase 2 implementation now in the working tree
+
+- The Folia root tools panel now has one `墙面显示` row. Its subpage holds
+  lights-out, track-change auto-focus, poster tint and reduced motion; tint has its
+  own off/low/medium/high page. Bento does not expose the Folia presentation page.
+- Lights-out animates ordinary posters down to at most 22% alpha. The focused card
+  and current Media3 item are exempt. Ambient light remains independently governed
+  by its existing strength setting instead of being silently disabled.
+- Poster tint uses the focused palette's primary colour (theme primary without a
+  focus) at 0/10/20/34% alpha. It is layered after artwork and before the existing
+  readability shade, and likewise exempts current/focused cards.
+- Auto-focus is off by default and active only while the Folia layout is selected.
+  Only an actual Media3 item-ID change invokes the same guarded reveal path as the
+  manual tool; entering Folia or enabling the setting does not move focus. Thus
+  cross-folder movement works only while the queue's source folder is known.
+- Reduced motion cancels an active coast, disables new fling, and changes the
+  280/320/900/260 ms wall, card, ambient, tint and border animations to immediate
+  state changes. Direct pan, pinch, focus and playback controls are unchanged.
+- All four settings are global and process-durable in
+  `WallPresentationPreferences`, a separate DataStore from the SAF root. ViewModel
+  updates are optimistic and every folder-loading path reapplies the latest values.
+  No library rescan, Room write or media mutation is involved.
+- The queue row is deliberately absent until queue persistence supplies a real
+  destination. This is the planned phase-2 exception, not unfinished button wiring.
+
+Phases 1 and 2 are **automatically verified but still awaiting real-device visual
+acceptance**. No APK was installed and no emulator/phone UI was launched in these
+slices. The safest next action is to install/run the current build on the phone,
+select the Folia layout and check: palette relation and transition, light/dark
+contrast, all ambient/tint levels, lights-out exemptions, next/previous auto-focus,
+restart persistence, reduced-motion behaviour, panel ergonomics and visible jank.
+Tune only the recorded alpha/radius/duration values from that evidence.
+
+Exact verification on 2026-09-26:
+
+The commands and counts below were rerun after the full-wall poster wash, the
+owner's correction from playback-driven to focus-driven colour, the wall-tools
+relocation/strength control, the single-button library-layout menu and all phase-2
+presentation controls.
+
+```powershell
+$env:GRADLE_USER_HOME='C:\Users\LiuDeZhou\.gradle'
+$env:TEMP='C:\jtmp'
+$env:TMP='C:\jtmp'
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle testDebugUnitTest
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle lintDebug
+```
+
+- `testDebugUnitTest`: **109/109 passed**, 0 failures, 0 errors, 0 skipped.
+- `lintDebug`: **BUILD SUCCESSFUL**, 0 errors and the same 12 pre-existing
+  warnings.
+- `git diff --check`: clean apart from Git's informational LF-to-CRLF notices.
+- The first wrapper attempt inherited an invalid `C:\.gradle` home; the verification
+  above explicitly used the owner's existing Gradle cache. A first Gradle launch
+  then reproduced the documented loopback error, and setting only this process's
+  `TEMP`/`TMP` to the existing `C:\jtmp` fixed it.
+- `bash.exe.stackdump` remains the pre-existing untracked file and was not touched.
+
+### Claude slice: level crests, a grouped settings surface, the accent in the top bar
+
+The owner reviewed Codex's uncommitted global-appearance slice (`core/settings/AppStyle.kt`,
+`core/storage/AppPreferences.kt`, the accent/scale wiring in `ui/theme/Theme.kt`, and
+`ui/SettingsContent.kt`) on the phone and gave three instructions. All three are
+implemented in the working tree; the build is green and no APK was installed.
+
+**1. Wall settings show a level crest instead of a percentage.** `WallTool` gained
+`levelFraction: Float?`, drawn by the new `ui/CrestLevelIcon.kt` as a decorative crest
+filled from the bottom up. Rows carrying it are 封面密度, 画布缩放 and 环境光效 — the three
+root rows the owner circled — plus 海报叠色 and 动态效果 on the 墙面显示 page, which are the
+same kind of control and would otherwise be the only two left showing numbers.
+
+- The fill is `levelFraction(value, that setting's own range)`, added as
+  `core/settings/LevelFraction.kt`, so the crest sits exactly where the slider
+  underneath it does. That is a position, not the number the row used to print, and the
+  two differ because the ranges do: density is 70..130, ambient 0..150 and canvas zoom
+  72..135, so 100% is a half-filled crest for density and two-thirds for ambient.
+  `LevelFractionTest` pins all three cases, the clamped ends and a degenerate range.
+- **The 画布缩放 subpage header keeps its number**, as the owner asked, because the slider
+  is being dragged right underneath it there. Every other page header is unchanged.
+- The silhouette is the requested 淫纹-style mark: a spade flanked by two mirrored
+  crescent wings, crowned by two dots and closed by a third below the tip, authored as
+  one path so a single clipped rectangle fills all of it. It was rasterised in Python
+  before being written as Kotlin, because a wrong vector cannot be seen until it is on
+  the phone.
+- Reset rows (`恢复 100%`, `R.string.wall_reset_percent`) were added below the slider on
+  封面密度, 画布缩放, 环境光效 and 动态效果. All four default to 100, which is
+  `DefaultWallPercent` in `FocusWallViewportState.kt` and is deliberately the same number
+  the two storage defaults use. 海报叠色 has no reset row on purpose: its default is 0,
+  which is already the slider's left end.
+
+**2. The settings destination is a list of groups, not one page of appearance.**
+`SettingsContent` became `SettingsScreen`: a page header, then 外观与样式 and 资料库 as rows
+that expand in place — one open at a time, nothing open on arrival. The appearance
+controls are unchanged inside their group; 资料库 carries 选择资料库根目录 and 刷新当前文件夹,
+which the settings surface previously could not reach at all. `appearance_title` is gone,
+since the group row's own label replaces it.
+
+This is the **accordion** reading of the owner's 收纳起来. The alternative — appearance as
+a separate subpage — was offered before implementation and not chosen, so if the intent
+was the other one this is the thing to redirect.
+
+**3. The global accent reaches the top bar.** `AsmrPlayerApp`'s top bar now sets
+`titleContentColor`, `navigationIconContentColor` and `actionIconContentColor` to
+`MaterialTheme.colorScheme.primary` — the title, the back arrow and the refresh/folder
+actions, which are exactly the three the owner named. The container colour is untouched,
+so the bar still follows the theme surface in both light and dark.
+
+- **The immersive player bar is deliberately excluded.** Its container is a fixed
+  `Color(0xFF090A0D)` that ignores the theme's light and dark surfaces, and the accent's
+  light-theme variant is dark (`#00639A` for Ocean) and would be unreadable on it. A
+  half-applied accent looked worse than a clearly scoped one, so that bar stays neutral.
+  Veto this if the player chrome should follow the accent too: doing it safely needs a
+  per-theme accent channel the player bar can ask for, not the light one.
+- `UiAccentPalette.accent(darkTheme)` and the new `accentContentColor` moved from `private`
+  to `internal` in `ui/theme/Theme.kt`, and the settings swatches now call them instead of
+  the duplicated `previewColor()` they carried. A swatch therefore shows the colour the app
+  will actually use in the current theme, and the five palette values exist once.
+
+Verification on 2026-09-26, on the working tree that also contains Codex's uncommitted
+appearance slice:
+
+```powershell
+$env:GRADLE_USER_HOME='C:\Users\LiuDeZhou\.gradle'
+$env:TEMP='C:\jtmp'
+$env:TMP='C:\jtmp'
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle testDebugUnitTest lintDebug assembleDebug
+```
+
+- `testDebugUnitTest`: **118/118 passed**, 20 suites, 0 failures, 0 errors, 0 skipped. The
+  baseline measured before this slice, on the same tree, was 113 tests in 19 suites, so
+  the five new tests are all of `LevelFractionTest`.
+- `lintDebug`: **BUILD SUCCESSFUL**, 0 errors, 16 warnings and 1 hint. The 12 warnings
+  recorded above became 16 because the ambient slice added four `ambient_strength_*`
+  strings nothing references yet. No entry in the current report points at a line this
+  slice added; the one hint (`FocusCoverWall.kt:733`, autoboxing) is on the pre-existing
+  `WallPercentPanel` state.
+- `assembleDebug`: `app-debug.apk`, 74,623,684 bytes, sha256
+  `eddc027a7bb9ff061a591f6ac848301ea593d2782e2a979232c5ee226a668e18`, under
+  `D:\c\Documents\ChatGPT\.asmrplayer-build\app\outputs\apk\debug\`. That directory is
+  overwritten by every build, so the hash identifies this build only. The APK is the
+  owner's to install.
+- The owner installed this build himself on 2026-09-26; this agent did not drive `adb`.
+  The three points below are therefore on the device but not yet accepted by him, and
+  the same build is also the first one to carry phases 1 and 2 of the Folia
+  presentation roadmap, whose acceptance lists in `docs/FOLIA_PRESENTATION_PLAN.md`
+  have likewise never been confirmed.
+
+### What this slice still needs from the phone
+
+- The crest at 20 dp: whether the silhouette is recognisable at that size and whether a
+  bottom-up fill reads as a gauge rather than as a partially coloured icon.
+  `CrestLevelIcon`'s `size` and its path constants are the only knobs and no test covers
+  them.
+- Whether 外观与样式 / 资料库 is the right split and whether expanding in place is what
+  收纳起来 meant.
+- Whether an accent-coloured title on the top bar is too strong next to the neutral
+  container.
+
+### Open question flagged, not changed
+
+`resetAppearanceDefaults()` — the 恢复默认显示设置 button, which after this slice sits
+visibly inside the group named appearance — also rewrites every cached folder snapshot's
+`canvasZoom`, `wallDensityPercent`, `wallFocusShapeOrdinal`, `wallFocusSizeOrdinal` and
+`wallAmbientPercent` (`LibraryViewModel.kt:342`). Those are per-folder browsing state, so
+an appearance reset silently discards every folder's wall viewport. That predates this
+slice and was left alone; the grouping change only makes the scope mismatch easier to
+reach. Whether the wall viewport should survive an appearance reset is the owner's call,
+and it is the same global-versus-per-folder overlap that `AppPreferences` and
+`FolderSnapshot` both storing density, shape, size, ambient and zoom already creates.
+
+### Claude slice: the timed-text foundation and a lyrics surface
+
+Roadmap phase 3 in `docs/FOLIA_PRESENTATION_PLAN.md` is implemented in the working
+tree: LRC/SRT/VTT are matched, read, parsed and cached, and there is a lyrics surface
+to prove the timing with before any visual layer exists. Phases 4-6 consume this
+model and were not started.
+
+**Matching.** `core/subtitles/SubtitleMatching.kt` matches a same-folder `.lrc`,
+`.srt` or `.vtt` to an audio by base filename, case-insensitively, with an optional
+language suffix. It is called from `SafDirectoryScanner` and the result is carried as
+`DirectoryListing.timedText`, keyed by `LibraryItem.id` rather than by title -- the
+id is the handle the player already holds, and the earlier title-keyed map needed a
+re-keying step whose semantics this agent got wrong once.
+
+- A trailing segment is a language tag only if it looks like one (two or three
+  letters plus optional subtags) and is not a version marker. `mix`, `alt`, `new`,
+  `old`, `dat` and `bak` are peeled off and the search **continues** past them, so
+  the owner's corrected `Track.new.lrc` still reaches `Track.mp3` while recording no
+  language. This was a real correctness bug found by reading the first version back:
+  the rule as written first made its own KDoc false and locked such files out
+  entirely, which is the exact case the markers exist for.
+- `Track.Part.lrc` is neither a tag nor a marker, so the search stops and it matches
+  nothing. `Track.zh.en.lrc` carries two language tags and is likewise refused rather
+  than guessed at. An untagged file beats a translated one, `zh` beats another
+  language whatever order the folder listed them in, and `lrc` beats `srt` of the
+  same name.
+- The scanner recognises a lyric file before the audio test, so a `.lrc` can never be
+  listed as a track, and the candidate list is bounded by the same `retainedItemLimit`
+  the folder's own items are, so a 500-track folder with 500 lyric files does not
+  retain more subtitle rows than it retains tracks.
+
+**Model and parsing.** `core/subtitles/TimedText.kt` holds the normalized model:
+`TimedTextLine(startMillis, endMillis, text, words)` with a line level and an
+optional word level, `TimedTextDocument(format, lines, untimedText)`, and the pure
+reads on top -- `isTimed`, `lineIndexAt` (binary search; -1 before the first line
+starts), `lineAt`, `seekMillisForLine` and `neighbourhood(centre, radius)`.
+`TimedTextParser.kt` produces it from bytes of any of the three formats.
+
+- **An LRC with no time tags is reported as untimed, not given invented times.**
+  Its lines land in `untimedText` and stay one line each, so the surface can say
+  plainly that it cannot follow this file. Spacing the lines evenly would have made
+  a lyric sheet look synced while being wrong for its whole length.
+- Enhanced LRC word times (`<mm:ss.xx>`) are parsed into the word list; `[offset:]`
+  shifts every line; a line with no tag of its own continues the previous line's
+  words; `[ti:]`/`[ar:]`-style tags are metadata rather than times.
+- SRT and VTT accept `HH:MM:SS,mmm`, `HH:MM:SS.mmm` and the hourless `MM:SS.mmm`,
+  with the fraction scaled by its own digit count so `.5`, `.50` and `.500` are all
+  half a second.
+- One real bug, caught only because the tests existed: `String.split(String)` in
+  Kotlin splits on a **literal**, so the `"\n\\s*\n"` cue separator matched nothing
+  and every SRT was parsed as one concatenated line. It is a `Regex` now.
+- **A bare time tag is a pause, not an empty lyric line.** Real files mark a pause
+  with `[00:28.34]` and nothing after it. Taken as a lyric line each one is an empty
+  row with nothing to read and nothing to seek to. Measured against the owner's own
+  library rather than imagined: a sampled file had 61 of them in 285 non-blank lines,
+  and 3,034 of its 3,774 `.lrc` files contain at least one. They now produce no line
+  at all, so the previous line stays current through the silence -- which is what the
+  pause means. Only visible by pointing the parser at real files; no generated fixture
+  had ever contained the pattern.
+
+**The device crash: the unit tests are blind to Android's regex engine.** The first
+build of this slice was installed and **crashed the moment the lyrics surface opened**,
+on every track, with:
+
+```text
+java.util.regex.PatternSyntaxException: Syntax error in regexp pattern near index 8
+\{[^}]*}
+  at com.example.asmrplayer.core.subtitles.TimedTextParserKt.<clinit>(TimedTextParser.kt:303)
+```
+
+Android compiles regexes with ICU. ICU rejects an unescaped `}` as a syntax error
+where the JVM's `java.util.regex` reads it as a literal. So `AssOverride`'s
+`\{[^}]*}` compiled and passed every test on the JVM and could not load on the device.
+
+- This is the one class of defect this slice's test suite structurally cannot catch:
+  the tests run on the JVM, the app runs on ICU. 193 green tests and a crashed app
+  were both correct.
+- The `<clinit>` line number localised it: static initialisers run in source order, so
+  the failure at line 303 proved lines 27-302 had all been accepted by ICU.
+- Fixed by escaping the literal: `\{[^}]*\}`. Two other patterns in the same file had
+  unescaped `]` (`?]` and `([^]]*)]`), which ICU happens to tolerate but which are now
+  escaped too. A comment on the pattern records why, because escaping is the only thing
+  keeping the two engines in agreement.
+- All nine regexes in `app/src/main/java` are in `core/subtitles`; the rest were
+  already escaped.
+- **Verification that matters for this class of bug is on a device, not in the suite.**
+  See the device run below.
+
+**Reading and caching.** `TimedTextReader` decodes in the order BOM strip, strict
+UTF-8, strict GBK, then lenient UTF-8, and refuses anything over 2 MiB. `TimedTextCache`
+is the same bounded access-ordered LRU the folder snapshots use, at four entries,
+keyed by `TimedTextKey(documentUri, sizeBytes, modifiedAtMs)`. Both the fresh-key and
+the stale-key rewrites have tests.
+
+**The lyrics surface.** `feature/subtitles/SubtitleDetailState.kt` folds what is on
+screen into one of `Loading`, `NoFile`, `EmptyFile`, `Timed` or `Untimed`, and
+`ui/SubtitleDetail.kt` draws it under the existing immersive player chrome -- the
+artwork backdrop and its two colours moved from `private` to `internal` in
+`PlayerDetail.kt` rather than being copied. Following, tapping a line to seek, and
+the return-to-current button all work against real playback position.
+
+- Lyrics state is a **separate stream** from `LibraryUiState`, because browsing
+  replaces the whole library state on every folder change and the playing track's
+  lyrics have to survive that.
+- Reading happens on request rather than as a pre-built index: the current listing's
+  `timedText` map, then the cache, then the file, parsed on `Dispatchers.IO`.
+- The surface always shows the lyrics of whatever the player is on, so a queue
+  advance while it is open loads the next track rather than leaving the previous
+  track's words on screen.
+- If playback is not on the item being viewed, the lines are shown without seek
+  actions and with `subtitle_not_current`, rather than highlighting lines against
+  another track's position.
+- A file's name and language are shown from the moment the match is chosen, not only
+  once it parses, so a file that fails to read still says which file it was.
+
+**The one deliberate departure from the spec text.** `PRODUCT_SPEC.md` says the
+current line stays *centered*. This implementation anchors it three lines below the
+top instead, which keeps the upcoming lines visible and does not move the list once
+per line. Exact centring is a visual decision, so it is left for the phase-4 visual
+layer to make with the scene in hand; `LyricsFollowing.LeadInLines` is the single
+knob.
+
+Verification on 2026-09-27, on the working tree that also contains Codex's
+uncommitted appearance slice:
+
+```powershell
+$env:GRADLE_USER_HOME='C:\Users\LiuDeZhou\.gradle'
+$env:TEMP='C:\jtmp'
+$env:TMP='C:\jtmp'
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle testDebugUnitTest lintDebug assembleDebug
+```
+
+- `testDebugUnitTest`: **194/194 passed**, 27 suites, 0 failures, 0 errors, 0 skipped.
+  The baseline on the same tree, before this slice, was 118 tests in 20 suites -- the
+  count the appearance slice recorded -- so the seven new classes are all 76 of the
+  new tests: 21 matching, 17 LRC/parser, 10 model, 7 decoding, 7 cache, 8 surface
+  state and 6 following. This suite passed 193/193 on the tree that crashed on the
+  device, which is the whole point of the section above.
+- `lintDebug`: **BUILD SUCCESSFUL**, 0 errors, 16 warnings and 1 hint -- the same
+  counts as before this slice, and no entry points at a file or line this slice
+  added. Both problems the first version introduced were removed rather than
+  accepted: the `UseKtx` warning from a new `Uri.parse` call, fixed by using
+  `toUri()`, and a literal U+FEFF character in the parser, which lint reports as a
+  `ByteOrderMark` **error**, now written as the `"\uFEFF"` escape. Every new string
+  is referenced, so there is no new `UnusedResources` entry.
+- `assembleDebug`: `app-debug.apk`, 74,758,295 bytes, sha256
+  `7d1dccb0578eb7fb92feec6f6a95122a518376a37c004ef91c3e6a2749eef7e8`, under
+  `D:\c\Documents\ChatGPT\.asmrplayer-build\app\outputs\apk\debug\`. That directory is
+  overwritten by every build, so the hash identifies this build only. The APK is the
+  owner's to install. **This hash supersedes `4985c9e3...`**, which was the same size
+  but carried the crash; only the hash separates them.
+
+### Device verification of the lyrics surface, 2026-09-27
+
+The first build was installed by the owner and **crashed**; the fixed build was
+installed by the owner and **works**. He reported "我装了验证，功能没问题".
+
+An earlier round of this session was driven by this agent over `adb` at the owner's
+explicit request, which is how the crash was found rather than guessed at:
+
+- The device is `23078RKD5C` (Redmi, `corot`), serial `VSFUUC4XLNSKHMRW`; `adb` is at
+  `F:\AndroidSDK\platform-tools\adb.exe` and is **not** on `PATH` in this shell.
+- Git Bash rewrites `/sdcard/...` into a Windows path before `adb` sees it. Prefix
+  device-path commands with `MSYS_NO_PATHCONV=1` or they silently address
+  `D:/git/Git/sdcard/...`. Screenshots are binary-safe through
+  `adb exec-out screencap -p > file.png`.
+- The library root is persisted in
+  `files/datastore/library_preferences.preferences_pb` and readable with
+  `run-as com.example.asmrplayer` (the app is debuggable): the root is
+  `primary:Download/pikpak/要上传mp3后续在上传pikpak`.
+- **The owner's real library is the best fixture this feature has.** It is where the
+  bare-time-tag pattern and the `.en.lrc` suffix pairing both came from, and neither
+  had ever appeared in a generated test. Matching was confirmed against real names:
+  `X.mp3` beside both `X.lrc` and `X.en.lrc` resolves to the untagged `X.lrc`, as
+  designed.
+- Navigating the wall over `adb` is unreliable as a test method: the wall reflows
+  between the focus tap and the activate tap, so a coordinate aimed at one cover
+  landed on a neighbour. Reaching a named track is better done by the owner.
+
+Still not settled by that run, and left for the phase-4 visual layer: whether the
+lines are legible over a bright cover, and whether the three-line lead-in is the
+right anchor.
 
 ## Completed slice: folder snapshots, Media3 playback, card transport, layouts
 

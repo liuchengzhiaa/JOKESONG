@@ -13,6 +13,8 @@
 - [x] Introduce the Media3 playback service/controller and make SAF audio genuinely playable.
 - [x] Connect the focus-card mini timeline and full-player controls to one seekable playback state.
 - [x] Add detailed, compact and grid library layouts beside the focus wall.
+- [x] Collapse the five library-layout icons into one current-layout button with a
+      named, checked five-choice menu; layout switching remains presentation-only.
 - [x] Run the first clean build and lint pass. `testDebugUnitTest` passes 48/48 and
       `lintDebug` reports 0 errors; both need
       `-I tools/ascii-build-dir.init.gradle` on this machine. The previously
@@ -129,6 +131,64 @@
       exactly the old square presets. 103/103 tests pass, lint 0 errors with the same 12
       warnings, a clean `assembleDebug` produces the APK. Verified by the owner on the
       phone on 2026-09-26 -- "我检查了，效果可以" -- with no defect reported.
+- [x] Address the owner's three notes on Codex's uncommitted appearance slice.
+      (a) The wall's continuous settings -- 封面密度, 画布缩放, 环境光效, plus 海报叠色 and
+      动态效果 on the 墙面显示 page -- now end their row in a filled crest instead of a
+      percentage, whose fill is the setting's position on its own range so it matches
+      the slider underneath; the 画布缩放 subpage header keeps its number, and
+      封面密度/画布缩放/环境光效/动态效果 each gained a `恢复 100%` row. (b) The settings
+      destination is now a short list of expanding groups -- 外观与样式 and 资料库, one
+      open at a time, nothing open on arrival -- instead of opening straight into
+      appearance, and 资料库 reaches 选择资料库根目录 and 刷新当前文件夹 for the first time.
+      (c) The top bar's title, back arrow and refresh/folder actions now take the global
+      accent; the immersive player bar deliberately does not, because its fixed
+      near-black container cannot carry the light theme's dark accent. 118/118 tests
+      pass (up from 113), lint 0 errors with 16 warnings, `assembleDebug` produces the
+      APK. Not installed -- see the phone-review entry below.
+- [x] Build the timed-text foundation and a lyrics surface to prove the timing with:
+      LRC/SRT/VTT are matched to a same-folder audio by base filename with an optional
+      language suffix, read with a bounded decoder (UTF-8 then GBK), parsed into one
+      normalized line-and-word model, and cached by document identity plus size and
+      modified time. An LRC with no time tags is reported as untimed rather than given
+      invented times, a version marker in a name is peeled off and the search continues
+      so `Track.new.lrc` still reaches `Track.mp3`, and matching is keyed by the item id
+      the player already holds. The surface follows playback, taps a line to seek, and
+      offers a return-to-current button once the reader scrolls away. 194/194 tests pass
+      (up from 118), lint 0 errors with the same 16 warnings, `assembleDebug` produces
+      the APK. Verified by the owner on the phone; see the entries below.
+- [x] Fix the crash the first build of that surface had on the device. Android compiles
+      regexes with ICU, which rejects an unescaped `}` where the JVM's `java.util.regex`
+      treats it as a literal, so `AssOverride`'s `\{[^}]*}` passed all 193 JVM tests and
+      then threw `PatternSyntaxException` from `<clinit>` the moment a subtitle opened --
+      on every track. Escaped it and the two other unescaped `]` in the same file, with
+      a comment on the pattern recording why. **No unit test can catch this class of
+      bug** because the tests and the app run on different regex engines; the guard is
+      escaping literals, plus a device run. Found by driving the app over `adb` at the
+      owner's request, not by reading the code.
+- [x] Stop a bare time tag from becoming an empty lyric line. Real LRC files mark a pause
+      with `[00:28.34]` and no text; each one was an empty row with nothing to read and
+      nothing to seek to. Measured on the owner's own library: 61 such lines in one
+      sampled file of 285, and 3,034 of its 3,774 `.lrc` files contain at least one. The
+      previous line now stays current through the pause. No generated fixture had ever
+      contained the pattern -- it came from pointing the parser at real files.
+- [x] Review the lyrics surface on the phone. Installed by the owner and confirmed
+      working on 2026-09-27 -- "我装了验证，功能没问题". Matching was also confirmed
+      against his real library, where `X.mp3` beside both `X.lrc` and `X.en.lrc`
+      resolves to the untagged file, as the rules intend. Two visual questions are
+      deliberately left to the phase-4 layer rather than closed here: whether the lines
+      are legible over a bright cover, and whether a three-line lead-in above the
+      current line is the right anchor (the spec says centered; this does not).
+- [ ] Review the crest rows, the grouped settings surface and the accent top bar on the
+      phone: whether the crest reads at 20 dp and a bottom-up fill reads as a gauge,
+      whether 外观与样式 / 资料库 is the right split, and whether an accent title next to a
+      neutral container is too strong. Installed by the owner himself on 2026-09-26;
+      his verdict on these three points is still outstanding. The same build is also
+      the first to carry roadmap phases 1 and 2, so the two entries below can be closed
+      in the same review.
+- [ ] Decide whether an appearance reset should also wipe every folder's wall viewport.
+      `resetAppearanceDefaults()` currently rewrites all cached snapshots' zoom, density,
+      focus shape/size and ambient, and the new grouping puts that button visibly inside
+      a group named appearance. Owner's call; flagged in `docs/HANDOFF.md`.
 - [ ] Review focus-wall V2, notification permission and paused task-swipe behavior
       on the phone.
 - [x] Review the new Folia-style wall's focus transitions on the phone. Verified by
@@ -146,6 +206,42 @@
       and then **accepted it as it is** on 2026-09-25. It is now a settled product
       decision, recorded in `docs/DECISIONS.md` D-004, not an open question.
 
+## Folia presentation roadmap (recommended order)
+
+The researched behaviour, Android mapping, acceptance criteria and clean-room
+boundary are recorded in `docs/FOLIA_PRESENTATION_PLAN.md`. Implement in this
+order because each layer consumes the stable model built by the one before it:
+
+- [ ] **1. Cover palette + global ambient light.** The implementation and automated
+      verification are complete (105/105 tests, lint 0 errors): it follows the
+      focused wall item, extracts a bounded cached palette, and cross-fades a
+      backdrop plus restrained poster wash in only the Folia wall. Density and
+      continuous zoom have moved into the wall tools, which also offer
+      off/low/medium/high light strength. Keep this open until phone review accepts
+      the colour strength, transition, panel ergonomics and light/dark contrast.
+- [ ] **2. Wall presentation controls.** Implementation and automated verification
+      are complete: the bottom-right panel now has a `墙面显示` subpage for durable
+      lights-out, opt-in Folia-only auto-focus, four poster-tint levels and reduced
+      motion. Queue remains correctly deferred until it has a durable destination.
+      Keep this open until phone review accepts contrast, transitions and restart
+      persistence.
+- [x] **3. Timed-text foundation.** Complete and accepted on the phone on 2026-09-27
+      (194/194 tests, lint 0 errors): LRC/SRT/VTT match by base filename with an
+      optional language suffix, parse into one normalized line-and-word model, and are
+      cached by document identity; a lyric-only LRC is reported as untimed rather than
+      given invented times; `ui/SubtitleDetail.kt` follows playback, seeks on a line
+      tap and returns to the current line. The owner confirmed the surface works. Two
+      visual questions -- legibility over a bright cover and the exact anchor of the
+      current line -- are carried into phase 4 rather than left open here, because that
+      is the layer that owns them.
+- [ ] **4. Lyrics on the focused/current cover.** Mount a bounded previous/current/
+      next lyric scene only on the expanded playing card, with contrast shade and
+      restrained blur/alpha/scale motion.
+- [ ] **5. Immersive lyric visualizer V1.** Ship one strong full-screen Compose
+      scene with shared playback clock, palette and lyric inputs plus reduced motion.
+- [ ] **6. Visualizer registry and advanced backgrounds.** Add carefully selected
+      modes and only then consider profiled GPU/audio-reactive effects.
+
 ## Next
 
 - [x] Implement SAF root selection and persistable URI permission.
@@ -162,7 +258,9 @@
 
 ## Later
 
-- [ ] Subtitle parsing and full-screen subtitle view.
+- [x] Subtitle parsing, and a subtitle detail view reached from the player. Not yet
+      full-screen: it reuses the immersive player chrome, and the dedicated lyric
+      scene is roadmap phase 5.
 - [ ] Transactional metadata editor with capability checks.
 - [ ] Search, pinyin index and collections.
 - [ ] Privacy presentation projection.

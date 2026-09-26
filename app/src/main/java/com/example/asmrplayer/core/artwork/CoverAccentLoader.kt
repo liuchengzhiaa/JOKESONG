@@ -26,6 +26,13 @@ private const val MaximumSampledPixels = 4_096
 internal data class CoverFacts(
     /** The card's accent, or null when the artwork holds no colour worth sampling. */
     val accentArgb: Int?,
+    /**
+     * Population-weighted colour families from the same bounded decode. The first
+     * entry is [accentArgb]; later entries are deliberately distinct enough to
+     * light different parts of the wall instead of producing four copies of one
+     * nearly-identical shade.
+     */
+    val paletteArgbs: List<Int>,
     val width: Int,
     val height: Int,
 ) {
@@ -34,8 +41,10 @@ internal data class CoverFacts(
 }
 
 /**
- * Loads only a thumbnail-sized version of the focused cover, then caches its size and
- * representative colour. Non-focused cards never pay this decoding cost.
+ * Loads only a thumbnail-sized version of a presentation-relevant cover, then
+ * caches its size and representative colours. At present the focused hero uses
+ * those facts for shape, border and Folia ambient light; ordinary cards never pay
+ * this decoding cost.
  */
 internal object CoverAccentLoader {
     private val cache = LruCache<String, CoverFacts>(96)
@@ -76,8 +85,12 @@ internal object CoverAccentLoader {
                 // The size comes from the bounds, not from the bitmap: the bitmap is a
                 // downsampled copy, and a card cut to its proportions would be cut to
                 // the proportions of whatever sample size happened to be chosen.
+                val palette = bitmap.usePixels { pixels ->
+                    representativeCoverArgbs(pixels, MaximumPaletteColors)
+                }
                 CoverFacts(
-                    accentArgb = bitmap.usePixels(::dominantCoverArgb),
+                    accentArgb = palette.firstOrNull(),
+                    paletteArgbs = palette,
                     width = bounds.outWidth,
                     height = bounds.outHeight,
                 )
@@ -91,12 +104,38 @@ internal object CoverAccentLoader {
         }
     }
 
-    private fun Bitmap.usePixels(block: (IntArray) -> Int?): Int? = try {
+    private fun <T> Bitmap.usePixels(block: (IntArray) -> T): T = try {
         val pixels = IntArray(width * height)
         getPixels(pixels, 0, width, 0, 0, width, height)
         block(pixels)
     } finally {
         recycle()
+    }
+}
+
+private const val MaximumPaletteColors = 4
+private const val MinimumPaletteDistanceSquared = 42 * 42
+
+private data class CoverColorBucket(
+    var count: Int = 0,
+    var red: Long = 0,
+    var green: Long = 0,
+    var blue: Long = 0,
+) {
+    fun averageArgb(): Int {
+        val averageRed = (red / count).toInt()
+        val averageGreen = (green / count).toInt()
+        val averageBlue = (blue / count).toInt()
+        return opaqueArgb(averageRed, averageGreen, averageBlue)
+    }
+
+    fun score(): Long {
+        val averageRed = (red / count).toInt()
+        val averageGreen = (green / count).toInt()
+        val averageBlue = (blue / count).toInt()
+        val saturation = maxOf(averageRed, averageGreen, averageBlue) -
+            minOf(averageRed, averageGreen, averageBlue)
+        return count.toLong() * (96 + saturation)
     }
 }
 
@@ -107,10 +146,22 @@ internal object CoverAccentLoader {
  * ignored because they usually describe padding or typography rather than art.
  */
 internal fun dominantCoverArgb(pixels: IntArray): Int? {
-    if (pixels.isEmpty()) return null
-    data class Bucket(var count: Int = 0, var red: Long = 0, var green: Long = 0, var blue: Long = 0)
+    return representativeCoverArgbs(pixels, 1).firstOrNull()
+}
 
-    val buckets = HashMap<Int, Bucket>(128)
+/**
+ * Builds a small, deterministic palette from a bounded pixel sample.
+ *
+ * Population still matters most, so a tiny saturated logo cannot replace the
+ * colour that visually owns the cover. Once the strongest family is selected,
+ * nearby buckets are skipped so the remaining entries can drive visibly
+ * different ambient lights. Transparent, near-black and near-white pixels are
+ * ignored for the same reason as [dominantCoverArgb].
+ */
+internal fun representativeCoverArgbs(pixels: IntArray, maxColors: Int = MaximumPaletteColors): List<Int> {
+    if (pixels.isEmpty() || maxColors <= 0) return emptyList()
+
+    val buckets = HashMap<Int, CoverColorBucket>(128)
     val step = max(1, pixels.size / MaximumSampledPixels)
     var index = 0
     while (index < pixels.size) {
@@ -122,7 +173,7 @@ internal fun dominantCoverArgb(pixels: IntArray): Int? {
         val luminance = (red * 299 + green * 587 + blue * 114) / 1_000
         if (alpha >= 160 && luminance in 22..242) {
             val key = (red shr 4 shl 8) or (green shr 4 shl 4) or (blue shr 4)
-            val bucket = buckets.getOrPut(key) { Bucket() }
+            val bucket = buckets.getOrPut(key) { CoverColorBucket() }
             bucket.count++
             bucket.red += red
             bucket.green += green
@@ -131,17 +182,29 @@ internal fun dominantCoverArgb(pixels: IntArray): Int? {
         index += step
     }
 
-    val winner = buckets.values.maxByOrNull { bucket ->
-        val red = (bucket.red / bucket.count).toInt()
-        val green = (bucket.green / bucket.count).toInt()
-        val blue = (bucket.blue / bucket.count).toInt()
-        val saturation = maxOf(red, green, blue) - minOf(red, green, blue)
-        bucket.count * (96 + saturation)
-    } ?: return null
+    val candidates = buckets.values
+        .sortedWith(
+            compareByDescending<CoverColorBucket>(CoverColorBucket::score)
+                .thenByDescending(CoverColorBucket::count)
+                .thenBy(CoverColorBucket::averageArgb),
+        )
+        .map(CoverColorBucket::averageArgb)
 
-    var red = (winner.red / winner.count).toInt()
-    var green = (winner.green / winner.count).toInt()
-    var blue = (winner.blue / winner.count).toInt()
+    val selected = ArrayList<Int>(maxColors.coerceAtMost(candidates.size))
+    candidates.forEach { candidate ->
+        if (selected.size >= maxColors) return@forEach
+        if (selected.all { selectedColor -> colorDistanceSquared(candidate, selectedColor) >= MinimumPaletteDistanceSquared }) {
+            selected += candidate
+        }
+    }
+    return selected.map(::balanceCoverColor)
+}
+
+/** Keeps very dark/bright swatches useful as UI light without erasing their hue. */
+private fun balanceCoverColor(color: Int): Int {
+    var red = color ushr 16 and 0xFF
+    var green = color ushr 8 and 0xFF
+    var blue = color and 0xFF
     val luminance = (red * 299 + green * 587 + blue * 114) / 1_000
     if (luminance < 80) {
         red = mixChannel(red, 255, 0.28f)
@@ -152,8 +215,18 @@ internal fun dominantCoverArgb(pixels: IntArray): Int? {
         green = mixChannel(green, 0, 0.16f)
         blue = mixChannel(blue, 0, 0.16f)
     }
-    return (0xFF shl 24) or (red shl 16) or (green shl 8) or blue
+    return opaqueArgb(red, green, blue)
 }
+
+private fun colorDistanceSquared(first: Int, second: Int): Int {
+    val red = (first ushr 16 and 0xFF) - (second ushr 16 and 0xFF)
+    val green = (first ushr 8 and 0xFF) - (second ushr 8 and 0xFF)
+    val blue = (first and 0xFF) - (second and 0xFF)
+    return red * red + green * green + blue * blue
+}
+
+private fun opaqueArgb(red: Int, green: Int, blue: Int): Int =
+    (0xFF shl 24) or (red shl 16) or (green shl 8) or blue
 
 private fun mixChannel(source: Int, target: Int, fraction: Float): Int =
     (source + (target - source) * fraction).toInt().coerceIn(0, 255)

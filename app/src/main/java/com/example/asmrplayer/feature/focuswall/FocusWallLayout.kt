@@ -16,6 +16,13 @@ enum class FocusWallDensity {
     Medium,
     Large;
 
+    val scale: Float
+        get() = when (this) {
+            Small -> 0.84f
+            Medium -> 1f
+            Large -> 1.16f
+        }
+
     fun next(): FocusWallDensity = entries[(ordinal + 1) % entries.size]
 }
 
@@ -146,16 +153,13 @@ object FocusWallLayoutEngine {
         viewportHeight: Float,
         orientation: FocusWallOrientation,
         density: FocusWallDensity,
+        densityScale: Float = density.scale,
         focusedItemId: String? = null,
         gapPx: Float = 4f,
     ): List<FocusWallPlacement> {
         if (items.isEmpty() || viewportWidth <= 0f || viewportHeight <= 0f) return emptyList()
 
-        val scale = when (density) {
-            FocusWallDensity.Small -> 0.84f
-            FocusWallDensity.Medium -> 1f
-            FocusWallDensity.Large -> 1.16f
-        }
+        val scale = densityScale.coerceIn(0.70f, 1.30f)
         val unit = when (orientation) {
             FocusWallOrientation.Portrait -> viewportWidth * scale / BlockColumns
             FocusWallOrientation.Landscape -> viewportHeight * 0.92f * scale / BlockRows

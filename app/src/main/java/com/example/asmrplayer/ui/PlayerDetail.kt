@@ -79,9 +79,17 @@ import com.example.asmrplayer.ui.theme.artworkBrush
 import java.util.Locale
 
 private const val SkipSeconds = 10
-private val PlayerBackground = Color(0xFF090A0D)
+
+/**
+ * The immersive player's own palette. It is deliberately not the theme's: the player
+ * is near-black regardless of light or dark, and the subtitle surface that opens over
+ * the same artwork reads the same colours, so these two are shared rather than
+ * copied. `PlayerPrimaryText` stays private because only this file has a use for it.
+ */
+internal val PlayerBackground = Color(0xFF090A0D)
+internal val PlayerSecondaryText = Color(0xFFAAAAB2)
+
 private val PlayerPrimaryText = Color(0xFFF4F4F6)
-private val PlayerSecondaryText = Color(0xFFAAAAB2)
 
 private enum class PlayerPanel { Queue, Bookmarks, Chapters }
 
@@ -605,50 +613,5 @@ private fun PanelMessage(text: String) {
     )
 }
 
-@Composable
-fun SubtitleArtworkDetail(
-    item: LibraryItem,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(PlayerBackground),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (item.artworkUri != null) {
-            AsyncImage(
-                model = item.artworkUri,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit,
-            )
-        } else {
-            Box(Modifier.fillMaxSize().background(artworkBrush(item.paletteSeed)))
-        }
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0x22000000), Color.Transparent, Color(0xD9000000)),
-                    ),
-                ),
-        )
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(Icons.Default.Subtitles, null, tint = Color.White, modifier = Modifier.size(28.dp))
-            Spacer(Modifier.height(8.dp))
-            Text(
-                stringResource(R.string.subtitle_index_pending),
-                color = Color.White,
-                textAlign = TextAlign.Center,
-            )
-        }
-    }
-}
+// The subtitle surface lives in ui/SubtitleDetail.kt. It keeps the immersive
+// player's palette, so the two constants above are shared rather than duplicated.

@@ -85,13 +85,23 @@ class FolderSnapshotCacheTest {
     fun `viewport is carried with the folder snapshot`() {
         val cache = FolderSnapshotCache(capacity = 4)
         cache.put(snapshot("folder-a"))
-        cache.update("folder-a") { it.copy(canvasZoom = 1.2f, panX = -40f, panY = 12f) }
+        cache.update("folder-a") {
+            it.copy(
+                canvasZoom = 1.2f,
+                panX = -40f,
+                panY = 12f,
+                wallDensityPercent = 124,
+                wallAmbientPercent = 143,
+            )
+        }
 
         val restored = cache.get("folder-a")
 
         assertEquals(1.2f, restored?.canvasZoom ?: 0f, 0.0001f)
         assertEquals(-40f, restored?.panX ?: 0f, 0.0001f)
         assertEquals(12f, restored?.panY ?: 0f, 0.0001f)
+        assertEquals(124, restored?.wallDensityPercent)
+        assertEquals(143, restored?.wallAmbientPercent)
     }
 
     @Test
@@ -103,6 +113,19 @@ class FolderSnapshotCacheTest {
         cache.clear()
 
         assertEquals(0, cache.size)
+    }
+
+    @Test
+    fun `update all changes settings without dropping cached listings`() {
+        val cache = FolderSnapshotCache(capacity = 4)
+        cache.put(snapshot("folder-a").copy(wallDensityPercent = 125))
+        cache.put(snapshot("folder-b").copy(wallDensityPercent = 75))
+
+        cache.updateAll { it.copy(wallDensityPercent = 100) }
+
+        assertEquals(2, cache.size)
+        assertEquals(100, cache.get("folder-a")?.wallDensityPercent)
+        assertEquals(100, cache.get("folder-b")?.wallDensityPercent)
     }
 
     @Test(expected = IllegalArgumentException::class)

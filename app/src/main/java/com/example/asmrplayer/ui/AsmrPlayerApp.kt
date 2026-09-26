@@ -55,12 +55,14 @@ import com.example.asmrplayer.feature.focuswall.FocusCoverWall
 import com.example.asmrplayer.feature.focuswall.FocusWallStyle
 import com.example.asmrplayer.feature.focuswall.FocusWallViewportState
 import com.example.asmrplayer.feature.focuswall.canRevealPlayingItem
+import com.example.asmrplayer.feature.focuswall.shouldAutoFocusPlayingItem
 import com.example.asmrplayer.feature.library.CompactLibraryList
 import com.example.asmrplayer.feature.library.DetailedLibraryList
 import com.example.asmrplayer.feature.library.LibraryGrid
 import com.example.asmrplayer.feature.library.LibraryLayoutMode
 import com.example.asmrplayer.feature.library.LibraryLayoutSwitcher
 import com.example.asmrplayer.feature.library.LibraryUiState
+import com.example.asmrplayer.feature.subtitles.SubtitleDetailState
 
 private data class Destination(
     val label: Int,
@@ -72,15 +74,28 @@ private data class Destination(
 fun AsmrPlayerApp(
     libraryState: LibraryUiState,
     playbackState: PlaybackState,
+    subtitleState: SubtitleDetailState,
     onChooseRoot: () -> Unit,
     onRefresh: () -> Unit,
     onOpenFolder: (LibraryItem) -> Unit,
     onNavigateUp: () -> Unit,
     onFocusedItemChange: (String?) -> Unit,
     onViewportChange: (Float, Float, Float) -> Unit,
+    onLibraryLayoutChange: (Int) -> Unit,
     onWallDensityChange: (Int) -> Unit,
     onWallFocusShapeChange: (Int) -> Unit,
     onWallFocusSizeChange: (Int) -> Unit,
+    onWallAmbientStrengthChange: (Int) -> Unit,
+    onWallLightsOutChange: (Boolean) -> Unit,
+    onWallAutoFocusPlayingChange: (Boolean) -> Unit,
+    onWallPosterTintStrengthChange: (Int) -> Unit,
+    onMotionPercentChange: (Int) -> Unit,
+    onUiStylePresetChange: (Int) -> Unit,
+    onUiAccentPaletteChange: (Int) -> Unit,
+    onUiScalePercentChange: (Int) -> Unit,
+    onResetAppearanceDefaults: () -> Unit,
+    onOpenSubtitleDetail: (String) -> Unit,
+    onCloseSubtitleDetail: () -> Unit,
     onPlayItem: (LibraryItem) -> Unit,
     onRevealPlayingItem: (String) -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -92,8 +107,7 @@ fun AsmrPlayerApp(
     var selectedDestination by rememberSaveable { mutableIntStateOf(0) }
     var fullPlayerItemId by rememberSaveable { mutableStateOf<String?>(null) }
     var showSubtitleDetail by rememberSaveable { mutableStateOf(false) }
-    var layoutOrdinal by rememberSaveable { mutableIntStateOf(LibraryLayoutMode.Default.ordinal) }
-    val layoutMode = LibraryLayoutMode.fromOrdinal(layoutOrdinal)
+    val layoutMode = LibraryLayoutMode.fromOrdinal(libraryState.libraryLayoutOrdinal)
 
     val itemById = remember(libraryState.items) { libraryState.items.associateBy(LibraryItem::id) }
     val nowPlayingItem = playbackState.mediaId?.let(itemById::get)
@@ -118,6 +132,18 @@ fun AsmrPlayerApp(
     }
     BackHandler(enabled = showSubtitleDetail) {
         showSubtitleDetail = false
+    }
+
+    // The surface always shows the lyrics of whatever the player is on, so a queue
+    // advance while it is open loads the next track's file instead of leaving the
+    // previous track's lines on screen.
+    LaunchedEffect(showSubtitleDetail, fullPlayerItem?.id) {
+        val itemId = fullPlayerItem?.id
+        if (showSubtitleDetail && itemId != null) {
+            onOpenSubtitleDetail(itemId)
+        } else {
+            onCloseSubtitleDetail()
+        }
     }
     BackHandler(enabled = fullPlayerItem != null && !showSubtitleDetail) {
         fullPlayerItemId = null
@@ -178,6 +204,10 @@ fun AsmrPlayerApp(
                     }
                 },
                 colors = if (fullPlayerItem != null) {
+                    // The player's bar is immersive chrome: a fixed near-black surface
+                    // that deliberately ignores the theme's light and dark surfaces. The
+                    // accent's light variant is unreadable on it, so this bar stays
+                    // neutral rather than half-following a palette it is not part of.
                     TopAppBarDefaults.centerAlignedTopAppBarColors(
                         containerColor = Color(0xFF090A0D),
                         titleContentColor = Color(0xFFF4F4F6),
@@ -185,7 +215,15 @@ fun AsmrPlayerApp(
                         actionIconContentColor = Color(0xFFF4F4F6),
                     )
                 } else {
-                    TopAppBarDefaults.centerAlignedTopAppBarColors()
+                    // Title, back arrow and the refresh / folder actions all take the
+                    // global accent. Without this the setting reached the bottom
+                    // navigation bar and nothing else, so the top bar read as if it
+                    // were not part of the app's appearance at all.
+                    TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        titleContentColor = MaterialTheme.colorScheme.primary,
+                        navigationIconContentColor = MaterialTheme.colorScheme.primary,
+                        actionIconContentColor = MaterialTheme.colorScheme.primary,
+                    )
                 },
             )
         },
@@ -211,7 +249,13 @@ fun AsmrPlayerApp(
         ) {
             if (fullPlayerItem != null) {
                 if (showSubtitleDetail) {
-                    SubtitleArtworkDetail(item = fullPlayerItem)
+                    SubtitleArtworkDetail(
+                        item = fullPlayerItem,
+                        subtitles = subtitleState,
+                        playbackState = playbackState,
+                        onTogglePlayPause = onTogglePlayPause,
+                        onSeekTo = onSeekTo,
+                    )
                 } else {
                     PlayerDetail(
                         item = fullPlayerItem,
@@ -234,7 +278,7 @@ fun AsmrPlayerApp(
                     state = libraryState,
                     playbackState = playbackState,
                     layoutMode = layoutMode,
-                    onLayoutModeChange = { layoutOrdinal = it.ordinal },
+                    onLayoutModeChange = { onLibraryLayoutChange(it.ordinal) },
                     onChooseRoot = onChooseRoot,
                     onRefresh = onRefresh,
                     onOpenFolder = onOpenFolder,
@@ -247,10 +291,26 @@ fun AsmrPlayerApp(
                     onWallDensityChange = onWallDensityChange,
                     onWallFocusShapeChange = onWallFocusShapeChange,
                     onWallFocusSizeChange = onWallFocusSizeChange,
+                    onWallAmbientStrengthChange = onWallAmbientStrengthChange,
+                    onWallLightsOutChange = onWallLightsOutChange,
+                    onWallAutoFocusPlayingChange = onWallAutoFocusPlayingChange,
+                    onWallPosterTintStrengthChange = onWallPosterTintStrengthChange,
+                    onMotionPercentChange = onMotionPercentChange,
                     onPlayItem = onPlayItem,
                     onRevealPlayingItem = onRevealPlayingItem,
                     onTogglePlayPause = onTogglePlayPause,
                     onSeekTo = onSeekTo,
+                )
+            } else if (selectedDestination == 3) {
+                SettingsScreen(
+                    state = libraryState,
+                    onChooseRoot = onChooseRoot,
+                    onRefresh = onRefresh,
+                    onUiStylePresetChange = onUiStylePresetChange,
+                    onUiAccentPaletteChange = onUiAccentPaletteChange,
+                    onMotionPercentChange = onMotionPercentChange,
+                    onUiScalePercentChange = onUiScalePercentChange,
+                    onResetAppearanceDefaults = onResetAppearanceDefaults,
                 )
             } else {
                 MessageState(
@@ -277,6 +337,11 @@ private fun LibraryContent(
     onWallDensityChange: (Int) -> Unit,
     onWallFocusShapeChange: (Int) -> Unit,
     onWallFocusSizeChange: (Int) -> Unit,
+    onWallAmbientStrengthChange: (Int) -> Unit,
+    onWallLightsOutChange: (Boolean) -> Unit,
+    onWallAutoFocusPlayingChange: (Boolean) -> Unit,
+    onWallPosterTintStrengthChange: (Int) -> Unit,
+    onMotionPercentChange: (Int) -> Unit,
     onPlayItem: (LibraryItem) -> Unit,
     onRevealPlayingItem: (String) -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -293,6 +358,31 @@ private fun LibraryContent(
         ?.takeIf { canRevealPlayingItem(it, listedItemIds, state.hasPlaybackOrigin) }
         ?.let { id -> { onRevealPlayingItem(id) } }
 
+    // Auto-focus is a Folia wall command, not a global navigation policy. It is
+    // dormant in list/grid/Bento modes and follows the same reachability rules as
+    // the explicit "focus current" command when Media3 advances the queue.
+    var lastObservedPlayingItemId by remember { mutableStateOf(playingItemId) }
+    LaunchedEffect(playingItemId) {
+        val previousItemId = lastObservedPlayingItemId
+        lastObservedPlayingItemId = playingItemId
+        val reachable = canRevealPlayingItem(
+            playingItemId,
+            listedItemIds,
+            state.hasPlaybackOrigin,
+        )
+        if (
+            shouldAutoFocusPlayingItem(
+                enabled = state.wallAutoFocusPlaying,
+                foliaVisible = layoutMode == LibraryLayoutMode.FoliaWall,
+                previousItemId = previousItemId,
+                currentItemId = playingItemId,
+                reachable = reachable,
+            )
+        ) {
+            playingItemId?.let(onRevealPlayingItem)
+        }
+    }
+
     // Lives above the layout switch so changing layout keeps the wall viewport,
     // and is recreated per folder from the snapshot the ViewModel restored.
     val viewportState = remember(state.folderKey) {
@@ -300,9 +390,10 @@ private fun LibraryContent(
             initialZoom = state.canvasZoom,
             initialPanX = state.panX,
             initialPanY = state.panY,
-            initialDensityOrdinal = state.wallDensityOrdinal,
+            initialDensityPercent = state.wallDensityPercent,
             initialFocusShapeOrdinal = state.wallFocusShapeOrdinal,
             initialFocusSizeOrdinal = state.wallFocusSizeOrdinal,
+            initialAmbientPercent = state.wallAmbientPercent,
             restored = state.isRestored,
         )
     }
@@ -317,15 +408,27 @@ private fun LibraryContent(
             // is then centred by the wall's normal focus reconciliation.
             initialPanX = 0f,
             initialPanY = 0f,
-            initialDensityOrdinal = state.wallDensityOrdinal,
+            initialDensityPercent = state.wallDensityPercent,
             initialFocusShapeOrdinal = state.wallFocusShapeOrdinal,
             initialFocusSizeOrdinal = state.wallFocusSizeOrdinal,
+            initialAmbientPercent = state.wallAmbientPercent,
             restored = false,
         )
     }
-    LaunchedEffect(viewportState) {
-        snapshotFlow { Triple(viewportState.zoom, viewportState.pan.x, viewportState.pan.y) }
-            .collect { (zoom, panX, panY) -> onViewportChange(zoom, panX, panY) }
+    val activeWallViewportState = when (layoutMode) {
+        LibraryLayoutMode.FocusWall -> viewportState
+        LibraryLayoutMode.FoliaWall -> foliaViewportState
+        else -> null
+    }
+    LaunchedEffect(activeWallViewportState) {
+        activeWallViewportState ?: return@LaunchedEffect
+        snapshotFlow {
+            Triple(
+                activeWallViewportState.zoom,
+                activeWallViewportState.pan.x,
+                activeWallViewportState.pan.y,
+            )
+        }.collect { (zoom, panX, panY) -> onViewportChange(zoom, panX, panY) }
     }
 
     val openItem: (LibraryItem) -> Unit = { item ->
@@ -396,6 +499,15 @@ private fun LibraryContent(
                     onDensityChange = onWallDensityChange,
                     onFocusShapeChange = onWallFocusShapeChange,
                     onFocusSizeChange = onWallFocusSizeChange,
+                    onAmbientStrengthChange = onWallAmbientStrengthChange,
+                    lightsOut = state.wallLightsOut,
+                    autoFocusPlaying = state.wallAutoFocusPlaying,
+                    posterTintPercent = state.wallPosterTintPercent,
+                    motionPercent = state.motionPercent,
+                    onLightsOutChange = onWallLightsOutChange,
+                    onAutoFocusPlayingChange = onWallAutoFocusPlayingChange,
+                    onPosterTintStrengthChange = onWallPosterTintStrengthChange,
+                    onMotionPercentChange = onMotionPercentChange,
                     onActivate = { item ->
                         if (item.type == LibraryItemType.Folder) {
                             onOpenFolder(item)
@@ -420,6 +532,15 @@ private fun LibraryContent(
                     onDensityChange = onWallDensityChange,
                     onFocusShapeChange = onWallFocusShapeChange,
                     onFocusSizeChange = onWallFocusSizeChange,
+                    onAmbientStrengthChange = onWallAmbientStrengthChange,
+                    lightsOut = state.wallLightsOut,
+                    autoFocusPlaying = state.wallAutoFocusPlaying,
+                    posterTintPercent = state.wallPosterTintPercent,
+                    motionPercent = state.motionPercent,
+                    onLightsOutChange = onWallLightsOutChange,
+                    onAutoFocusPlayingChange = onWallAutoFocusPlayingChange,
+                    onPosterTintStrengthChange = onWallPosterTintStrengthChange,
+                    onMotionPercentChange = onMotionPercentChange,
                     onActivate = { item ->
                         if (item.type == LibraryItemType.Folder) {
                             onOpenFolder(item)

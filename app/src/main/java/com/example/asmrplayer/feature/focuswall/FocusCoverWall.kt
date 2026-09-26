@@ -8,6 +8,7 @@ import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,7 +36,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Circle
+import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CropLandscape
 import androidx.compose.material.icons.filled.CropPortrait
@@ -45,11 +48,14 @@ import androidx.compose.material.icons.filled.FitScreen
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.MotionPhotosOff
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Widgets
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -81,6 +87,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.input.pointer.pointerInput
@@ -110,10 +118,13 @@ import com.example.asmrplayer.core.media.PlaybackState
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
 import com.example.asmrplayer.feature.folderSummaryLine
+import com.example.asmrplayer.core.settings.levelFraction
 import com.example.asmrplayer.feature.player.formatPlaybackTime
+import com.example.asmrplayer.ui.CrestLevelIcon
 import com.example.asmrplayer.ui.theme.artworkBrush
 import com.example.asmrplayer.ui.theme.artworkAccent
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -151,6 +162,15 @@ fun FocusCoverWall(
      */
     onFocusShapeChange: (Int) -> Unit = {},
     onFocusSizeChange: (Int) -> Unit = {},
+    onAmbientStrengthChange: (Int) -> Unit = {},
+    lightsOut: Boolean = false,
+    autoFocusPlaying: Boolean = false,
+    posterTintPercent: Int = 0,
+    motionPercent: Int = 100,
+    onLightsOutChange: (Boolean) -> Unit = {},
+    onAutoFocusPlayingChange: (Boolean) -> Unit = {},
+    onPosterTintStrengthChange: (Int) -> Unit = {},
+    onMotionPercentChange: (Int) -> Unit = {},
     onActivate: (LibraryItem) -> Unit = {},
     onPlay: (LibraryItem) -> Unit = {},
     /**
@@ -161,37 +181,6 @@ fun FocusCoverWall(
     onRevealPlayingItem: (() -> Unit)? = null,
 ) {
     Column(modifier = modifier) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 5.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val density = viewportState.density
-            AssistChip(
-                onClick = {
-                    val next = density.next()
-                    viewportState.densityOrdinal = next.ordinal
-                    onDensityChange(next.ordinal)
-                },
-                label = {
-                    Text(
-                        stringResource(
-                            R.string.wall_density_value,
-                            stringResource(density.labelResource()),
-                        ),
-                    )
-                },
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = stringResource(R.string.zoom_percent, (viewportState.zoom * 100).roundToInt()),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.labelMedium,
-            )
-        }
-
         Text(
             text = stringResource(R.string.focus_wall_hint),
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
@@ -209,6 +198,9 @@ fun FocusCoverWall(
                 playbackState = playbackState,
                 viewportState = viewportState,
                 style = style,
+                lightsOut = lightsOut,
+                posterTintPercent = posterTintPercent,
+                motionPercent = motionPercent,
                 onFocusedItemChange = onFocusedItemChange,
                 onSeekTo = onSeekTo,
                 onCardClick = { item ->
@@ -245,8 +237,18 @@ fun FocusCoverWall(
                 style = style,
                 viewportState = viewportState,
                 onRevealPlayingItem = onRevealPlayingItem,
+                onDensityChange = onDensityChange,
                 onFocusShapeChange = onFocusShapeChange,
                 onFocusSizeChange = onFocusSizeChange,
+                onAmbientStrengthChange = onAmbientStrengthChange,
+                lightsOut = lightsOut,
+                autoFocusPlaying = autoFocusPlaying,
+                posterTintPercent = posterTintPercent,
+                motionPercent = motionPercent,
+                onLightsOutChange = onLightsOutChange,
+                onAutoFocusPlayingChange = onAutoFocusPlayingChange,
+                onPosterTintStrengthChange = onPosterTintStrengthChange,
+                onMotionPercentChange = onMotionPercentChange,
             )
         }
     }
@@ -257,7 +259,9 @@ fun FocusCoverWall(
  *
  * A row either acts ([onClick]) or, for a setting whose value is a short list,
  * opens a page of options. Rows that open a page carry [valueRes] so the panel
- * shows what is currently chosen without having to open it.
+ * shows what is currently chosen without having to open it. A row over a
+ * continuous setting carries [levelFraction] instead: its position on the setting's
+ * own control, which the row draws as a filled crest rather than as a percentage.
  */
 private data class WallTool(
     val icon: ImageVector,
@@ -265,12 +269,27 @@ private data class WallTool(
     val enabled: Boolean,
     val onClick: () -> Unit,
     val valueRes: Int? = null,
+    val valueText: String? = null,
+    val levelFraction: Float? = null,
     val selected: Boolean = false,
 )
+
+/**
+ * Ranges of the two presentation settings, shared by the crest on their row and the
+ * slider on their page so the two can never disagree about where the value sits.
+ */
+private val PosterTintPercentRange = 0..60
+private val MotionPercentRange = 0..100
 
 /** Which page of the tools panel is showing. */
 private sealed interface WallPanelPage {
     data object Root : WallPanelPage
+    data object Density : WallPanelPage
+    data object Zoom : WallPanelPage
+    data object AmbientStrength : WallPanelPage
+    data object Presentation : WallPanelPage
+    data object PosterTint : WallPanelPage
+    data object Motion : WallPanelPage
     data object FocusShape : WallPanelPage
     data object FocusSize : WallPanelPage
 }
@@ -297,14 +316,31 @@ private fun WallToolsOverlay(
     style: FocusWallStyle,
     viewportState: FocusWallViewportState,
     onRevealPlayingItem: (() -> Unit)?,
+    onDensityChange: (Int) -> Unit,
     onFocusShapeChange: (Int) -> Unit,
     onFocusSizeChange: (Int) -> Unit,
+    onAmbientStrengthChange: (Int) -> Unit,
+    lightsOut: Boolean,
+    autoFocusPlaying: Boolean,
+    posterTintPercent: Int,
+    motionPercent: Int,
+    onLightsOutChange: (Boolean) -> Unit,
+    onAutoFocusPlayingChange: (Boolean) -> Unit,
+    onPosterTintStrengthChange: (Int) -> Unit,
+    onMotionPercentChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Keyed on the content, so changing folder or wall style closes the panel and
     // returns it to its first page.
     var expanded by remember(contentKey) { mutableStateOf(false) }
     var page by remember(contentKey) { mutableStateOf<WallPanelPage>(WallPanelPage.Root) }
+
+    // The canvas zoom is stored as a fraction but read as a percentage, like the two
+    // settings either side of it in the root panel, so every crest level is drawn
+    // from the same kind of number.
+    val zoomPercent = (viewportState.zoom * 100).roundToInt()
+    val minimumZoomPercent = (MinimumCanvasZoom * 100).roundToInt()
+    val maximumZoomPercent = (MaximumCanvasZoom * 100).roundToInt()
 
     // The overlay fills the wall, so the scrim below covers all of it -- the button
     // and the panel are placed inside, at the bottom end.
@@ -340,8 +376,44 @@ private fun WallToolsOverlay(
                                     onRevealPlayingItem?.invoke()
                                 },
                             ),
+                            WallTool(
+                                icon = Icons.Default.Widgets,
+                                labelRes = R.string.wall_density,
+                                enabled = true,
+                                onClick = { page = WallPanelPage.Density },
+                                levelFraction = levelFraction(
+                                    viewportState.densityPercent,
+                                    MinimumWallDensityPercent..MaximumWallDensityPercent,
+                                ),
+                            ),
+                            WallTool(
+                                icon = Icons.Default.FitScreen,
+                                labelRes = R.string.wall_zoom,
+                                enabled = true,
+                                onClick = { page = WallPanelPage.Zoom },
+                                levelFraction = levelFraction(
+                                    zoomPercent,
+                                    minimumZoomPercent..maximumZoomPercent,
+                                ),
+                            ),
                         ) + if (style == FocusWallStyle.Folia) {
                             listOf(
+                                WallTool(
+                                    icon = Icons.Default.GraphicEq,
+                                    labelRes = R.string.wall_ambient_strength,
+                                    enabled = true,
+                                    onClick = { page = WallPanelPage.AmbientStrength },
+                                    levelFraction = levelFraction(
+                                        viewportState.ambientPercent,
+                                        0..MaximumAmbientPercent,
+                                    ),
+                                ),
+                                WallTool(
+                                    icon = Icons.Default.Tune,
+                                    labelRes = R.string.wall_presentation,
+                                    enabled = true,
+                                    onClick = { page = WallPanelPage.Presentation },
+                                ),
                                 WallTool(
                                     icon = Icons.Default.CropSquare,
                                     labelRes = R.string.wall_focus_shape,
@@ -365,6 +437,109 @@ private fun WallToolsOverlay(
                         } else {
                             emptyList()
                         },
+                    )
+                    WallPanelPage.Density -> WallPercentPanel(
+                        titleRes = R.string.wall_density,
+                        valuePercent = viewportState.densityPercent,
+                        valueRange = MinimumWallDensityPercent..MaximumWallDensityPercent,
+                        onValuePreview = {},
+                        onValueCommit = { percent ->
+                            viewportState.densityPercent = percent
+                            onDensityChange(percent)
+                        },
+                        onBack = { page = WallPanelPage.Root },
+                        onReset = {
+                            viewportState.densityPercent = DefaultWallPercent
+                            onDensityChange(DefaultWallPercent)
+                        },
+                    )
+                    WallPanelPage.Zoom -> WallZoomPanel(
+                        zoom = viewportState.zoom,
+                        onZoomChange = { requestedZoom ->
+                            val oldZoom = viewportState.zoom
+                            val newZoom = requestedZoom.coerceIn(
+                                MinimumCanvasZoom,
+                                MaximumCanvasZoom,
+                            )
+                            // A menu-driven zoom uses the viewport centre as its
+                            // anchor, matching a centred pinch and keeping the same
+                            // world point under the centre of the screen.
+                            viewportState.pan *= newZoom / oldZoom
+                            viewportState.zoom = newZoom
+                        },
+                        onBack = { page = WallPanelPage.Root },
+                    )
+                    WallPanelPage.AmbientStrength -> WallPercentPanel(
+                        titleRes = R.string.wall_ambient_strength,
+                        valuePercent = viewportState.ambientPercent,
+                        valueRange = 0..MaximumAmbientPercent,
+                        onValuePreview = { viewportState.ambientPercent = it },
+                        onValueCommit = { onAmbientStrengthChange(it) },
+                        onBack = { page = WallPanelPage.Root },
+                        onReset = {
+                            viewportState.ambientPercent = DefaultWallPercent
+                            onAmbientStrengthChange(DefaultWallPercent)
+                        },
+                    )
+                    WallPanelPage.Presentation -> WallOptionsPanel(
+                        titleRes = R.string.wall_presentation,
+                        onBack = { page = WallPanelPage.Root },
+                        options = listOf(
+                            WallTool(
+                                icon = Icons.Default.LightMode,
+                                labelRes = R.string.wall_lights_out,
+                                enabled = true,
+                                valueRes = if (lightsOut) R.string.setting_on else R.string.setting_off,
+                                onClick = { onLightsOutChange(!lightsOut) },
+                            ),
+                            WallTool(
+                                icon = Icons.Default.CenterFocusStrong,
+                                labelRes = R.string.wall_auto_focus,
+                                enabled = true,
+                                valueRes = if (autoFocusPlaying) {
+                                    R.string.setting_on
+                                } else {
+                                    R.string.setting_off
+                                },
+                                onClick = { onAutoFocusPlayingChange(!autoFocusPlaying) },
+                            ),
+                            WallTool(
+                                icon = Icons.Default.ColorLens,
+                                labelRes = R.string.wall_poster_tint,
+                                enabled = true,
+                                levelFraction = levelFraction(
+                                    posterTintPercent,
+                                    PosterTintPercentRange,
+                                ),
+                                onClick = { page = WallPanelPage.PosterTint },
+                            ),
+                            WallTool(
+                                icon = Icons.Default.MotionPhotosOff,
+                                labelRes = R.string.wall_reduced_motion,
+                                enabled = true,
+                                levelFraction = levelFraction(motionPercent, MotionPercentRange),
+                                onClick = { page = WallPanelPage.Motion },
+                            ),
+                        ),
+                    )
+                    WallPanelPage.PosterTint -> WallPercentPanel(
+                        titleRes = R.string.wall_poster_tint,
+                        valuePercent = posterTintPercent,
+                        // No reset row: this one's default is zero, and the slider's
+                        // left end already is it.
+                        valueRange = PosterTintPercentRange,
+                        onValuePreview = {},
+                        onValueCommit = onPosterTintStrengthChange,
+                        onBack = { page = WallPanelPage.Presentation },
+                    )
+                    WallPanelPage.Motion -> WallPercentPanel(
+                        titleRes = R.string.wall_motion_strength,
+                        valuePercent = motionPercent,
+                        valueRange = MotionPercentRange,
+                        onValuePreview = {},
+                        onValueCommit = onMotionPercentChange,
+                        onBack = { page = WallPanelPage.Presentation },
+                        onReset = { onMotionPercentChange(DefaultWallPercent) },
                     )
                     WallPanelPage.FocusShape -> WallOptionsPanel(
                         titleRes = R.string.wall_focus_shape,
@@ -404,8 +579,8 @@ private fun WallToolsOverlay(
             }
             SmallFloatingActionButton(
                 onClick = { expanded = !expanded },
-                containerColor = Color(0xFF17181D),
-                contentColor = Color.White,
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
                 Icon(
                     imageVector = Icons.Default.Widgets,
@@ -420,7 +595,7 @@ private fun WallToolsOverlay(
 private fun WallToolsPanel(tools: List<WallTool>) {
     Surface(
         shape = RoundedCornerShape(14.dp),
-        color = Color(0xFF17181D),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 6.dp,
         shadowElevation = 8.dp,
     ) {
@@ -439,7 +614,7 @@ private fun WallToolsPanel(tools: List<WallTool>) {
 private fun WallOptionsPanel(titleRes: Int, onBack: () -> Unit, options: List<WallTool>) {
     Surface(
         shape = RoundedCornerShape(14.dp),
-        color = Color(0xFF17181D),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 6.dp,
         shadowElevation = 8.dp,
     ) {
@@ -455,11 +630,11 @@ private fun WallOptionsPanel(titleRes: Int, onBack: () -> Unit, options: List<Wa
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(titleRes),
                     modifier = Modifier.size(18.dp),
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = stringResource(titleRes),
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -469,8 +644,164 @@ private fun WallOptionsPanel(titleRes: Int, onBack: () -> Unit, options: List<Wa
 }
 
 @Composable
+private fun WallZoomPanel(
+    zoom: Float,
+    onZoomChange: (Float) -> Unit,
+    onBack: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 6.dp,
+        shadowElevation = 8.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .width(280.dp)
+                .padding(vertical = 6.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .clickable(onClick = onBack)
+                    .padding(horizontal = 16.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.wall_zoom),
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = stringResource(R.string.wall_zoom),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = stringResource(R.string.zoom_percent, (zoom * 100).roundToInt()),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            Slider(
+                value = zoom,
+                onValueChange = { value ->
+                    onZoomChange(value.coerceIn(MinimumCanvasZoom, MaximumCanvasZoom))
+                },
+                valueRange = MinimumCanvasZoom..MaximumCanvasZoom,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            Row(
+                modifier = Modifier
+                    .clickable { onZoomChange(1f) }
+                    .padding(horizontal = 16.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FitScreen,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = stringResource(R.string.wall_reset_percent),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Continuous percentage control. Density intentionally previews only the number
+ * and commits the expensive reflow on release; light can opt into live preview.
+ */
+@Composable
+private fun WallPercentPanel(
+    titleRes: Int,
+    valuePercent: Int,
+    valueRange: IntRange,
+    onValuePreview: (Int) -> Unit,
+    onValueCommit: (Int) -> Unit,
+    onBack: () -> Unit,
+    onReset: (() -> Unit)? = null,
+) {
+    var pendingPercent by remember(valuePercent) { mutableStateOf(valuePercent) }
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 6.dp,
+        shadowElevation = 8.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .width(280.dp)
+                .padding(vertical = 6.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .clickable(onClick = onBack)
+                    .padding(horizontal = 16.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(titleRes),
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    text = stringResource(titleRes),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = stringResource(R.string.percent_value, pendingPercent),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            Slider(
+                value = pendingPercent.toFloat(),
+                onValueChange = { value ->
+                    pendingPercent = value.roundToInt().coerceIn(valueRange)
+                    onValuePreview(pendingPercent)
+                },
+                onValueChangeFinished = { onValueCommit(pendingPercent) },
+                valueRange = valueRange.first.toFloat()..valueRange.last.toFloat(),
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            if (onReset != null) {
+                Row(
+                    modifier = Modifier
+                        .clickable(onClick = onReset)
+                        .padding(horizontal = 16.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.RestartAlt,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.wall_reset_percent),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun WallToolRow(tool: WallTool) {
     val contentAlpha = if (tool.enabled) 1f else 0.38f
+    val contentColor = MaterialTheme.colorScheme.onSurface
     Row(
         modifier = Modifier
             .clickable(enabled = tool.enabled, onClick = tool.onClick)
@@ -482,11 +813,11 @@ private fun WallToolRow(tool: WallTool) {
             imageVector = tool.icon,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
-            tint = Color.White.copy(alpha = contentAlpha),
+            tint = contentColor.copy(alpha = contentAlpha),
         )
         Text(
             text = stringResource(tool.labelRes),
-            color = Color.White.copy(alpha = contentAlpha),
+            color = contentColor.copy(alpha = contentAlpha),
             style = MaterialTheme.typography.bodyMedium,
         )
         // The chosen option is the only row that can carry a trailing affordance:
@@ -496,13 +827,25 @@ private fun WallToolRow(tool: WallTool) {
                 imageVector = Icons.Default.Check,
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
-                tint = Color.White,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            tool.levelFraction != null -> CrestLevelIcon(
+                fraction = tool.levelFraction,
+                // Dimmed with the row it belongs to, so an unavailable setting does
+                // not read as a live one.
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = contentAlpha),
+                track = contentColor.copy(alpha = 0.16f * contentAlpha),
+            )
+            tool.valueText != null -> Text(
+                text = tool.valueText,
+                color = contentColor.copy(alpha = 0.7f * contentAlpha),
+                style = MaterialTheme.typography.bodyMedium,
             )
             tool.valueRes != null -> Text(
                 text = stringResource(tool.valueRes),
                 // Dimmed with the row it belongs to: an unavailable setting's value is
                 // not something to read as actionable either.
-                color = Color.White.copy(alpha = 0.7f * contentAlpha),
+                color = contentColor.copy(alpha = 0.7f * contentAlpha),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -517,6 +860,9 @@ private fun FocusWallCanvas(
     playbackState: PlaybackState,
     viewportState: FocusWallViewportState,
     style: FocusWallStyle,
+    lightsOut: Boolean,
+    posterTintPercent: Int,
+    motionPercent: Int,
     onFocusedItemChange: (String?) -> Unit,
     onCardClick: (LibraryItem) -> Unit,
     onPlayPause: (LibraryItem) -> Unit,
@@ -532,6 +878,10 @@ private fun FocusWallCanvas(
     val localDensity = LocalDensity.current
     val scope = rememberCoroutineScope()
     var activePanAnimation by remember(contentKey) { mutableStateOf<Job?>(null) }
+
+    LaunchedEffect(motionPercent) {
+        if (motionPercent <= 0) activePanAnimation?.cancel()
+    }
 
     fun animatePanTo(target: Offset, durationMillis: Int) {
         activePanAnimation?.cancel()
@@ -556,11 +906,11 @@ private fun FocusWallCanvas(
      */
     fun settlePan(velocity: Offset, bounds: FocusWallWorldBounds?) {
         activePanAnimation?.cancel()
-        if (velocity.getDistance() < 1f) return
+        if (motionPercent <= 0 || velocity.getDistance() < 1f) return
         var coasting: Job? = null
         coasting = scope.launch {
             Animatable(viewportState.pan, Offset.VectorConverter).animateDecay(
-                initialVelocity = velocity,
+                initialVelocity = velocity * (motionPercent.coerceIn(0, 100) / 100f),
                 animationSpec = exponentialDecay<Offset>(
                     frictionMultiplier = FlingFrictionMultiplier,
                 ),
@@ -596,12 +946,35 @@ private fun FocusWallCanvas(
         val focusedCoverFacts by produceState<CoverFacts?>(null, focusedArtworkUri) {
             value = CoverAccentLoader.resolve(context, focusedArtworkUri)
         }
+        // Focus is the wall's visual subject even when another audio keeps playing.
+        // Its cover therefore owns the ambient palette. Clearing focus returns the
+        // Folia wall to its neutral background instead of retaining a stale colour.
+        val focusedItem = items.firstOrNull { it.id == focusedItemId }
+        val ambientPalette = remember(
+            focusedItemId,
+            focusedCoverFacts,
+            focusedItem?.paletteSeed,
+        ) {
+            if (focusedItemId == null) {
+                emptyList()
+            } else {
+                val extracted = focusedCoverFacts?.paletteArgbs.orEmpty().map(::Color)
+                if (extracted.isNotEmpty()) {
+                    extracted
+                } else {
+                    focusedItem?.let { item -> fallbackAmbientPalette(artworkAccent(item.paletteSeed)) }
+                        .orEmpty()
+                }
+            }
+        }
+        val posterTintColor = ambientPalette.firstOrNull()
+            ?: MaterialTheme.colorScheme.primary
         val placements = remember(
             layoutItems,
             viewportWidth,
             viewportHeight,
             orientation,
-            viewportState.densityOrdinal,
+            viewportState.densityPercent,
             viewportState.focusShapeOrdinal,
             viewportState.focusSizeOrdinal,
             focusedItemId,
@@ -615,7 +988,8 @@ private fun FocusWallCanvas(
                     viewportWidth = viewportWidth,
                     viewportHeight = viewportHeight,
                     orientation = orientation,
-                    density = viewportState.density,
+                    density = FocusWallDensity.Medium,
+                    densityScale = viewportState.densityScale,
                     focusedItemId = focusedItemId,
                     gapPx = wallGapPx,
                 )
@@ -624,7 +998,8 @@ private fun FocusWallCanvas(
                     viewportWidth = viewportWidth,
                     viewportHeight = viewportHeight,
                     orientation = orientation,
-                    density = viewportState.density,
+                    density = FocusWallDensity.Medium,
+                    densityScale = viewportState.densityScale,
                     focusedItemId = focusedItemId,
                     gapPx = wallGapPx,
                     focusShape = viewportState.focusShape,
@@ -636,7 +1011,7 @@ private fun FocusWallCanvas(
         val placementById = remember(placements) { placements.associateBy(FocusWallPlacement::itemId) }
         val itemById = remember(items) { items.associateBy(LibraryItem::id) }
 
-        LaunchedEffect(focusedItemId, placements) {
+        LaunchedEffect(focusedItemId, placements, motionPercent) {
             val focused = focusedItemId?.let(placementById::get) ?: return@LaunchedEffect
             if (viewportState.restored) {
                 // Returning to a visited folder keeps the viewport it was left
@@ -644,13 +1019,27 @@ private fun FocusWallCanvas(
                 viewportState.restored = false
                 return@LaunchedEffect
             }
-            animatePanTo(centeredPan(focused, viewportState.zoom), durationMillis = 280)
+            animatePanTo(
+                centeredPan(focused, viewportState.zoom),
+                durationMillis = wallMotionDuration(280, motionPercent),
+            )
         }
+
+        CoverAmbientLayer(
+            // The original Bento wall remains visually stable. The cover-driven
+            // stage lighting belongs to the Folia presentation mode and can be
+            // evaluated independently before it is offered elsewhere.
+            palette = if (style == FocusWallStyle.Folia) ambientPalette else emptyList(),
+            mode = AmbientLayerMode.Backdrop,
+            strengthMultiplier = viewportState.ambientMultiplier,
+            motionPercent = motionPercent,
+            modifier = Modifier.fillMaxSize(),
+        )
 
         SubcomposeLayout(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(placements, orientation, contentKey) {
+                .pointerInput(placements, orientation, contentKey, motionPercent) {
                     val worldBounds = wallWorldBounds(placements)
                     awaitEachGesture {
                         val firstDown = awaitFirstDown(requireUnconsumed = false)
@@ -769,31 +1158,45 @@ private fun FocusWallCanvas(
                     viewportWidth = constraints.maxWidth.toFloat(),
                     viewportHeight = constraints.maxHeight.toFloat(),
                 )
-                val visualAlpha = when {
+                val normalVisualAlpha = when {
                     isFocused -> 1f
                     focusedItemId != null -> (0.48f + depthScale * 0.34f).coerceAtMost(0.78f)
                     else -> 0.72f + depthScale * 0.28f
                 }
+                val visualAlpha = focusWallPosterAlpha(
+                    normalAlpha = normalVisualAlpha,
+                    lightsOut = style == FocusWallStyle.Folia && lightsOut,
+                    isFocused = isFocused,
+                    isCurrent = isCurrent,
+                )
                 val placeable = subcompose(placement.itemId) {
+                    val cardAnimationMillis = wallMotionDuration(320, motionPercent)
                     val animatedCenterX by animateFloatAsState(
                         targetValue = placement.centerX,
-                        animationSpec = tween(durationMillis = 320),
+                        animationSpec = tween(durationMillis = cardAnimationMillis),
                         label = "wallCardX",
                     )
                     val animatedCenterY by animateFloatAsState(
                         targetValue = placement.centerY,
-                        animationSpec = tween(durationMillis = 320),
+                        animationSpec = tween(durationMillis = cardAnimationMillis),
                         label = "wallCardY",
                     )
                     val animatedWidth by animateFloatAsState(
                         targetValue = placement.width,
-                        animationSpec = tween(durationMillis = 320),
+                        animationSpec = tween(durationMillis = cardAnimationMillis),
                         label = "wallCardWidth",
                     )
                     val animatedHeight by animateFloatAsState(
                         targetValue = placement.height,
-                        animationSpec = tween(durationMillis = 320),
+                        animationSpec = tween(durationMillis = cardAnimationMillis),
                         label = "wallCardHeight",
+                    )
+                    val animatedVisualAlpha by animateFloatAsState(
+                        targetValue = visualAlpha,
+                        animationSpec = tween(
+                            durationMillis = wallMotionDuration(260, motionPercent),
+                        ),
+                        label = "wallCardLightsOutAlpha",
                     )
                     FocusCoverCard(
                         item = item,
@@ -809,6 +1212,16 @@ private fun FocusWallCanvas(
                         silhouette = placement.shape,
                         fitArtwork = placement.fitArtwork,
                         coverAccentArgb = if (isFocused) focusedCoverFacts?.accentArgb else null,
+                        posterTint = if (
+                            style == FocusWallStyle.Folia && !isFocused && !isCurrent
+                        ) {
+                            posterTintColor.copy(
+                                alpha = posterTintPercent.coerceIn(0, 60) / 100f,
+                            )
+                        } else {
+                            Color.Transparent
+                        },
+                        motionPercent = motionPercent,
                         onClick = { onCardClick(item) },
                         onPlayPause = { onPlayPause(item) },
                         onSeekTo = onSeekTo,
@@ -820,7 +1233,7 @@ private fun FocusWallCanvas(
                                 scaleY = zoom * animatedHeight / placement.height
                                 translationX = (animatedCenterX - placement.centerX) * zoom
                                 translationY = (animatedCenterY - placement.centerY) * zoom
-                                alpha = visualAlpha
+                                alpha = animatedVisualAlpha
                                 shadowElevation = if (isFocused) 18.dp.toPx() else 3.dp.toPx()
                             },
                     )
@@ -844,8 +1257,147 @@ private fun FocusWallCanvas(
                 }
             }
         }
+
+        // A tightly packed wall hides almost all of its backdrop. This low-alpha
+        // screen-space wash lets the same light reach the posters themselves,
+        // which is what makes the whole wall visibly change with the cover. It has
+        // no pointer input, so the card and seek gestures below remain the owners.
+        CoverAmbientLayer(
+            palette = if (style == FocusWallStyle.Folia) ambientPalette else emptyList(),
+            mode = AmbientLayerMode.PosterWash,
+            strengthMultiplier = viewportState.ambientMultiplier,
+            motionPercent = motionPercent,
+            modifier = Modifier.fillMaxSize(),
+        )
     }
 }
+
+/**
+ * Cover-derived light behind or gently over the poster canvas.
+ *
+ * This deliberately draws three cheap gradients instead of blurring a full-size
+ * bitmap or running a frame-rate shader. Only colour changes animate, so a paused
+ * long-form track costs nothing after its 900 ms transition settles. Keeping it in
+ * its own composable also prevents those animation frames from re-running the wall's
+ * SubcomposeLayout.
+ */
+private enum class AmbientLayerMode { Backdrop, PosterWash }
+
+@Composable
+private fun CoverAmbientLayer(
+    palette: List<Color>,
+    mode: AmbientLayerMode,
+    strengthMultiplier: Float,
+    motionPercent: Int,
+    modifier: Modifier = Modifier,
+) {
+    val primaryTarget = palette.getOrNull(0) ?: Color.Transparent
+    val secondaryTarget = palette.getOrNull(1)
+        ?: palette.getOrNull(0)?.let { lerp(it, Color.White, 0.18f) }
+        ?: Color.Transparent
+    val tertiaryTarget = palette.getOrNull(2)
+        ?: palette.getOrNull(0)?.let { lerp(it, Color.Black, 0.24f) }
+        ?: Color.Transparent
+    val primary by animateColorAsState(
+        targetValue = primaryTarget,
+        animationSpec = tween(durationMillis = wallMotionDuration(900, motionPercent)),
+        label = "wallAmbientPrimary",
+    )
+    val secondary by animateColorAsState(
+        targetValue = secondaryTarget,
+        animationSpec = tween(durationMillis = wallMotionDuration(900, motionPercent)),
+        label = "wallAmbientSecondary",
+    )
+    val tertiary by animateColorAsState(
+        targetValue = tertiaryTarget,
+        animationSpec = tween(durationMillis = wallMotionDuration(900, motionPercent)),
+        label = "wallAmbientTertiary",
+    )
+    val animatedStrength by animateFloatAsState(
+        targetValue = strengthMultiplier,
+        animationSpec = tween(durationMillis = wallMotionDuration(260, motionPercent)),
+        label = "wallAmbientStrength${mode.name}",
+    )
+    val isDarkSurface = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val primaryStrength = when (mode) {
+        AmbientLayerMode.Backdrop -> if (isDarkSurface) 0.32f else 0.20f
+        AmbientLayerMode.PosterWash -> if (isDarkSurface) 0.13f else 0.085f
+    }
+    val secondaryStrength = when (mode) {
+        AmbientLayerMode.Backdrop -> if (isDarkSurface) 0.28f else 0.17f
+        AmbientLayerMode.PosterWash -> if (isDarkSurface) 0.105f else 0.065f
+    }
+    val tertiaryStrength = when (mode) {
+        AmbientLayerMode.Backdrop -> if (isDarkSurface) 0.20f else 0.12f
+        AmbientLayerMode.PosterWash -> if (isDarkSurface) 0.08f else 0.045f
+    }
+    val vignetteStrength = if (isDarkSurface) 0.18f else 0.055f
+    val effectivePrimaryStrength = primaryStrength * animatedStrength
+    val effectiveSecondaryStrength = secondaryStrength * animatedStrength
+    val effectiveTertiaryStrength = tertiaryStrength * animatedStrength
+    val effectiveVignetteStrength = vignetteStrength * animatedStrength
+
+    Canvas(modifier = modifier) {
+        val largestEdge = max(size.width, size.height)
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    primary.multipliedAlpha(effectivePrimaryStrength),
+                    primary.multipliedAlpha(effectivePrimaryStrength * 0.38f),
+                    Color.Transparent,
+                ),
+                center = Offset(size.width * 0.14f, size.height * 0.16f),
+                radius = largestEdge * 0.72f,
+            ),
+        )
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    secondary.multipliedAlpha(effectiveSecondaryStrength),
+                    secondary.multipliedAlpha(effectiveSecondaryStrength * 0.32f),
+                    Color.Transparent,
+                ),
+                center = Offset(size.width * 0.88f, size.height * 0.78f),
+                radius = largestEdge * 0.67f,
+            ),
+        )
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    tertiary.multipliedAlpha(effectiveTertiaryStrength),
+                    Color.Transparent,
+                ),
+                center = Offset(size.width * 0.62f, size.height * 0.30f),
+                radius = largestEdge * 0.48f,
+            ),
+        )
+        if (mode == AmbientLayerMode.Backdrop) {
+            // A shallow edge falloff keeps the colours reading as light in a
+            // space rather than three translucent circles. The poster wash omits
+            // it so card artwork is coloured, not globally darkened twice.
+            drawRect(
+                brush = Brush.radialGradient(
+                    colorStops = arrayOf(
+                        0f to Color.Transparent,
+                        0.72f to Color.Transparent,
+                        1f to Color.Black.copy(alpha = effectiveVignetteStrength),
+                    ),
+                    center = center,
+                    radius = largestEdge * 0.72f,
+                ),
+            )
+        }
+    }
+}
+
+private fun fallbackAmbientPalette(accent: Color): List<Color> = listOf(
+    accent,
+    lerp(accent, Color.White, 0.18f),
+    lerp(accent, Color.Black, 0.24f),
+)
+
+private fun Color.multipliedAlpha(factor: Float): Color =
+    copy(alpha = alpha * factor.coerceIn(0f, 1f))
 
 @Composable
 private fun FocusCoverCard(
@@ -869,6 +1421,9 @@ private fun FocusCoverCard(
      * once for the whole block, so the card is handed the colour rather than loading it.
      */
     coverAccentArgb: Int?,
+    /** Cover-derived wash for an ordinary Folia poster; current/focused cards get transparent. */
+    posterTint: Color,
+    motionPercent: Int,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -893,9 +1448,19 @@ private fun FocusCoverCard(
     val coverAccent = coverAccentArgb?.let { Color(it) } ?: artworkAccent(item.paletteSeed)
     val borderColor by animateColorAsState(
         targetValue = if (isFocused) coverAccent.copy(alpha = 0.76f) else Color.Transparent,
+        animationSpec = tween(durationMillis = wallMotionDuration(260, motionPercent)),
         label = "focusBorder",
     )
-    val borderWidth by animateFloatAsState(if (isFocused) 2.2f else 0f, label = "focusBorderWidth")
+    val borderWidth by animateFloatAsState(
+        targetValue = if (isFocused) 2.2f else 0f,
+        animationSpec = tween(durationMillis = wallMotionDuration(260, motionPercent)),
+        label = "focusBorderWidth",
+    )
+    val animatedPosterTint by animateColorAsState(
+        targetValue = posterTint,
+        animationSpec = tween(durationMillis = wallMotionDuration(260, motionPercent)),
+        label = "wallPosterTint",
+    )
     // A silhouette is clipped to its own cells, so the artwork inside it is cut to the
     // shape and a tap in the corners of its rectangle never reaches the card. Every other
     // card keeps the rounded rectangle the wall has always drawn.
@@ -928,6 +1493,14 @@ private fun FocusCoverCard(
                     // 完整封面 exists to show the whole cover, so it letterboxes the
                     // artwork in the card the other presets crop to fill.
                     contentScale = if (fitArtwork) ContentScale.Fit else ContentScale.Crop,
+                )
+            }
+
+            if (animatedPosterTint.alpha > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(animatedPosterTint),
                 )
             }
 
@@ -1186,13 +1759,7 @@ private fun centeredPan(placement: FocusWallPlacement, zoom: Float): Offset = Of
     y = -placement.centerY * zoom,
 )
 
-private fun FocusWallDensity.labelResource(): Int = when (this) {
-    FocusWallDensity.Small -> R.string.density_small
-    FocusWallDensity.Medium -> R.string.density_medium
-    FocusWallDensity.Large -> R.string.density_large
-}
-
-/** The size presets are the same three words the density chip already uses. */
+/** The size presets share the same three labels as the density options. */
 private fun FoliaFocusSize.labelResource(): Int = when (this) {
     FoliaFocusSize.Small -> R.string.density_small
     FoliaFocusSize.Medium -> R.string.density_medium

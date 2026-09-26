@@ -8,6 +8,10 @@ import android.provider.DocumentsContract
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
 import com.example.asmrplayer.core.model.NaturalNameComparator
+import com.example.asmrplayer.core.subtitles.SupportedTimedText
+import com.example.asmrplayer.core.subtitles.TimedTextCandidate
+import com.example.asmrplayer.core.subtitles.TimedTextMatch
+import com.example.asmrplayer.core.subtitles.matchTimedText
 import java.util.PriorityQueue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -19,6 +23,14 @@ data class DirectoryListing(
     val items: List<LibraryItem>,
     val supportedItemCount: Int,
     val isTruncated: Boolean,
+    /**
+     * The lyrics and subtitles found in this folder, keyed by the [LibraryItem.id] of
+     * the audio each one belongs to -- the id rather than the title because the player
+     * holds the item it is playing and has to look the lyrics up with it.
+     *
+     * Empty when the folder has none, which is the ordinary case rather than a failure.
+     */
+    val timedText: Map<String, TimedTextMatch> = emptyMap(),
 )
 
 class SafDirectoryScanner(
@@ -42,11 +54,14 @@ class SafDirectoryScanner(
         val retainedItems = PriorityQueue(retainedItemLimit, DisplayComparator.reversed())
         var supportedItemCount = 0
         var currentFolderArtwork: ArtworkCandidate? = null
+        val timedTextCandidates = mutableListOf<TimedTextCandidate>()
 
         queryChildren(childrenUri)?.use { cursor ->
             val documentIdColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
             val displayNameColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
             val mimeTypeColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
+            val sizeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
+            val modifiedColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
 
             while (cursor.moveToNext()) {
                 ensureActive()
@@ -60,6 +75,30 @@ class SafDirectoryScanner(
                         currentFolderArtwork,
                         ArtworkCandidate(displayName, documentUri.toString()),
                     )
+                    continue
+                }
+                val timedTextFormat = if (isDirectory) null else SupportedTimedText.formatOf(displayName)
+                if (timedTextFormat != null) {
+                    // Recognised before the audio test so a lyric file can never be
+                    // listed as a track, and bounded to the same count as the display
+                    // items because the children arrive in display order: a folder of
+                    // 500 tracks each with its own lyric file must not retain more
+                    // than the folder it belongs to does.
+                    if (timedTextCandidates.size < retainedItemLimit) {
+                        timedTextCandidates += TimedTextCandidate(
+                            displayName = displayName,
+                            documentUri = DocumentsContract
+                                .buildDocumentUriUsingTree(treeUri, documentId)
+                                .toString(),
+                            format = timedTextFormat,
+                            // A provider is allowed to omit either column, so an absent
+                            // value is 0 and simply makes the cache key coarser.
+                            sizeBytes = sizeColumn.takeIf { it >= 0 }
+                                ?.let { cursor.getLong(it) } ?: 0L,
+                            modifiedAtMs = modifiedColumn.takeIf { it >= 0 }
+                                ?.let { cursor.getLong(it) } ?: 0L,
+                        )
+                    }
                     continue
                 }
                 if (!isDirectory && !SupportedAudio.isSupported(displayName, mimeType)) continue
@@ -103,6 +142,15 @@ class SafDirectoryScanner(
             items = itemsWithArtwork,
             supportedItemCount = supportedItemCount,
             isTruncated = supportedItemCount > retainedItemLimit,
+            // Matched against the retained items rather than every child, because an
+            // item that is not listed cannot be played and so cannot show lyrics. The
+            // handle is the item id, which is what the player holds later.
+            timedText = matchTimedText(
+                audioTracks = itemsWithArtwork
+                    .filter { it.type == LibraryItemType.Audio }
+                    .associate { it.id to it.title },
+                candidates = timedTextCandidates,
+            ),
         )
     }
 

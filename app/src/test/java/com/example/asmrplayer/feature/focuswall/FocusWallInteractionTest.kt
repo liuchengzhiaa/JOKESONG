@@ -91,4 +91,31 @@ class FocusWallInteractionTest {
             ),
         )
     }
+
+    @Test
+    fun `lights out dims only an ordinary poster`() {
+        assertEquals(0.22f, focusWallPosterAlpha(0.74f, true, false, false))
+        assertEquals(0.74f, focusWallPosterAlpha(0.74f, true, true, false))
+        assertEquals(0.74f, focusWallPosterAlpha(0.74f, true, false, true))
+        assertEquals(0.74f, focusWallPosterAlpha(0.74f, false, false, false))
+    }
+
+    @Test
+    fun `motion percentage scales transition duration safely`() {
+        assertEquals(0, wallMotionDuration(900, motionPercent = 0))
+        assertEquals(450, wallMotionDuration(900, motionPercent = 50))
+        assertEquals(900, wallMotionDuration(900, motionPercent = 100))
+        assertEquals(900, wallMotionDuration(900, motionPercent = 999))
+        assertEquals(0, wallMotionDuration(-1, motionPercent = 100))
+    }
+
+    @Test
+    fun `auto focus requires an actual reachable track change on the Folia wall`() {
+        assertEquals(true, shouldAutoFocusPlayingItem(true, true, "one", "two", true))
+        assertEquals(false, shouldAutoFocusPlayingItem(true, true, "two", "two", true))
+        assertEquals(false, shouldAutoFocusPlayingItem(false, true, "one", "two", true))
+        assertEquals(false, shouldAutoFocusPlayingItem(true, false, "one", "two", true))
+        assertEquals(false, shouldAutoFocusPlayingItem(true, true, "one", "two", false))
+        assertEquals(false, shouldAutoFocusPlayingItem(true, true, "one", null, true))
+    }
 }

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.SpaceDashboard
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Pause
@@ -36,10 +37,16 @@ import androidx.compose.material.icons.filled.ViewComfy
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -150,31 +157,61 @@ fun LibraryLayoutSwitcher(
     onSelect: (LibraryLayoutMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        ) {
+            IconButton(
+                onClick = { expanded = true },
+                modifier = Modifier.size(24.dp),
+            ) {
+                Icon(
+                    imageVector = selected.icon(),
+                    contentDescription = stringResource(
+                        R.string.layout_current,
+                        stringResource(selected.labelRes),
+                    ),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
         ) {
             LibraryLayoutMode.entries.forEach { mode ->
-                val isSelected = mode == selected
-                IconButton(onClick = { onSelect(mode) }, modifier = Modifier.size(38.dp)) {
-                    Icon(
-                        imageVector = mode.icon(),
-                        contentDescription = stringResource(
-                            R.string.layout_switch_to,
-                            stringResource(mode.labelRes),
-                        ),
-                        tint = if (isSelected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                }
+                DropdownMenuItem(
+                    text = { Text(stringResource(mode.labelRes)) },
+                    onClick = {
+                        expanded = false
+                        if (mode != selected) onSelect(mode)
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = mode.icon(),
+                            contentDescription = null,
+                            tint = if (mode == selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    },
+                    trailingIcon = if (mode == selected) {
+                        {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = stringResource(R.string.layout_selected),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                )
             }
         }
     }

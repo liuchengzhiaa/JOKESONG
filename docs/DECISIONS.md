@@ -45,7 +45,7 @@ screen centre is always over wall content, so there is always something under th
 finger to drag back from.
 
 The approved centred-bento wall is retained as its own layout. A separate
-Folia-style wall sits immediately to its right in the layout switcher. The latter
+Folia-style wall follows it in the single-button layout menu. The latter
 uses twelve-item 12 x 8 exact-cover blocks and chooses a focus reflow from the
 selected item's original slot instead of applying one universal surrounding
 frame. The implementation may learn interaction concepts from Folia Major but
@@ -138,3 +138,115 @@ watcher runs in the background.
 ## D-009 — Simplified Chinese first
 
 Ship Simplified Chinese initially while keeping every string resource-ready.
+
+## D-010 — The Folia ambient palette follows focus and remains presentation-only
+
+The Folia wall's ambient palette follows the card with browsing focus, not the
+currently playing Media3 item. Focus is the wall's explicit visual subject; moving
+it deliberately changes the full-wall light even while another item keeps playing.
+Clearing focus fades back to the neutral wall. Focus and playback remain independent
+states as required by D-004.
+
+Palette extraction is bounded to a small decode of the one focused cover, samples
+a capped number of pixels, returns a few deterministic representative colours and
+uses a bounded cache. It never scans the library or retains a full bitmap. The
+base ambient treatment is a small number of gradients that animate only while
+colours change, not a blurred cover or a continuously running shader. A stronger
+copy sits behind the wall and a restrained copy washes over its opaque posters;
+otherwise the 2 dp packed mosaic would make the feature effectively invisible.
+The effect belongs to the separately selectable Folia wall; the retained Bento
+wall stays unchanged.
+
+Density and the live zoom percentage belong in the anchored bottom-right wall
+tools, not in a permanent strip above the mosaic. Zoom remains continuous from
+72% to 135%, with a 100% reset. Folia light strength is explicitly adjustable as
+off/low/medium/high, defaults to medium and is restored with the folder snapshot.
+
+Future privacy presentation must replace the palette input with the configured
+alias artwork before this layer renders. The palette and every later visualizer
+effect are presentation state only and may not write tags or canonical library
+records.
+
+Folia Major is an AGPL behavioural reference. Its code is not copied or translated;
+this app keeps an independently authored Kotlin/Compose implementation. The full
+research map and staged sequence live in `FOLIA_PRESENTATION_PLAN.md`.
+
+## D-011 — Folia wall presentation controls are durable and presentation-only
+
+The Folia tools expose one `墙面显示` subpage rather than adding four permanent
+rows to the wall or top bar. Lights-out dims only ordinary posters; the focused
+card and current Media3 item remain legible. Poster tint likewise exempts those
+two identities and derives its colour from the focus palette. Ambient strength is
+independent, so lights-out does not silently rewrite or disable ambient light.
+
+Track-change auto-focus is opt-in, off by default and dormant outside the Folia
+layout. Only an actual Media3 item-ID change triggers it; entering Folia or enabling
+the setting does not. It reuses the explicit reveal path instead of introducing a second folder
+navigation mechanism. Reduced motion disables decorative transition durations and
+fling, while direct dragging, tapping and playback controls remain available.
+
+These choices persist globally in a dedicated DataStore and never alter tags,
+canonical artwork, playback identity or indexed library rows. Queue access remains
+deferred until the queue has a durable destination.
+
+## D-012 — A continuous setting shows its position on the control, not its number
+
+A wall setting that is a continuous range ends its tools row in a filled crest
+rather than a percentage. The fill is the value's position in that setting's own
+range, not the percentage itself, because the ranges differ: density runs 70..130,
+ambient light 0..150 and canvas zoom 72..135, so "100%" is half a crest in one and
+two-thirds in another. Position is the reading that matches the slider on the
+setting's own page, which is what makes a shape worth showing at all. The number
+stays where the value is being set — the canvas zoom subpage header is the case the
+owner named — and every such setting has a row that restores its default in one tap.
+
+The global appearance accent reaches the top bar's title, navigation icon and
+actions, and the theme's surface still owns the bar's container. The immersive
+player bar is excluded and stays a fixed near-black with neutral content: its
+container deliberately ignores light and dark, so the light theme's accent variant
+would be unreadable on it. Applying the accent there needs a per-theme accent
+channel first; until then a clearly scoped accent beats a half-applied one.
+
+Settings are grouped and expanding rather than one flat page. Appearance is one
+group among several, and a settings screen whose whole first screen is colour reads
+as if colour were all there is to set. Groups open in place, one at a time, and
+nothing is open on arrival.
+
+## D-013 — Timed text reports what it actually has, and never invents timing
+
+A matched subtitle is turned into one normalized model -- lines with optional word
+times plus a separate list of untimed lines -- and every surface reads that model.
+Nothing downstream decides what a file meant.
+
+- **An LRC with no time tags is untimed, not evenly spaced.** Its lines are kept
+  apart in their own list and the surface says it cannot follow the file. Spacing
+  them across the track's duration would make a lyric sheet look synced while being
+  wrong from the first line to the last, which is worse than saying so.
+- **A bare time tag is a pause, not a line.** `[00:28.34]` with no text after it
+  produces no lyric line, so the previous line stays current through the silence
+  rather than the reader seeing an empty row they cannot read or seek to. Real files
+  use this to mark a pause and a real library is full of them -- 3,034 of the owner's
+  3,774 `.lrc` files contain at least one -- so treating each as a line would fill
+  the surface with blanks.
+- **A version marker in a filename is peeled off and the search continues.** `mix`,
+  `alt`, `new`, `old`, `dat` and `bak` are corrections of a file, not languages, so
+  `Track.new.lrc` still reaches `Track.mp3`. A segment that is neither a language tag
+  nor a marker ends the search, so `Track.Part.lrc` matches nothing rather than
+  claiming `Track`'s lyrics; two language tags in one name are refused rather than
+  guessed at.
+- **A matched file's name and language are shown from the moment the file is chosen**,
+  including when it then fails to read or parses empty. Which file was picked is what
+  makes a wrong match diagnosable.
+- **Following is relative to the item being viewed, and stops when the reader
+  scrolls.** Lines are drawn without seek actions when playback is on some other
+  item, rather than highlighting against another track's position. A reader who
+  scrolls away is not moved again until they ask for it.
+- **The current line is anchored a few lines below the top rather than centered.**
+  `PRODUCT_SPEC.md` says centered; this deliberately departs from it because the
+  anchor is a visual decision that belongs with the scene it sits in, and the phase-4
+  visual layer is where that gets decided. The line being sung stays visible with the
+  upcoming lines beside it either way, and the anchor is one constant.
+
+Timed-text parsing stays outside visualizer scenes and is cached by document
+identity -- URI, size and modified time -- so an edited file is re-read rather than
+served stale.

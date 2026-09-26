@@ -3,17 +3,28 @@ package com.example.asmrplayer.feature.library
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
 import com.example.asmrplayer.core.storage.FolderSnapshot
 import com.example.asmrplayer.core.storage.FolderSnapshotCache
+import com.example.asmrplayer.core.storage.AppPreferences
+import com.example.asmrplayer.core.storage.AppSettings
 import com.example.asmrplayer.core.storage.RootPreferences
 import com.example.asmrplayer.core.storage.SafDirectoryScanner
-import com.example.asmrplayer.feature.focuswall.FocusWallDensity
+import com.example.asmrplayer.core.settings.UiAccentPalette
+import com.example.asmrplayer.core.settings.UiStylePreset
+import com.example.asmrplayer.core.subtitles.TimedTextCache
+import com.example.asmrplayer.core.subtitles.TimedTextDocument
+import com.example.asmrplayer.core.subtitles.TimedTextMatch
+import com.example.asmrplayer.core.subtitles.TimedTextReader
+import com.example.asmrplayer.core.subtitles.cacheKey
+import com.example.asmrplayer.core.subtitles.parseTimedText
 import com.example.asmrplayer.feature.focuswall.FoliaFocusShape
 import com.example.asmrplayer.feature.focuswall.FoliaFocusSize
+import com.example.asmrplayer.feature.subtitles.SubtitleDetailState
 import java.util.ArrayDeque
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -21,6 +32,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 data class LibraryUiState(
@@ -44,11 +56,30 @@ data class LibraryUiState(
     val canvasZoom: Float = 1f,
     val panX: Float = 0f,
     val panY: Float = 0f,
-    val wallDensityOrdinal: Int = FocusWallDensity.Medium.ordinal,
+    val libraryLayoutOrdinal: Int = AppSettings.DefaultLibraryLayoutOrdinal,
+    val wallDensityPercent: Int = 100,
     /** Shape of the Folia wall's focused cover; the Bento wall ignores it. */
     val wallFocusShapeOrdinal: Int = FoliaFocusShape.Square.ordinal,
     /** How large the Folia wall's focused cover grows. */
     val wallFocusSizeOrdinal: Int = FoliaFocusSize.Medium.ordinal,
+    /** Strength of the focused-cover ambient wash on the Folia wall. */
+    val wallAmbientPercent: Int = 100,
+    /** Dim every Folia poster except the focused and currently playing items. */
+    val wallLightsOut: Boolean = false,
+    /** Follow Media3 item changes back to their poster. */
+    val wallAutoFocusPlaying: Boolean = false,
+    /** Strength of the cover-colour wash over ordinary Folia posters. */
+    val wallPosterTintPercent: Int = 0,
+    /** Shared transition intensity for current and future global UI motion. */
+    val motionPercent: Int = 100,
+    val uiStylePresetOrdinal: Int = UiStylePreset.Balanced.ordinal,
+    val uiAccentPaletteOrdinal: Int = UiAccentPalette.Ocean.ordinal,
+    val uiScalePercent: Int = 100,
+    /**
+     * Which track in this listing has lyrics beside it, keyed by item id. Empty when
+     * none of them do, which is the ordinary case and not a failure.
+     */
+    val timedText: Map<String, TimedTextMatch> = emptyMap(),
 )
 
 /**
@@ -61,11 +92,16 @@ data class LibraryUiState(
 class LibraryViewModel(application: Application) : AndroidViewModel(application) {
     private val contentResolver = application.contentResolver
     private val rootPreferences = RootPreferences(application)
+    private val appPreferences = AppPreferences(application)
     private val scanner = SafDirectoryScanner(contentResolver)
     private val folderSnapshots = FolderSnapshotCache()
+    private val timedTextReader = TimedTextReader(contentResolver)
+    private val timedTextCache = TimedTextCache()
     private val folderStack = ArrayDeque<Uri>()
     private var treeUri: Uri? = null
     private var scanJob: Job? = null
+    private var wallZoomPersistJob: Job? = null
+    private var subtitleJob: Job? = null
 
     /**
      * The folder chain the running queue was built from. A queue is always built
@@ -75,11 +111,31 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
      */
     private var playbackOrigin: List<Uri> = emptyList()
     private var pendingFocusItemId: String? = null
+    private var appSettings = AppSettings()
+    private var receivedInitialAppSettings = false
 
     private val mutableUiState = MutableStateFlow(LibraryUiState(isScanning = true))
     val uiState = mutableUiState.asStateFlow()
 
+    private val mutableSubtitleState = MutableStateFlow(SubtitleDetailState())
+
+    /**
+     * The lyrics of whichever track's subtitle detail is open, published separately
+     * from [uiState] because the two have different lifetimes: browsing replaces the
+     * whole library state on every folder change, and the lyrics of the track that is
+     * playing must survive that.
+     */
+    val subtitleState = mutableSubtitleState.asStateFlow()
+
     init {
+        viewModelScope.launch {
+            appPreferences.settings.collectLatest { settings ->
+                appSettings = settings
+                val applyWallDefaults = !receivedInitialAppSettings
+                receivedInitialAppSettings = true
+                mutableUiState.update { it.withAppSettings(settings, applyWallDefaults) }
+            }
+        }
         viewModelScope.launch {
             rootPreferences.rootUri.collectLatest { persistedRoot ->
                 scanJob?.cancel()
@@ -89,11 +145,17 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 pendingFocusItemId = null
                 treeUri = persistedRoot
                 if (persistedRoot == null) {
-                    mutableUiState.value = LibraryUiState()
+                    mutableUiState.value = LibraryUiState().withAppSettings(
+                        appSettings,
+                        applyWallDefaults = true,
+                    )
                 } else {
                     val rootDocumentUri = scanner.rootDocumentUri(persistedRoot)
                     folderStack.addLast(rootDocumentUri)
-                    mutableUiState.value = LibraryUiState(hasRoot = true, isScanning = true)
+                    mutableUiState.value = LibraryUiState(
+                        hasRoot = true,
+                        isScanning = true,
+                    ).withAppSettings(appSettings, applyWallDefaults = true)
                     loadFolder(rootDocumentUri)
                 }
             }
@@ -188,6 +250,42 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
+     * Loads the lyrics of [itemId] for the subtitle detail surface.
+     *
+     * The matched file is read once and the parsed document cached, so closing and
+     * reopening the surface -- or the queue moving on and coming back -- does not go
+     * to the document provider again. Reopening on a track with no match publishes the
+     * unmatched state immediately rather than leaving the previous track's lines up.
+     */
+    fun openSubtitleDetail(itemId: String) {
+        subtitleJob?.cancel()
+        val match = mutableUiState.value.timedText[itemId]
+        if (match == null) {
+            mutableSubtitleState.value = SubtitleDetailState.unmatched(itemId)
+            return
+        }
+
+        val key = match.candidate.cacheKey()
+        timedTextCache.get(key)?.let { cached ->
+            mutableSubtitleState.value = match.toDetailState(itemId, cached)
+            return
+        }
+
+        mutableSubtitleState.value = match.toDetailState(itemId, document = null, isLoading = true)
+        subtitleJob = viewModelScope.launch {
+            val source = timedTextReader.read(match.candidate.documentUri.toUri())
+            val document = source?.let { parseTimedText(match.candidate.format, it) }
+            if (document != null) timedTextCache.put(key, document)
+            mutableSubtitleState.value = match.toDetailState(itemId, document)
+        }
+    }
+
+    fun closeSubtitleDetail() {
+        subtitleJob?.cancel()
+        mutableSubtitleState.value = SubtitleDetailState()
+    }
+
+    /**
      * Viewport updates arrive on every drag frame. They are written straight to
      * the snapshot and deliberately do not publish UI state, so panning never
      * triggers a recomposition of the library.
@@ -197,21 +295,125 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         folderSnapshots.update(folderKey) {
             it.copy(canvasZoom = zoom, panX = panX, panY = panY)
         }
+        wallZoomPersistJob?.cancel()
+        wallZoomPersistJob = viewModelScope.launch {
+            delay(350)
+            appPreferences.setWallZoom((zoom * 100).toInt())
+        }
     }
 
-    fun onWallDensityChange(ordinal: Int) {
+    fun onLibraryLayoutChange(ordinal: Int) {
+        val safeOrdinal = LibraryLayoutMode.fromOrdinal(ordinal).ordinal
+        mutableUiState.update { it.copy(libraryLayoutOrdinal = safeOrdinal) }
+        viewModelScope.launch { appPreferences.setLibraryLayout(safeOrdinal) }
+    }
+
+    fun onWallDensityChange(percent: Int) {
         val folderKey = currentFolderKey() ?: return
-        folderSnapshots.update(folderKey) { it.copy(wallDensityOrdinal = ordinal) }
+        val safePercent = percent.coerceIn(70, 130)
+        folderSnapshots.update(folderKey) { it.copy(wallDensityPercent = safePercent) }
+        mutableUiState.update { it.copy(wallDensityPercent = safePercent) }
+        viewModelScope.launch { appPreferences.setWallDensity(safePercent) }
     }
 
     fun onWallFocusShapeChange(ordinal: Int) {
         val folderKey = currentFolderKey() ?: return
         folderSnapshots.update(folderKey) { it.copy(wallFocusShapeOrdinal = ordinal) }
+        mutableUiState.update { it.copy(wallFocusShapeOrdinal = ordinal) }
+        viewModelScope.launch { appPreferences.setWallFocusShape(ordinal) }
     }
 
     fun onWallFocusSizeChange(ordinal: Int) {
         val folderKey = currentFolderKey() ?: return
         folderSnapshots.update(folderKey) { it.copy(wallFocusSizeOrdinal = ordinal) }
+        mutableUiState.update { it.copy(wallFocusSizeOrdinal = ordinal) }
+        viewModelScope.launch { appPreferences.setWallFocusSize(ordinal) }
+    }
+
+    fun onWallAmbientStrengthChange(percent: Int) {
+        val folderKey = currentFolderKey() ?: return
+        val safePercent = percent.coerceIn(0, 150)
+        folderSnapshots.update(folderKey) { it.copy(wallAmbientPercent = safePercent) }
+        mutableUiState.update { it.copy(wallAmbientPercent = safePercent) }
+        viewModelScope.launch { appPreferences.setWallAmbient(safePercent) }
+    }
+
+    fun onWallLightsOutChange(enabled: Boolean) {
+        mutableUiState.update { it.copy(wallLightsOut = enabled) }
+        viewModelScope.launch { appPreferences.setLightsOut(enabled) }
+    }
+
+    fun onWallAutoFocusPlayingChange(enabled: Boolean) {
+        mutableUiState.update { it.copy(wallAutoFocusPlaying = enabled) }
+        viewModelScope.launch { appPreferences.setAutoFocusPlaying(enabled) }
+    }
+
+    fun onWallPosterTintStrengthChange(percent: Int) {
+        val safePercent = percent.coerceIn(0, 60)
+        mutableUiState.update { it.copy(wallPosterTintPercent = safePercent) }
+        viewModelScope.launch { appPreferences.setPosterTint(safePercent) }
+    }
+
+    fun onMotionPercentChange(percent: Int) {
+        val safePercent = percent.coerceIn(0, 100)
+        mutableUiState.update {
+            it.copy(
+                motionPercent = safePercent,
+                uiStylePresetOrdinal = UiStylePreset.Custom.ordinal,
+            )
+        }
+        viewModelScope.launch { appPreferences.setMotionPercent(safePercent) }
+    }
+
+    fun onUiAccentPaletteChange(ordinal: Int) {
+        val safeOrdinal = UiAccentPalette.fromOrdinal(ordinal).ordinal
+        mutableUiState.update {
+            it.copy(
+                uiAccentPaletteOrdinal = safeOrdinal,
+                uiStylePresetOrdinal = UiStylePreset.Custom.ordinal,
+            )
+        }
+        viewModelScope.launch { appPreferences.setUiAccentPalette(safeOrdinal) }
+    }
+
+    fun onUiScalePercentChange(percent: Int) {
+        val safePercent = percent.coerceIn(85, 120)
+        mutableUiState.update {
+            it.copy(
+                uiScalePercent = safePercent,
+                uiStylePresetOrdinal = UiStylePreset.Custom.ordinal,
+            )
+        }
+        viewModelScope.launch { appPreferences.setUiScalePercent(safePercent) }
+    }
+
+    fun onUiStylePresetChange(ordinal: Int) {
+        val preset = UiStylePreset.fromOrdinal(ordinal).takeUnless { it == UiStylePreset.Custom }
+            ?: UiStylePreset.Balanced
+        mutableUiState.update {
+            it.copy(
+                uiStylePresetOrdinal = preset.ordinal,
+                uiAccentPaletteOrdinal = preset.accent.ordinal,
+                motionPercent = preset.motionPercent,
+                uiScalePercent = preset.uiScalePercent,
+            )
+        }
+        viewModelScope.launch { appPreferences.applyUiStylePreset(preset.ordinal) }
+    }
+
+    fun resetAppearanceDefaults() {
+        appSettings = AppSettings()
+        folderSnapshots.updateAll { snapshot ->
+            snapshot.copy(
+                canvasZoom = appSettings.wallZoomPercent / 100f,
+                wallDensityPercent = appSettings.wallDensityPercent,
+                wallFocusShapeOrdinal = appSettings.wallFocusShapeOrdinal,
+                wallFocusSizeOrdinal = appSettings.wallFocusSizeOrdinal,
+                wallAmbientPercent = appSettings.wallAmbientPercent,
+            )
+        }
+        mutableUiState.update { it.withAppSettings(appSettings, applyWallDefaults = true) }
+        viewModelScope.launch { appPreferences.resetDefaults() }
     }
 
     private fun currentFolderKey(): String? = folderStack.peekLast()?.toString()
@@ -231,7 +433,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 canNavigateUp = folderStack.size > 1,
                 restored = pendingFocusItemId == null,
                 hasPlaybackOrigin = playbackOrigin.isNotEmpty(),
-            )
+            ).withAppSettings(appSettings, applyWallDefaults = false)
             applyPendingFocus()
             return
         }
@@ -245,7 +447,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 isScanning = true,
                 canNavigateUp = folderStack.size > 1,
                 hasPlaybackOrigin = playbackOrigin.isNotEmpty(),
-            )
+            ).withAppSettings(appSettings, applyWallDefaults = true)
         } else {
             mutableUiState.value.copy(isScanning = true, hasError = false, isRestored = false)
         }
@@ -260,6 +462,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                         items = listing.items,
                         supportedItemCount = listing.supportedItemCount,
                         isTruncated = listing.isTruncated,
+                        timedText = listing.timedText,
                     ),
                 )
                 mutableUiState.value = LibraryUiState(
@@ -272,7 +475,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     isScanning = false,
                     canNavigateUp = folderStack.size > 1,
                     hasPlaybackOrigin = playbackOrigin.isNotEmpty(),
-                )
+                    timedText = listing.timedText,
+                ).withAppSettings(appSettings, applyWallDefaults = true)
                 applyPendingFocus()
             } catch (error: CancellationException) {
                 throw error
@@ -320,6 +524,18 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     }
 }
 
+private fun TimedTextMatch.toDetailState(
+    itemId: String,
+    document: TimedTextDocument?,
+    isLoading: Boolean = false,
+): SubtitleDetailState = SubtitleDetailState(
+    itemId = itemId,
+    isLoading = isLoading,
+    sourceName = candidate.displayName,
+    languageTag = languageTag,
+    document = document,
+)
+
 private fun FolderSnapshot.toUiState(
     canNavigateUp: Boolean,
     restored: Boolean,
@@ -339,7 +555,36 @@ private fun FolderSnapshot.toUiState(
     canvasZoom = canvasZoom,
     panX = panX,
     panY = panY,
-    wallDensityOrdinal = wallDensityOrdinal,
+    wallDensityPercent = wallDensityPercent,
     wallFocusShapeOrdinal = wallFocusShapeOrdinal,
     wallFocusSizeOrdinal = wallFocusSizeOrdinal,
+    wallAmbientPercent = wallAmbientPercent,
+    timedText = timedText,
+)
+
+private fun LibraryUiState.withAppSettings(
+    settings: AppSettings,
+    applyWallDefaults: Boolean,
+): LibraryUiState = copy(
+    libraryLayoutOrdinal = settings.libraryLayoutOrdinal,
+    canvasZoom = if (applyWallDefaults) settings.wallZoomPercent / 100f else canvasZoom,
+    wallDensityPercent = if (applyWallDefaults) settings.wallDensityPercent else wallDensityPercent,
+    wallFocusShapeOrdinal = if (applyWallDefaults) {
+        settings.wallFocusShapeOrdinal
+    } else {
+        wallFocusShapeOrdinal
+    },
+    wallFocusSizeOrdinal = if (applyWallDefaults) {
+        settings.wallFocusSizeOrdinal
+    } else {
+        wallFocusSizeOrdinal
+    },
+    wallAmbientPercent = if (applyWallDefaults) settings.wallAmbientPercent else wallAmbientPercent,
+    wallLightsOut = settings.wallLightsOut,
+    wallAutoFocusPlaying = settings.wallAutoFocusPlaying,
+    wallPosterTintPercent = settings.wallPosterTintPercent,
+    motionPercent = settings.motionPercent,
+    uiStylePresetOrdinal = settings.uiStylePresetOrdinal,
+    uiAccentPaletteOrdinal = settings.uiAccentPaletteOrdinal,
+    uiScalePercent = settings.uiScalePercent,
 )

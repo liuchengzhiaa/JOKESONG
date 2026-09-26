@@ -67,6 +67,25 @@ Bottom-level destinations:
 The library opens to folders and can switch among folders, all audio, recently
 played and favorites. A mini player remains available above bottom navigation.
 
+## Settings
+
+设置 is a short list of groups, not one page of controls. Each group expands in
+place to show what it holds; one group is open at a time and nothing is open when
+the page is first shown, so the surface first answers what can be set here rather
+than presenting one group's contents as if they were the whole of it.
+
+- 外观与样式 holds the global appearance: a one-tap style preset, the global accent
+  colour, the global motion strength and the global UI scale, plus a reset. It
+  applies to the whole app -- the top bar's title and icons, the bottom navigation,
+  the wall tools and later global controls -- and changes no library data.
+- 资料库 holds the library root selection and a manual refresh of the current
+  folder.
+
+The appearance accent reaches the top bar's title, navigation icon and actions. The
+immersive full-player bar is deliberately excluded: its container is a fixed dark
+surface independent of light and dark themes, so it keeps neutral content rather
+than adopting an accent variant that would not be legible on it.
+
 ## Library layouts
 
 Supported layouts:
@@ -77,7 +96,10 @@ Supported layouts:
 - Focus-cover wall
 - Folia-style focus wall
 
-The app remembers a global layout and permits per-folder overrides. Lists default
+The five layouts are collected under one layout button. The button displays the
+current layout's icon; opening it shows all five named choices and marks the active
+one, instead of keeping five icon buttons across the library header. The app
+remembers a global layout and permits per-folder overrides. Lists default
 to folders-first grouping with an optional mixed-sort mode. Supported deterministic
 sorts include natural name, track number, modified time and date added. Custom drag
 ordering is not supported.
@@ -87,7 +109,7 @@ ordering is not supported.
 This is a signature feature, not a decorative grid.
 
 The original centred-bento wall remains available unchanged. A second wall mode,
-shown immediately to its right in the layout switcher, uses a denser Folia-style
+shown immediately after it in the layout menu, uses a denser Folia-style
 12-item lattice. In that mode the focused item grows where it already is: the
 hero keeps the configured focus shape, its position inside the block is derived
 from the slot the card already occupied, and the remaining eleven slots are
@@ -185,6 +207,16 @@ from. The entry is shown disabled when nothing is playing, or when the track
 cannot be reached because the queue outlived the process that recorded its origin.
 Further tools are added as rows to this same panel.
 
+A tool whose setting is a continuous range shows how far along that range it is as
+a filled level mark at the end of its row, not as a percentage. The fill is the
+value's position on that setting's own control, so it always agrees with the slider
+on the setting's own page; the ranges differ, so the same percentage is not the
+same position in two of them. The number itself still appears where the value is
+being set, on the setting's own page and under the slider being dragged. Every such
+setting also carries a row on its page that restores its default in one tap, and a
+setting whose default is already the end of its range has no such row because the
+slider's own end is it.
+
 In All Audio, the wall is a discovery mode containing a persistent random sample.
 It defaults to 15 items, with 10/15/20 choices. The sample changes only when the
 user requests another batch. The current audio remains in the replacement sample.
@@ -224,11 +256,23 @@ user requests another batch. The current audio remains in the replacement sample
 - Chapters, bookmarks and queue open as bottom panels. Users can choose two to four
   auxiliary controls to keep visible.
 - Match LRC, SRT and VTT files in the same folder by base filename, including an
-  optional language suffix.
+  optional language suffix. Matching is case-insensitive; a correction marker such as
+  `new` or `mix` is skipped and the search continues, so a fixed file beside the track
+  still matches; a name ending in something that is neither a language nor a marker
+  matches nothing rather than being guessed at. An untagged file is preferred over a
+  translated one, Simplified Chinese over another language, and LRC over a same-named
+  SRT.
 - Tapping artwork opens a full-screen subtitle detail view while keeping playback
-  controls available.
-- Current timed text stays centered and highlighted. Manual scrolling pauses
-  following and exposes a return-to-current control. Tapping a timed line seeks.
+  controls available. The view names the file it matched, and whether that file is
+  timed; it states plainly when no matching file was found, when the file could not be
+  read, and when the file parsed to nothing.
+- Current timed text stays visible and highlighted. Manual scrolling pauses following
+  and exposes a return-to-current control. Tapping a timed line seeks. Following only
+  applies while playback is on the item being viewed; otherwise the lines are shown
+  without seek actions.
+- **A file with no time tags is shown as text, not as a timeline.** Its lines are
+  listed in order with a notice that they cannot follow playback, rather than being
+  spread across the track's duration.
 - Without subtitles, artwork tap opens an immersive artwork view and states that no
   matching subtitle was found.
 - Manual subtitle rebinding, offset repair and editing are deferred.
@@ -307,6 +351,27 @@ Every write is transactional:
 - The focus wall may use richer transitions; long lists must prioritize smoothness.
 - Support system, light, dark and OLED-black themes plus optional artwork-derived
   colors with enforced contrast.
+- The Folia-style wall has a cover-derived ambient layer. It follows the currently
+  focused card, independent of the playing media, and cross-fades when focus moves.
+  Phase one uses a bounded palette from only the focused cover plus a few static
+  gradients behind the wall plus a restrained low-alpha wash across its opaque
+  posters; it must not blur a full-screen bitmap, scan the library, or run a
+  continuous animation after the colour transition settles. The retained Bento
+  wall is unaffected.
+- Wall density and canvas zoom live in the bottom-right wall tools instead of a
+  permanent row above the mosaic. Zoom remains continuously pinchable and is also
+  adjustable from 72% to 135% with a 100% reset. Folia ambient strength offers
+  off/low/medium/high and is restored with the folder's wall snapshot.
+- The Folia wall's `墙面显示` page provides persistent lights-out, opt-in
+  track-change auto-focus, off/low/medium/high cover-colour poster tint and reduced
+  motion. Lights-out and tint exempt both the focused card and current media;
+  auto-focus is active only while the Folia layout is visible. Ambient strength
+  remains an independent control. The queue shortcut waits for a durable queue
+  destination rather than exposing a dead action.
+- Future animated lyrics and visualizer modes follow the staged contract in
+  `FOLIA_PRESENTATION_PLAN.md`. Privacy mode must substitute its
+  alias artwork before any palette or lyric presentation layer sees the current
+  media.
 - Ship Simplified Chinese first; all strings remain resource-based.
 
 ## Explicitly deferred
