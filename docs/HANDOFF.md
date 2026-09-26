@@ -468,6 +468,29 @@ Still not settled by that run, and left for the phase-4 visual layer: whether th
 lines are legible over a bright cover, and whether the three-line lead-in is the
 right anchor.
 
+### Where the next agent starts
+
+The slice above is committed as `d187138` on `master`, with the working tree clean
+apart from the untracked `bash.exe.stackdump`. That commit also carries the
+appearance slice that was uncommitted in the tree when this work began (the level
+crests, the grouped settings surface, the accent in the top bar), because those
+files interleave with the timed-text work line by line and could not be separated.
+
+Reading order for whoever picks this up next:
+
+1. `AGENTS.md`, then `CLAUDE.md`, for the shared rules and the split of authorship.
+2. This file, from the top: "Current slice" through the section above.
+3. `docs/TASKS.md` -- what is open, and the roadmap ordering.
+4. `docs/DECISIONS.md`, especially D-013 (timed text) and D-004/D-012 (the wall).
+5. `docs/FOLIA_PRESENTATION_PLAN.md` -- **phase 4 is the next slice**: lyrics on the
+   focused/current cover, which is where the two visual questions above get answered.
+6. `docs/ARCHITECTURE.md` -- the module seams and the JVM-versus-ICU testing bullet.
+7. `docs/PRODUCT_SPEC.md`, the "Player and subtitles" section.
+
+The one thing not to repeat: a green JVM unit suite says nothing about regex
+behaviour on the device. Escape every literal brace and bracket, and treat a run on
+the phone as the only proof.
+
 ## Completed slice: folder snapshots, Media3 playback, card transport, layouts
 
 All four "Now" items in `docs/TASKS.md` are implemented in the working tree.
