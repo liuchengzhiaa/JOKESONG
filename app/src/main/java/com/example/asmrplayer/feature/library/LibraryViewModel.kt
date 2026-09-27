@@ -25,6 +25,8 @@ import com.example.asmrplayer.core.subtitles.parseTimedText
 import com.example.asmrplayer.feature.focuswall.FoliaFocusShape
 import com.example.asmrplayer.feature.focuswall.FoliaFocusSize
 import com.example.asmrplayer.feature.subtitles.SubtitleDetailState
+import com.example.asmrplayer.feature.subtitles.LyricsVisualizerMode
+import com.example.asmrplayer.feature.subtitles.LyricsWordGlowMode
 import java.util.ArrayDeque
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -75,6 +77,10 @@ data class LibraryUiState(
     val uiStylePresetOrdinal: Int = UiStylePreset.Balanced.ordinal,
     val uiAccentPaletteOrdinal: Int = UiAccentPalette.Ocean.ordinal,
     val uiScalePercent: Int = 100,
+    /** Persisted full-screen lyric presentation. */
+    val lyricsVisualizerOrdinal: Int = LyricsVisualizerMode.Default.ordinal,
+    /** Persisted source policy for exact or presentation-estimated word glow. */
+    val lyricsWordGlowModeOrdinal: Int = LyricsWordGlowMode.Default.ordinal,
     /**
      * Which track in this listing has lyrics beside it, keyed by item id. Empty when
      * none of them do, which is the ordinary case and not a failure.
@@ -387,6 +393,18 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { appPreferences.setUiScalePercent(safePercent) }
     }
 
+    fun onLyricsVisualizerModeChange(ordinal: Int) {
+        val safeOrdinal = LyricsVisualizerMode.fromOrdinal(ordinal).ordinal
+        mutableUiState.update { it.copy(lyricsVisualizerOrdinal = safeOrdinal) }
+        viewModelScope.launch { appPreferences.setLyricsVisualizer(safeOrdinal) }
+    }
+
+    fun onLyricsWordGlowModeChange(ordinal: Int) {
+        val safeOrdinal = LyricsWordGlowMode.fromOrdinal(ordinal).ordinal
+        mutableUiState.update { it.copy(lyricsWordGlowModeOrdinal = safeOrdinal) }
+        viewModelScope.launch { appPreferences.setLyricsWordGlowMode(safeOrdinal) }
+    }
+
     fun onUiStylePresetChange(ordinal: Int) {
         val preset = UiStylePreset.fromOrdinal(ordinal).takeUnless { it == UiStylePreset.Custom }
             ?: UiStylePreset.Balanced
@@ -587,4 +605,10 @@ private fun LibraryUiState.withAppSettings(
     uiStylePresetOrdinal = settings.uiStylePresetOrdinal,
     uiAccentPaletteOrdinal = settings.uiAccentPaletteOrdinal,
     uiScalePercent = settings.uiScalePercent,
+    lyricsVisualizerOrdinal = LyricsVisualizerMode
+        .fromOrdinal(settings.lyricsVisualizerOrdinal)
+        .ordinal,
+    lyricsWordGlowModeOrdinal = LyricsWordGlowMode
+        .fromOrdinal(settings.lyricsWordGlowModeOrdinal)
+        .ordinal,
 )

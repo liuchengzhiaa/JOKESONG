@@ -1,8 +1,14 @@
 package com.example.asmrplayer.feature.focuswall
 
 import android.content.res.Configuration
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloatAsState
@@ -27,6 +33,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,6 +61,9 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.FilledIconButton
@@ -62,20 +72,24 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -86,9 +100,11 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.input.pointer.pointerInput
@@ -99,8 +115,14 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
@@ -117,10 +139,18 @@ import com.example.asmrplayer.core.artwork.CoverFacts
 import com.example.asmrplayer.core.media.PlaybackState
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
+import com.example.asmrplayer.core.subtitles.TimedTextDocument
 import com.example.asmrplayer.feature.folderSummaryLine
 import com.example.asmrplayer.core.settings.levelFraction
 import com.example.asmrplayer.feature.player.formatPlaybackTime
+import com.example.asmrplayer.feature.subtitles.CoverLyricsFrame
+import com.example.asmrplayer.feature.subtitles.LyricsWordGlowMode
+import com.example.asmrplayer.feature.subtitles.SubtitleDetailState
+import com.example.asmrplayer.feature.subtitles.coverLyricsFrame
+import com.example.asmrplayer.feature.subtitles.coverLyricsGlowTimeline
+import com.example.asmrplayer.feature.subtitles.coverLyricsShadeAlpha
 import com.example.asmrplayer.ui.CrestLevelIcon
+import com.example.asmrplayer.ui.GlowingLyricText
 import com.example.asmrplayer.ui.theme.artworkBrush
 import com.example.asmrplayer.ui.theme.artworkAccent
 import kotlin.math.abs
@@ -137,6 +167,24 @@ import kotlinx.coroutines.launch
  */
 private const val FlingFrictionMultiplier = 1.35f
 
+/**
+ * Enough off-screen wall to cover a fast frame without composing almost three
+ * whole viewports. These are presentation buffers only; visible cards are still
+ * tested against their real scaled bounds below.
+ */
+private const val VerticalPrefetchViewportFraction = 0.50f
+private const val HorizontalPrefetchViewportFraction = 0.25f
+
+/** Non-current cards must not observe the Media3 position ticker. */
+private val InactiveWallPlaybackState = PlaybackState()
+
+private data class VisibleWallCard(
+    val placement: FocusWallPlacement,
+    val screenCenterX: Float,
+    val screenCenterY: Float,
+    val depthScale: Float,
+)
+
 enum class FocusWallStyle {
     Bento,
     Folia,
@@ -148,10 +196,15 @@ fun FocusCoverWall(
     contentKey: String,
     focusedItemId: String?,
     playbackState: PlaybackState,
+    subtitleState: SubtitleDetailState,
+    wordGlowMode: LyricsWordGlowMode,
     viewportState: FocusWallViewportState,
     onFocusedItemChange: (String?) -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onOpenLyrics: (LibraryItem) -> Unit,
     onDensityChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
     style: FocusWallStyle = FocusWallStyle.Bento,
@@ -180,6 +233,11 @@ fun FocusCoverWall(
      */
     onRevealPlayingItem: (() -> Unit)? = null,
 ) {
+    // The state holder is stable while its value advances. Only the one focused,
+    // current poster reads it inside its own subcomposition; 30 ordinary posters
+    // no longer recompose every time Media3 publishes another position tick.
+    val playbackStateProvider = rememberUpdatedState(playbackState)
+    val currentMediaId = playbackState.mediaId
     Column(modifier = modifier) {
         Text(
             text = stringResource(R.string.focus_wall_hint),
@@ -195,7 +253,13 @@ fun FocusCoverWall(
                 items = items,
                 contentKey = contentKey,
                 focusedItemId = focusedItemId,
-                playbackState = playbackState,
+                playbackStateProvider = playbackStateProvider,
+                currentMediaId = currentMediaId,
+                currentIsPlaying = playbackState.isPlaying,
+                currentHasPrevious = playbackState.hasPrevious,
+                currentHasNext = playbackState.hasNext,
+                subtitleState = subtitleState,
+                wordGlowMode = wordGlowMode,
                 viewportState = viewportState,
                 style = style,
                 lightsOut = lightsOut,
@@ -203,6 +267,9 @@ fun FocusCoverWall(
                 motionPercent = motionPercent,
                 onFocusedItemChange = onFocusedItemChange,
                 onSeekTo = onSeekTo,
+                onPrevious = onPrevious,
+                onNext = onNext,
+                onOpenLyrics = onOpenLyrics,
                 onCardClick = { item ->
                     when (resolveCardTap(focusedItemId, item.id)) {
                         // A tap on any other card moves focus to it. Nothing else
@@ -214,7 +281,7 @@ fun FocusCoverWall(
                             // Tapping the focused card of the item that is already
                             // current opens the full player instead of restarting it.
                             LibraryItemType.Audio -> {
-                                if (playbackState.isCurrent(item.id)) {
+                                if (item.id == currentMediaId) {
                                     onActivate(item)
                                 } else {
                                     onPlay(item)
@@ -226,7 +293,7 @@ fun FocusCoverWall(
                 onPlayPause = { item ->
                     when {
                         item.type == LibraryItemType.Folder -> onPlay(item)
-                        playbackState.isCurrent(item.id) -> onTogglePlayPause()
+                        item.id == currentMediaId -> onTogglePlayPause()
                         else -> onPlay(item)
                     }
                 },
@@ -363,7 +430,20 @@ private fun WallToolsOverlay(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            AnimatedVisibility(visible = expanded) {
+            val panelMotionMillis = wallMotionDuration(190, motionPercent)
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn(tween(panelMotionMillis)) + scaleIn(
+                    animationSpec = tween(panelMotionMillis),
+                    initialScale = 0.82f,
+                    transformOrigin = TransformOrigin(1f, 1f),
+                ),
+                exit = fadeOut(tween(panelMotionMillis)) + scaleOut(
+                    animationSpec = tween(panelMotionMillis),
+                    targetScale = 0.88f,
+                    transformOrigin = TransformOrigin(1f, 1f),
+                ),
+            ) {
                 when (page) {
                     WallPanelPage.Root -> WallToolsPanel(
                         tools = listOf(
@@ -577,15 +657,49 @@ private fun WallToolsOverlay(
                     )
                 }
             }
-            SmallFloatingActionButton(
+            val iconRotation by animateFloatAsState(
+                targetValue = if (expanded) 45f else 0f,
+                animationSpec = tween(panelMotionMillis),
+                label = "wall glass tool rotation",
+            )
+            val glassShape = CircleShape
+            Surface(
                 onClick = { expanded = !expanded },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier
+                    .size(42.dp)
+                    .border(
+                        width = 1.dp,
+                        color = Color.White.copy(alpha = 0.30f),
+                        shape = glassShape,
+                    ),
+                shape = glassShape,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.54f),
+                contentColor = MaterialTheme.colorScheme.primary,
+                tonalElevation = 0.dp,
+                shadowElevation = 10.dp,
             ) {
-                Icon(
-                    imageVector = Icons.Default.Widgets,
-                    contentDescription = stringResource(R.string.wall_tools),
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.16f),
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                                    Color.Transparent,
+                                ),
+                            ),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Widgets,
+                        contentDescription = stringResource(R.string.wall_tools),
+                        modifier = Modifier
+                            .size(19.dp)
+                            .rotate(iconRotation),
+                    )
+                }
             }
         }
     }
@@ -593,11 +707,13 @@ private fun WallToolsOverlay(
 
 @Composable
 private fun WallToolsPanel(tools: List<WallTool>) {
+    val shape = RoundedCornerShape(16.dp)
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
+        modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.18f), shape),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.76f),
+        tonalElevation = 0.dp,
+        shadowElevation = 12.dp,
     ) {
         Column(modifier = Modifier.padding(vertical = 6.dp)) {
             tools.forEach { tool -> WallToolRow(tool) }
@@ -612,11 +728,13 @@ private fun WallToolsPanel(tools: List<WallTool>) {
  */
 @Composable
 private fun WallOptionsPanel(titleRes: Int, onBack: () -> Unit, options: List<WallTool>) {
+    val shape = RoundedCornerShape(16.dp)
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
+        modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.18f), shape),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.76f),
+        tonalElevation = 0.dp,
+        shadowElevation = 12.dp,
     ) {
         Column(modifier = Modifier.padding(vertical = 6.dp)) {
             Row(
@@ -649,11 +767,13 @@ private fun WallZoomPanel(
     onZoomChange: (Float) -> Unit,
     onBack: () -> Unit,
 ) {
+    val shape = RoundedCornerShape(16.dp)
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
+        modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.18f), shape),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.76f),
+        tonalElevation = 0.dp,
+        shadowElevation = 12.dp,
     ) {
         Column(
             modifier = Modifier
@@ -731,11 +851,13 @@ private fun WallPercentPanel(
     onReset: (() -> Unit)? = null,
 ) {
     var pendingPercent by remember(valuePercent) { mutableStateOf(valuePercent) }
+    val shape = RoundedCornerShape(16.dp)
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
+        modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.18f), shape),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.76f),
+        tonalElevation = 0.dp,
+        shadowElevation = 12.dp,
     ) {
         Column(
             modifier = Modifier
@@ -857,7 +979,13 @@ private fun FocusWallCanvas(
     items: List<LibraryItem>,
     contentKey: String,
     focusedItemId: String?,
-    playbackState: PlaybackState,
+    playbackStateProvider: State<PlaybackState>,
+    currentMediaId: String?,
+    currentIsPlaying: Boolean,
+    currentHasPrevious: Boolean,
+    currentHasNext: Boolean,
+    subtitleState: SubtitleDetailState,
+    wordGlowMode: LyricsWordGlowMode,
     viewportState: FocusWallViewportState,
     style: FocusWallStyle,
     lightsOut: Boolean,
@@ -867,6 +995,9 @@ private fun FocusWallCanvas(
     onCardClick: (LibraryItem) -> Unit,
     onPlayPause: (LibraryItem) -> Unit,
     onSeekTo: (Long) -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onOpenLyrics: (LibraryItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val configuration = LocalConfiguration.current
@@ -1010,6 +1141,14 @@ private fun FocusWallCanvas(
         }
         val placementById = remember(placements) { placements.associateBy(FocusWallPlacement::itemId) }
         val itemById = remember(items) { items.associateBy(LibraryItem::id) }
+        val maximumPlacementHalfSize = remember(placements) {
+            placements.fold(Size.Zero) { largest, placement ->
+                Size(
+                    width = max(largest.width, placement.width / 2f),
+                    height = max(largest.height, placement.height / 2f),
+                )
+            }
+        }
 
         LaunchedEffect(focusedItemId, placements, motionPercent) {
             val focused = focusedItemId?.let(placementById::get) ?: return@LaunchedEffect
@@ -1106,64 +1245,69 @@ private fun FocusWallCanvas(
 
             val zoom = viewportState.zoom
             val panOffset = viewportState.pan
-            val verticalBuffer = constraints.maxHeight * 0.75f
+            val verticalBuffer = constraints.maxHeight * VerticalPrefetchViewportFraction
             val minWorldY = (-constraints.maxHeight / 2f - panOffset.y - verticalBuffer) / zoom
             val maxWorldY = (constraints.maxHeight / 2f - panOffset.y + verticalBuffer) / zoom
-            val horizontalBuffer = constraints.maxWidth * 0.35f
+            val horizontalBuffer = constraints.maxWidth * HorizontalPrefetchViewportFraction
             val minWorldX = (-constraints.maxWidth / 2f - panOffset.x - horizontalBuffer) / zoom
             val maxWorldX = (constraints.maxWidth / 2f - panOffset.x + horizontalBuffer) / zoom
             val nearViewport = placementsNearWorldRect(
                 placements = placements,
-                minCenterX = minWorldX,
-                maxCenterX = maxWorldX,
-                minCenterY = minWorldY,
-                maxCenterY = maxWorldY,
+                // The index is centre-based. Extend the query by the largest card
+                // half-size so a large poster whose edge intersects the buffered
+                // viewport can never be discarded before the exact test below.
+                minCenterX = minWorldX - maximumPlacementHalfSize.width,
+                maxCenterX = maxWorldX + maximumPlacementHalfSize.width,
+                minCenterY = minWorldY - maximumPlacementHalfSize.height,
+                maxCenterY = maxWorldY + maximumPlacementHalfSize.height,
             )
-            val visible = nearViewport.filter { placement ->
+            // Calculate screen geometry once per card and reuse it for culling,
+            // z-order, alpha and placement. The old path repeated the same two
+            // coordinate transforms and hypot calculation up to three times per
+            // card on every drag frame.
+            val visible = ArrayList<VisibleWallCard>(nearViewport.size)
+            nearViewport.forEach { placement ->
                 val screenCenterX = constraints.maxWidth / 2f + placement.centerX * zoom + panOffset.x
                 val screenCenterY = constraints.maxHeight / 2f + placement.centerY * zoom + panOffset.y
-                val depthScale = focusWallDepthScale(
-                    offsetFromCenterX = screenCenterX - constraints.maxWidth / 2f,
-                    offsetFromCenterY = screenCenterY - constraints.maxHeight / 2f,
-                    viewportWidth = constraints.maxWidth.toFloat(),
-                    viewportHeight = constraints.maxHeight.toFloat(),
-                )
                 val halfWidth = placement.width * zoom / 2f
                 val halfHeight = placement.height * zoom / 2f
-                screenCenterX + halfWidth >= -horizontalBuffer &&
+                val intersectsBufferedViewport =
+                    screenCenterX + halfWidth >= -horizontalBuffer &&
                     screenCenterX - halfWidth <= constraints.maxWidth + horizontalBuffer &&
                     screenCenterY + halfHeight >= -verticalBuffer &&
                     screenCenterY - halfHeight <= constraints.maxHeight + verticalBuffer
-            }.sortedBy { placement ->
-                val screenCenterX = constraints.maxWidth / 2f + placement.centerX * zoom + panOffset.x
-                val screenCenterY = constraints.maxHeight / 2f + placement.centerY * zoom + panOffset.y
-                val depth = focusWallDepthScale(
-                    offsetFromCenterX = screenCenterX - constraints.maxWidth / 2f,
-                    offsetFromCenterY = screenCenterY - constraints.maxHeight / 2f,
-                    viewportWidth = constraints.maxWidth.toFloat(),
-                    viewportHeight = constraints.maxHeight.toFloat(),
-                )
-                depth + if (placement.itemId == focusedItemId) 10f else 0f
+                if (intersectsBufferedViewport) {
+                    visible += VisibleWallCard(
+                        placement = placement,
+                        screenCenterX = screenCenterX,
+                        screenCenterY = screenCenterY,
+                        depthScale = focusWallDepthScale(
+                            offsetFromCenterX = screenCenterX - constraints.maxWidth / 2f,
+                            offsetFromCenterY = screenCenterY - constraints.maxHeight / 2f,
+                            viewportWidth = constraints.maxWidth.toFloat(),
+                            viewportHeight = constraints.maxHeight.toFloat(),
+                        ),
+                    )
+                }
+            }
+            // Preserve the established draw order while sorting the already
+            // calculated scalar instead of recalculating geometry in the comparator.
+            visible.sortBy { card ->
+                card.depthScale + if (card.placement.itemId == focusedItemId) 10f else 0f
             }
 
-            val measured = visible.mapNotNull { placement ->
+            val measured = visible.mapNotNull { visibleCard ->
+                val placement = visibleCard.placement
                 val item = itemById[placement.itemId] ?: return@mapNotNull null
                 val isFocused = placement.itemId == focusedItemId
-                val isCurrent = playbackState.isCurrent(placement.itemId)
-                val screenCenterX = constraints.maxWidth / 2f + placement.centerX * zoom + panOffset.x
-                val screenCenterY = constraints.maxHeight / 2f + placement.centerY * zoom + panOffset.y
-                val depthScale = focusWallDepthScale(
-                    offsetFromCenterX = screenCenterX - constraints.maxWidth / 2f,
-                    offsetFromCenterY = screenCenterY - constraints.maxHeight / 2f,
-                    viewportWidth = constraints.maxWidth.toFloat(),
-                    viewportHeight = constraints.maxHeight.toFloat(),
-                )
+                val isCurrent = placement.itemId == currentMediaId
                 val normalVisualAlpha = when {
                     isFocused -> 1f
-                    focusedItemId != null -> (0.48f + depthScale * 0.34f).coerceAtMost(0.78f)
-                    else -> 0.72f + depthScale * 0.28f
+                    focusedItemId != null ->
+                        (0.48f + visibleCard.depthScale * 0.34f).coerceAtMost(0.78f)
+                    else -> 0.72f + visibleCard.depthScale * 0.28f
                 }
-                val visualAlpha = focusWallPosterAlpha(
+                val lightsOutVisualAlpha = focusWallPosterAlpha(
                     normalAlpha = normalVisualAlpha,
                     lightsOut = style == FocusWallStyle.Folia && lightsOut,
                     isFocused = isFocused,
@@ -1191,19 +1335,32 @@ private fun FocusWallCanvas(
                         animationSpec = tween(durationMillis = cardAnimationMillis),
                         label = "wallCardHeight",
                     )
-                    val animatedVisualAlpha by animateFloatAsState(
-                        targetValue = visualAlpha,
+                    // Only the discrete lights-out state animates. Distance alpha
+                    // follows the drag directly instead of restarting a 260 ms
+                    // tween for every visible card on every pointer frame.
+                    val animatedLightsOutFraction by animateFloatAsState(
+                        targetValue = if (lightsOutVisualAlpha < normalVisualAlpha) 1f else 0f,
                         animationSpec = tween(
                             durationMillis = wallMotionDuration(260, motionPercent),
                         ),
-                        label = "wallCardLightsOutAlpha",
+                        label = "wallCardLightsOutFraction",
                     )
+                    val visualAlpha = normalVisualAlpha +
+                        (lightsOutVisualAlpha - normalVisualAlpha) * animatedLightsOutFraction
+                    val activePlaybackState = if (isFocused && isCurrent) {
+                        playbackStateProvider.value
+                    } else {
+                        InactiveWallPlaybackState
+                    }
                     FocusCoverCard(
                         item = item,
+                        style = style,
                         isFocused = isFocused,
                         isCurrent = isCurrent,
-                        isPlaying = isCurrent && playbackState.isPlaying,
-                        playbackState = playbackState,
+                        isPlaying = isCurrent && currentIsPlaying,
+                        playbackState = activePlaybackState,
+                        subtitleState = subtitleState,
+                        wordGlowMode = wordGlowMode,
                         decodeSize = artworkDecodeSize(
                             widthPx = placement.width,
                             heightPx = placement.height,
@@ -1212,6 +1369,14 @@ private fun FocusWallCanvas(
                         silhouette = placement.shape,
                         fitArtwork = placement.fitArtwork,
                         coverAccentArgb = if (isFocused) focusedCoverFacts?.accentArgb else null,
+                        lyricsShadeAlpha = if (isFocused) {
+                            coverLyricsShadeAlpha(
+                                paletteArgbs = focusedCoverFacts?.paletteArgbs.orEmpty(),
+                                fallbackArgb = artworkAccent(item.paletteSeed).toArgb(),
+                            )
+                        } else {
+                            0f
+                        },
                         posterTint = if (
                             style == FocusWallStyle.Folia && !isFocused && !isCurrent
                         ) {
@@ -1225,6 +1390,13 @@ private fun FocusWallCanvas(
                         onClick = { onCardClick(item) },
                         onPlayPause = { onPlayPause(item) },
                         onSeekTo = onSeekTo,
+                        onPrevious = onPrevious.takeIf {
+                            isCurrent && currentHasPrevious
+                        },
+                        onNext = onNext.takeIf {
+                            isCurrent && currentHasNext
+                        },
+                        onOpenLyrics = { onOpenLyrics(item) },
                         onClearFocus = { onFocusedItemChange(null) },
                         modifier = Modifier
                             .fillMaxSize()
@@ -1233,8 +1405,10 @@ private fun FocusWallCanvas(
                                 scaleY = zoom * animatedHeight / placement.height
                                 translationX = (animatedCenterX - placement.centerX) * zoom
                                 translationY = (animatedCenterY - placement.centerY) * zoom
-                                alpha = animatedVisualAlpha
-                                shadowElevation = if (isFocused) 18.dp.toPx() else 3.dp.toPx()
+                                alpha = visualAlpha
+                                // Flush ordinary posters match the packed Folia
+                                // reference and avoid one GPU shadow layer per card.
+                                shadowElevation = if (isFocused) 12.dp.toPx() else 0f
                             },
                     )
                 }.first().measure(
@@ -1243,16 +1417,14 @@ private fun FocusWallCanvas(
                         height = placement.height.roundToInt().coerceAtLeast(1),
                     ),
                 )
-                placement to placeable
+                visibleCard to placeable
             }
 
             layout(constraints.maxWidth, constraints.maxHeight) {
-                measured.forEach { (placement, placeable) ->
-                    val centerX = constraints.maxWidth / 2f + placement.centerX * zoom + panOffset.x
-                    val centerY = constraints.maxHeight / 2f + placement.centerY * zoom + panOffset.y
+                measured.forEach { (visibleCard, placeable) ->
                     placeable.placeRelative(
-                        x = (centerX - placeable.width / 2f).roundToInt(),
-                        y = (centerY - placeable.height / 2f).roundToInt(),
+                        x = (visibleCard.screenCenterX - placeable.width / 2f).roundToInt(),
+                        y = (visibleCard.screenCenterY - placeable.height / 2f).roundToInt(),
                     )
                 }
             }
@@ -1337,10 +1509,9 @@ private fun CoverAmbientLayer(
     val effectiveTertiaryStrength = tertiaryStrength * animatedStrength
     val effectiveVignetteStrength = vignetteStrength * animatedStrength
 
-    Canvas(modifier = modifier) {
+    Box(modifier = modifier.drawWithCache {
         val largestEdge = max(size.width, size.height)
-        drawRect(
-            brush = Brush.radialGradient(
+        val primaryBrush = Brush.radialGradient(
                 colors = listOf(
                     primary.multipliedAlpha(effectivePrimaryStrength),
                     primary.multipliedAlpha(effectivePrimaryStrength * 0.38f),
@@ -1348,10 +1519,8 @@ private fun CoverAmbientLayer(
                 ),
                 center = Offset(size.width * 0.14f, size.height * 0.16f),
                 radius = largestEdge * 0.72f,
-            ),
         )
-        drawRect(
-            brush = Brush.radialGradient(
+        val secondaryBrush = Brush.radialGradient(
                 colors = listOf(
                     secondary.multipliedAlpha(effectiveSecondaryStrength),
                     secondary.multipliedAlpha(effectiveSecondaryStrength * 0.32f),
@@ -1359,35 +1528,38 @@ private fun CoverAmbientLayer(
                 ),
                 center = Offset(size.width * 0.88f, size.height * 0.78f),
                 radius = largestEdge * 0.67f,
-            ),
         )
-        drawRect(
-            brush = Brush.radialGradient(
+        val tertiaryBrush = Brush.radialGradient(
                 colors = listOf(
                     tertiary.multipliedAlpha(effectiveTertiaryStrength),
                     Color.Transparent,
                 ),
                 center = Offset(size.width * 0.62f, size.height * 0.30f),
                 radius = largestEdge * 0.48f,
-            ),
         )
-        if (mode == AmbientLayerMode.Backdrop) {
+        val vignetteBrush = if (mode == AmbientLayerMode.Backdrop) {
             // A shallow edge falloff keeps the colours reading as light in a
             // space rather than three translucent circles. The poster wash omits
             // it so card artwork is coloured, not globally darkened twice.
-            drawRect(
-                brush = Brush.radialGradient(
+            Brush.radialGradient(
                     colorStops = arrayOf(
                         0f to Color.Transparent,
                         0.72f to Color.Transparent,
                         1f to Color.Black.copy(alpha = effectiveVignetteStrength),
                     ),
-                    center = center,
+                    center = Offset(size.width / 2f, size.height / 2f),
                     radius = largestEdge * 0.72f,
-                ),
             )
+        } else {
+            null
         }
-    }
+        onDrawBehind {
+            drawRect(primaryBrush)
+            drawRect(secondaryBrush)
+            drawRect(tertiaryBrush)
+            vignetteBrush?.let { brush -> drawRect(brush) }
+        }
+    })
 }
 
 private fun fallbackAmbientPalette(accent: Color): List<Color> = listOf(
@@ -1402,10 +1574,13 @@ private fun Color.multipliedAlpha(factor: Float): Color =
 @Composable
 private fun FocusCoverCard(
     item: LibraryItem,
+    style: FocusWallStyle,
     isFocused: Boolean,
     isCurrent: Boolean,
     isPlaying: Boolean,
     playbackState: PlaybackState,
+    subtitleState: SubtitleDetailState,
+    wordGlowMode: LyricsWordGlowMode,
     decodeSize: IntSize,
     /**
      * The silhouette this card is drawn as, or null for a plain rectangle. A shaped card
@@ -1421,16 +1596,23 @@ private fun FocusCoverCard(
      * once for the whole block, so the card is handed the colour rather than loading it.
      */
     coverAccentArgb: Int?,
+    /** Contrast shade derived from the same bounded palette decode as the border. */
+    lyricsShadeAlpha: Float,
     /** Cover-derived wash for an ordinary Folia poster; current/focused cards get transparent. */
     posterTint: Color,
     motionPercent: Int,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
+    onPrevious: (() -> Unit)?,
+    onNext: (() -> Unit)?,
+    onOpenLyrics: () -> Unit,
     onClearFocus: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val platformContext = LocalPlatformContext.current
+    val foliaPoster = style == FocusWallStyle.Folia
+    val foliaFocused = foliaPoster && isFocused
     // The card is composed at its zoom-1 layout size and then magnified by the canvas,
     // so it asks for artwork at the size it will actually be painted at. Layout
     // constraints would otherwise pin the request to the smaller layout size.
@@ -1452,7 +1634,11 @@ private fun FocusCoverCard(
         label = "focusBorder",
     )
     val borderWidth by animateFloatAsState(
-        targetValue = if (isFocused) 2.2f else 0f,
+        targetValue = when {
+            foliaFocused -> 1.1f
+            isFocused -> 2.2f
+            else -> 0f
+        },
         animationSpec = tween(durationMillis = wallMotionDuration(260, motionPercent)),
         label = "focusBorderWidth",
     )
@@ -1465,9 +1651,15 @@ private fun FocusCoverCard(
     // shape and a tap in the corners of its rectangle never reaches the card. Every other
     // card keeps the rounded rectangle the wall has always drawn.
     val shape: Shape = silhouette?.let(::FocusWallCellShape)
-        ?: RoundedCornerShape(if (isFocused) 12.dp else 8.dp)
+        ?: RoundedCornerShape(
+            when {
+                foliaPoster -> 2.dp
+                isFocused -> 12.dp
+                else -> 8.dp
+            },
+        )
 
-    Surface(
+    Box(
         modifier = modifier
             .border(borderWidth.dp, borderColor, shape)
             .clip(shape)
@@ -1476,8 +1668,6 @@ private fun FocusCoverCard(
             // before delivering it, which is felt as lag on the wall's main
             // gesture. "Double tap to open" still works -- see resolveCardTap.
             .clickable(onClick = onClick),
-        shape = shape,
-        tonalElevation = if (isFocused) 8.dp else 1.dp,
     ) {
         BoxWithConstraints(
             modifier = Modifier
@@ -1496,45 +1686,135 @@ private fun FocusCoverCard(
                 )
             }
 
-            if (animatedPosterTint.alpha > 0f) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(animatedPosterTint),
-                )
-            }
-
+            // One cached draw node replaces the old tint, vertical shade and
+            // focused-side shade Boxes. Their visual order and colours are the
+            // same, but ordinary cards no longer add two extra layout nodes and
+            // rebuild gradient brushes while the wall moves.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0f to Color(0x08000000),
-                            0.46f to Color(0x24000000),
-                            1f to Color(0xEB05070B),
+                    .drawWithCache {
+                        val verticalShade = if (foliaFocused) {
+                            Brush.verticalGradient(
+                                0f to Color(0x42000000),
+                                0.38f to Color(0x30000000),
+                                0.72f to Color(0x62000000),
+                                1f to Color(0xD605070B),
+                            )
+                        } else if (foliaPoster) {
+                            Brush.verticalGradient(
+                                0f to Color(0x18000000),
+                                0.48f to Color(0x26000000),
+                                1f to Color(0xDA05070B),
+                            )
+                        } else {
+                            Brush.verticalGradient(
+                                0f to Color(0x08000000),
+                                0.46f to Color(0x24000000),
+                                1f to Color(0xEB05070B),
+                            )
+                        }
+                        val focusedSideShade = if (foliaFocused) {
+                            Brush.horizontalGradient(
+                                0f to Color.Black.copy(alpha = lyricsShadeAlpha * 0.72f),
+                                0.54f to Color.Black.copy(alpha = lyricsShadeAlpha * 0.28f),
+                                1f to Color.Transparent,
+                            )
+                        } else {
+                            null
+                        }
+                        onDrawBehind {
+                            if (animatedPosterTint.alpha > 0f) drawRect(animatedPosterTint)
+                            drawRect(verticalShade)
+                            focusedSideShade?.let { shade -> drawRect(shade) }
+                        }
+                    },
+            )
+
+            val lyricDocument = subtitleState.document?.takeIf {
+                isFocused &&
+                    isCurrent &&
+                    item.type == LibraryItemType.Audio &&
+                    subtitleState.describes(item.id) &&
+                    it.isTimed
+            }
+            val lyricFrame = lyricDocument?.coverLyricsFrame(playbackState.positionMs)
+            val hasCoverLyrics = lyricFrame != null
+            if (foliaFocused) {
+                FoliaFocusedPosterChrome(
+                    item = item,
+                    isCurrent = isCurrent,
+                    isPlaying = isPlaying,
+                    playbackState = playbackState,
+                    lyricFrame = lyricFrame,
+                    lyricDocument = lyricDocument,
+                    wordGlowMode = wordGlowMode,
+                    accent = coverAccent,
+                    shadeAlpha = lyricsShadeAlpha,
+                    motionPercent = motionPercent,
+                    onPlayPause = onPlayPause,
+                    onSeekTo = onSeekTo,
+                    onPrevious = onPrevious,
+                    onNext = onNext,
+                    onOpenLyrics = onOpenLyrics.takeIf { lyricFrame != null },
+                    onClearFocus = onClearFocus,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else if (lyricFrame != null) {
+                val lyricTopPadding = (maxHeight * 0.18f).coerceIn(28.dp, 48.dp)
+                val lyricBottomPadding = (maxHeight * 0.36f).coerceIn(58.dp, 92.dp)
+                val usableLyricHeight = maxHeight - lyricTopPadding - lyricBottomPadding
+                CoverLyricsOverlay(
+                    frame = lyricFrame,
+                    document = lyricDocument,
+                    positionMs = playbackState.positionMs,
+                    isPlaying = isPlaying,
+                    wordGlowMode = wordGlowMode,
+                    accent = coverAccent,
+                    shadeAlpha = lyricsShadeAlpha,
+                    motionPercent = motionPercent,
+                    showContext = usableLyricHeight >= 124.dp,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .fillMaxSize()
+                        // Top icons own the first band; title, seek and transport
+                        // own the deeper bottom band. Lyrics occupy what is truly
+                        // left instead of being painted under those controls.
+                        .padding(
+                            start = 12.dp,
+                            top = lyricTopPadding,
+                            end = 12.dp,
+                            bottom = lyricBottomPadding,
                         ),
+                )
+            }
+
+            if (foliaPoster && !isFocused) {
+                FoliaOrdinaryPosterChrome(
+                    item = item,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else if (!foliaPoster) {
+                Icon(
+                    imageVector = if (item.type == LibraryItemType.Folder) {
+                        Icons.Default.Folder
+                    } else {
+                        Icons.Default.LibraryMusic
+                    },
+                    contentDescription = stringResource(
+                        if (item.type == LibraryItemType.Folder) R.string.folder_type else R.string.audio_type,
                     ),
-            )
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(if (compactCard) 6.dp else 12.dp)
+                        .size(if (isFocused) 34.dp else if (compactCard) 22.dp else 30.dp)
+                        .background(Color(0xB814171D), CircleShape)
+                        .padding(if (compactCard) 5.dp else 7.dp),
+                    tint = Color.White,
+                )
+            }
 
-            Icon(
-                imageVector = if (item.type == LibraryItemType.Folder) {
-                    Icons.Default.Folder
-                } else {
-                    Icons.Default.LibraryMusic
-                },
-                contentDescription = stringResource(
-                    if (item.type == LibraryItemType.Folder) R.string.folder_type else R.string.audio_type,
-                ),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(if (compactCard) 6.dp else 12.dp)
-                    .size(if (isFocused) 34.dp else if (compactCard) 22.dp else 30.dp)
-                    .background(Color(0xB814171D), CircleShape)
-                    .padding(if (compactCard) 5.dp else 7.dp),
-                tint = Color.White,
-            )
-
-            if (isCurrent) {
+            if (isCurrent && !foliaPoster) {
                 Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -1563,33 +1843,38 @@ private fun FocusCoverCard(
                 }
             }
 
-            Column(
+            if (!foliaPoster) Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
                     .padding(if (isFocused) 18.dp else if (compactCard) 8.dp else 14.dp),
             ) {
-                Text(
-                    text = item.title,
-                    color = Color.White,
-                    fontSize = if (isFocused) 24.sp else if (compactCard) 12.sp else 19.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = if (compactCard) 1 else 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (!compactCard) {
-                    Spacer(Modifier.height(3.dp))
+                // The live lyric scene is the focused cover's central subject. Its
+                // now-playing badge still identifies the media, so repeating title
+                // and metadata below it would take the only space the lyrics have.
+                if (!hasCoverLyrics) {
                     Text(
-                        text = item.detailLine(),
-                        color = Color(0xFFDCE1EA),
-                        style = if (isFocused) {
-                            MaterialTheme.typography.bodyMedium
-                        } else {
-                            MaterialTheme.typography.bodySmall
-                        },
-                        maxLines = 1,
+                        text = item.title,
+                        color = Color.White,
+                        fontSize = if (isFocused) 24.sp else if (compactCard) 12.sp else 19.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = if (compactCard) 1 else 2,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    if (!compactCard) {
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            text = item.detailLine(),
+                            color = Color(0xFFDCE1EA),
+                            style = if (isFocused) {
+                                MaterialTheme.typography.bodyMedium
+                            } else {
+                                MaterialTheme.typography.bodySmall
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
 
                 // Only audio carries an action row here. A folder owns no playable
@@ -1634,6 +1919,636 @@ private fun FocusCoverCard(
             }
         }
     }
+}
+
+/**
+ * Ordinary Folia posters use the same edge, shade and type language as the hero,
+ * but do not carry playback chrome. The tiny square remains only as the product's
+ * folder/audio discriminator; everything else is cover, title and metadata.
+ */
+@Composable
+private fun FoliaOrdinaryPosterChrome(
+    item: LibraryItem,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier) {
+        val inset = maxWidth * FoliaPosterChromeSpec.OrdinaryInset
+        val titleSize = (maxWidth.value * FoliaPosterChromeSpec.OrdinaryTitleFont)
+            .coerceIn(9f, 18f).sp
+        val metadataSize = (maxWidth.value * FoliaPosterChromeSpec.OrdinaryMetadataFont)
+            .coerceIn(7f, 10f).sp
+        val badgeSize = (maxWidth * FoliaPosterChromeSpec.OrdinaryTypeBadge)
+            .coerceIn(7.dp, 18.dp)
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = inset, top = inset)
+                .size(badgeSize)
+                .background(Color(0x7810141B), RoundedCornerShape(1.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (item.type == LibraryItemType.Folder) {
+                    Icons.Default.Folder
+                } else {
+                    Icons.Default.LibraryMusic
+                },
+                contentDescription = stringResource(
+                    if (item.type == LibraryItemType.Folder) R.string.folder_type else R.string.audio_type,
+                ),
+                modifier = Modifier.size(badgeSize * 0.56f),
+                tint = Color.White.copy(alpha = 0.76f),
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(
+                    start = inset,
+                    end = inset,
+                    bottom = maxHeight * FoliaPosterChromeSpec.OrdinaryBottom,
+                )
+                .fillMaxWidth(),
+        ) {
+            Text(
+                text = item.title,
+                color = Color.White.copy(alpha = 0.90f),
+                fontSize = titleSize,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    shadow = Shadow(Color.Black.copy(alpha = 0.94f), Offset(0f, 1f), 6f),
+                ),
+            )
+            Text(
+                text = item.detailLine(),
+                color = Color.White.copy(alpha = 0.58f),
+                fontSize = metadataSize,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    shadow = Shadow(Color.Black.copy(alpha = 0.90f), Offset(0f, 1f), 4f),
+                ),
+            )
+        }
+    }
+}
+
+/**
+ * Focused-poster chrome measured from the owner's Folia reference.
+ *
+ * The reference is a poster composition, not a Material card: a tiny status label
+ * and title live in the upper-left, lyrics use an asymmetric left-aligned hierarchy,
+ * and the transport/progress chrome hugs the bottom edge. Every position and visual
+ * size is derived from the poster itself so square, portrait and landscape heroes
+ * keep the same composition.
+ */
+@Composable
+private fun FoliaFocusedPosterChrome(
+    item: LibraryItem,
+    isCurrent: Boolean,
+    isPlaying: Boolean,
+    playbackState: PlaybackState,
+    lyricFrame: CoverLyricsFrame?,
+    lyricDocument: TimedTextDocument?,
+    wordGlowMode: LyricsWordGlowMode,
+    accent: Color,
+    shadeAlpha: Float,
+    motionPercent: Int,
+    onPlayPause: () -> Unit,
+    onSeekTo: (Long) -> Unit,
+    onPrevious: (() -> Unit)?,
+    onNext: (() -> Unit)?,
+    onOpenLyrics: (() -> Unit)?,
+    onClearFocus: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier) {
+        val inset = maxWidth * FoliaPosterChromeSpec.HorizontalInset
+        val statusFont = (maxWidth.value * FoliaPosterChromeSpec.HeaderMetadataFont)
+            .coerceIn(7f, 10f).sp
+        val headerTitleFont = (maxWidth.value * FoliaPosterChromeSpec.HeaderTitleFont)
+            .coerceIn(10f, 17f).sp
+        val metadataFont = (maxWidth.value * FoliaPosterChromeSpec.HeaderMetadataFont)
+            .coerceIn(7f, 10f).sp
+        val controlTouchSize = (maxWidth * FoliaPosterChromeSpec.ControlTouchSize)
+            .coerceIn(16.dp, 30.dp)
+        val controlVisualSize = (maxWidth * FoliaPosterChromeSpec.ControlVisualSize)
+            .coerceIn(9.dp, 17.dp)
+
+        Text(
+            text = stringResource(
+                when {
+                    isCurrent -> R.string.now_playing
+                    item.type == LibraryItemType.Folder -> R.string.folder_type
+                    else -> R.string.audio_type
+                },
+            ),
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(
+                    start = inset,
+                    top = maxHeight * FoliaPosterChromeSpec.StatusTop,
+                )
+                .background(Color(0x7810141B), RoundedCornerShape(1.dp))
+                .padding(horizontal = 3.dp, vertical = 1.dp),
+            color = accentForPoster(accent).copy(alpha = 0.88f),
+            fontSize = statusFont,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(
+                    start = inset,
+                    top = maxHeight * FoliaPosterChromeSpec.HeaderTop,
+                )
+                .width(maxWidth * FoliaPosterChromeSpec.HeaderTitleWidth),
+        ) {
+            Text(
+                text = item.title,
+                color = Color.White.copy(alpha = 0.94f),
+                fontSize = headerTitleFont,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelLarge.copy(
+                    shadow = Shadow(Color.Black.copy(alpha = 0.9f), Offset(0f, 1f), 5f),
+                ),
+            )
+            Text(
+                text = item.detailLine(),
+                color = Color.White.copy(alpha = 0.62f),
+                fontSize = metadataFont,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    shadow = Shadow(Color.Black.copy(alpha = 0.86f), Offset(0f, 1f), 4f),
+                ),
+            )
+        }
+
+        if (lyricFrame != null) {
+            FoliaCoverLyricsOverlay(
+                frame = lyricFrame,
+                document = lyricDocument,
+                positionMs = playbackState.positionMs,
+                isPlaying = isPlaying,
+                wordGlowMode = wordGlowMode,
+                accent = accent,
+                shadeAlpha = shadeAlpha,
+                motionPercent = motionPercent,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        if (item.type == LibraryItemType.Audio) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(
+                        start = inset,
+                        top = maxHeight * FoliaPosterChromeSpec.ControlsTop,
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(1.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FoliaPosterControl(
+                    icon = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    label = stringResource(if (isPlaying) R.string.pause else R.string.play),
+                    onClick = onPlayPause,
+                    touchSize = controlTouchSize,
+                    iconSize = controlVisualSize,
+                )
+                if (isCurrent) {
+                    FoliaPosterControl(
+                        icon = Icons.Default.SkipPrevious,
+                        label = stringResource(R.string.previous_track),
+                        onClick = onPrevious,
+                        touchSize = controlTouchSize,
+                        iconSize = controlVisualSize,
+                    )
+                    FoliaPosterControl(
+                        icon = Icons.Default.SkipNext,
+                        label = stringResource(R.string.next_track),
+                        onClick = onNext,
+                        touchSize = controlTouchSize,
+                        iconSize = controlVisualSize,
+                    )
+                }
+                if (onOpenLyrics != null) {
+                    FoliaPosterControl(
+                        icon = Icons.Default.Subtitles,
+                        label = stringResource(R.string.subtitle_detail),
+                        onClick = onOpenLyrics,
+                        touchSize = controlTouchSize,
+                        iconSize = controlVisualSize,
+                        selected = true,
+                    )
+                }
+                FoliaPosterControl(
+                    icon = Icons.Default.Close,
+                    label = stringResource(R.string.clear_focus),
+                    onClick = onClearFocus,
+                    touchSize = controlTouchSize,
+                    iconSize = controlVisualSize,
+                )
+            }
+        } else {
+            FoliaPosterControl(
+                icon = Icons.Default.Close,
+                label = stringResource(R.string.clear_focus),
+                onClick = onClearFocus,
+                touchSize = controlTouchSize,
+                iconSize = controlVisualSize,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(
+                        start = inset,
+                        top = maxHeight * FoliaPosterChromeSpec.ControlsTop,
+                    ),
+            )
+        }
+
+        if (isCurrent) {
+            Text(
+                text = "${formatPlaybackTime(playbackState.positionMs)} / " +
+                    if (playbackState.hasDuration) {
+                        formatPlaybackTime(playbackState.durationMs)
+                    } else {
+                        stringResource(R.string.unknown_duration)
+                    },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(
+                        start = maxWidth * 0.47f,
+                        top = maxHeight * (FoliaPosterChromeSpec.ControlsTop + 0.012f),
+                    ),
+                color = Color.White.copy(alpha = 0.62f),
+                fontSize = metadataFont,
+                maxLines = 1,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    shadow = Shadow(Color.Black.copy(alpha = 0.9f), Offset(0f, 1f), 4f),
+                ),
+            )
+            FoliaPosterSeekBar(
+                playbackState = playbackState,
+                onSeekTo = onSeekTo,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(
+                        start = inset,
+                        top = maxHeight * FoliaPosterChromeSpec.ProgressTop,
+                        end = inset,
+                    )
+                    .fillMaxWidth()
+                    .height((maxHeight * 0.034f).coerceIn(8.dp, 16.dp)),
+            )
+        }
+    }
+}
+
+private fun accentForPoster(accent: Color): Color = if (accent.luminance() < 0.46f) {
+    lerp(accent, Color.White, 0.52f)
+} else {
+    accent
+}
+
+@Composable
+private fun FoliaCoverLyricsOverlay(
+    frame: CoverLyricsFrame,
+    document: TimedTextDocument?,
+    positionMs: Long,
+    isPlaying: Boolean,
+    wordGlowMode: LyricsWordGlowMode,
+    accent: Color,
+    shadeAlpha: Float,
+    motionPercent: Int,
+    modifier: Modifier = Modifier,
+) {
+    val duration = wallMotionDuration(280, motionPercent)
+    val readableAccent = accentForPoster(accent)
+    AnimatedContent(
+        targetState = frame,
+        contentKey = { it.currentIndex },
+        transitionSpec = {
+            fadeIn(tween(duration)) togetherWith fadeOut(tween(duration))
+        },
+        contentAlignment = Alignment.Center,
+        label = "foliaCoverLyrics",
+        modifier = modifier,
+    ) { shown ->
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val timeline = remember(document, shown.currentIndex, wordGlowMode) {
+                document?.coverLyricsGlowTimeline(shown, wordGlowMode)
+            }
+            // A cover-wide field, not a pill around the words. The active line gets
+            // the deepest part while the artwork is still readable above it.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            0.28f to Color.Transparent,
+                            0.42f to Color.Black.copy(alpha = shadeAlpha * 0.24f),
+                            0.52f to Color.Black.copy(alpha = shadeAlpha * 0.62f),
+                            0.72f to Color.Black.copy(alpha = shadeAlpha * 0.38f),
+                            0.86f to Color.Transparent,
+                        ),
+                    ),
+            )
+            val previousSize = (maxWidth.value * FoliaPosterChromeSpec.PreviousLyricFont)
+                .coerceIn(9f, 20f).sp
+            val currentSize = (maxWidth.value * FoliaPosterChromeSpec.CurrentLyricFont)
+                .coerceIn(12f, 30f).sp
+            val followingSize = (maxWidth.value * FoliaPosterChromeSpec.FollowingLyricFont)
+                .coerceIn(9f, 20f).sp
+
+            if (shown.previous != null) {
+                Text(
+                    text = shown.previous,
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .offset(
+                            y = maxHeight *
+                                (FoliaPosterChromeSpec.PreviousLyricCenter - 0.5f),
+                        )
+                        .padding(start = maxWidth * FoliaPosterChromeSpec.ContextInset)
+                        .width(maxWidth * FoliaPosterChromeSpec.PreviousLyricWidth)
+                        .blur(0.7.dp),
+                    color = readableAccent.copy(alpha = 0.58f),
+                    fontSize = previousSize,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Start,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        shadow = Shadow(Color.Black.copy(alpha = 0.92f), Offset(0f, 2f), 8f),
+                    ),
+                )
+            }
+            GlowingLyricText(
+                text = shown.current,
+                timeline = timeline,
+                positionMs = positionMs,
+                isPlaying = isPlaying,
+                accent = readableAccent,
+                motionPercent = motionPercent,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .offset(
+                        y = maxHeight *
+                            (FoliaPosterChromeSpec.CurrentLyricCenter - 0.5f),
+                    )
+                    .padding(start = maxWidth * FoliaPosterChromeSpec.HorizontalInset)
+                    .width(maxWidth * FoliaPosterChromeSpec.CurrentLyricWidth),
+                restingColor = readableAccent.copy(alpha = 0.94f),
+                fontSize = currentSize,
+                lineHeight = currentSize * 1.12f,
+                fontWeight = FontWeight.ExtraBold,
+                textAlign = TextAlign.Start,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textStyle = MaterialTheme.typography.headlineMedium.copy(
+                    shadow = Shadow(Color.Black.copy(alpha = 0.94f), Offset(0f, 2f), 9f),
+                ),
+            )
+            if (shown.next != null) {
+                Text(
+                    text = shown.next,
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .offset(
+                            y = maxHeight *
+                                (FoliaPosterChromeSpec.FollowingLyricCenter - 0.5f),
+                        )
+                        .padding(start = maxWidth * FoliaPosterChromeSpec.HorizontalInset)
+                        .width(maxWidth * FoliaPosterChromeSpec.FollowingLyricWidth),
+                    color = Color.White.copy(alpha = 0.52f),
+                    fontSize = followingSize,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Start,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        shadow = Shadow(Color.Black.copy(alpha = 0.9f), Offset(0f, 1f), 5f),
+                    ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FoliaPosterControl(
+    icon: ImageVector,
+    label: String,
+    onClick: (() -> Unit)?,
+    touchSize: androidx.compose.ui.unit.Dp,
+    iconSize: androidx.compose.ui.unit.Dp,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+) {
+    val enabled = onClick != null
+    Box(
+        modifier = modifier
+            .size(touchSize)
+            .clip(RoundedCornerShape(if (selected) 4.dp else touchSize / 2))
+            .background(
+                when {
+                    selected -> Color.White.copy(alpha = 0.18f)
+                    else -> Color.Black.copy(alpha = 0.12f)
+                },
+            )
+            .clickable(enabled = enabled) { onClick?.invoke() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            modifier = Modifier.size(iconSize),
+            tint = Color.White.copy(alpha = if (enabled) 0.92f else 0.30f),
+        )
+    }
+}
+
+/** Thin Folia-style progress line with a larger invisible drag band. */
+@Composable
+private fun FoliaPosterSeekBar(
+    playbackState: PlaybackState,
+    onSeekTo: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var scrubFraction by remember(playbackState.mediaId) { mutableStateOf<Float?>(null) }
+    val shownFraction = scrubFraction ?: playbackState.progress
+    val enabled = playbackState.hasDuration
+    Canvas(
+        modifier = modifier
+            .semantics {
+                progressBarRangeInfo = ProgressBarRangeInfo(shownFraction, 0f..1f)
+                if (enabled) {
+                    setProgress { requested ->
+                        onSeekTo(playbackState.positionForFraction(requested))
+                        true
+                    }
+                }
+            }
+            .pointerInput(playbackState.mediaId, playbackState.durationMs, enabled) {
+                if (!enabled) return@pointerInput
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    fun fractionAt(x: Float): Float = (x / size.width).coerceIn(0f, 1f)
+                    var latest = fractionAt(down.position.x)
+                    scrubFraction = latest
+                    do {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: break
+                        latest = fractionAt(change.position.x)
+                        scrubFraction = latest
+                        change.consume()
+                    } while (change.pressed)
+                    onSeekTo(playbackState.positionForFraction(latest))
+                    scrubFraction = null
+                }
+            },
+    ) {
+        val centerY = size.height / 2f
+        val stroke = 1.dp.toPx()
+        drawLine(
+            color = Color.White.copy(alpha = if (enabled) 0.34f else 0.16f),
+            start = Offset(0f, centerY),
+            end = Offset(size.width, centerY),
+            strokeWidth = stroke,
+        )
+        val activeX = size.width * shownFraction.coerceIn(0f, 1f)
+        drawLine(
+            color = Color.White.copy(alpha = if (enabled) 0.92f else 0.34f),
+            start = Offset(0f, centerY),
+            end = Offset(activeX, centerY),
+            strokeWidth = stroke,
+        )
+        if (enabled) {
+            drawCircle(
+                color = Color.White.copy(alpha = 0.96f),
+                radius = 1.7.dp.toPx(),
+                center = Offset(activeX, centerY),
+            )
+        }
+    }
+}
+
+/**
+ * Three-line lyric scene for the expanded playing poster.
+ *
+ * It is deliberately centred rather than reusing the full reader's scrolling
+ * anchor: a cover is a finite visual composition, not a document. Context lines
+ * blur and recede, the active line takes the focus palette, and line changes use
+ * the global motion percentage. A palette-derived black field protects text on
+ * bright artwork without permanently blurring the cover bitmap.
+ */
+@Composable
+private fun CoverLyricsOverlay(
+    frame: CoverLyricsFrame,
+    document: TimedTextDocument?,
+    positionMs: Long,
+    isPlaying: Boolean,
+    wordGlowMode: LyricsWordGlowMode,
+    accent: Color,
+    shadeAlpha: Float,
+    motionPercent: Int,
+    showContext: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val duration = wallMotionDuration(280, motionPercent)
+    val readableAccent = if (accent.luminance() < 0.46f) {
+        lerp(accent, Color.White, 0.52f)
+    } else {
+        accent
+    }
+    AnimatedContent(
+        targetState = frame,
+        contentKey = { it.currentIndex },
+        transitionSpec = {
+            (fadeIn(tween(duration)) + scaleIn(tween(duration), initialScale = 0.96f)) togetherWith
+                (fadeOut(tween(duration)) + scaleOut(tween(duration), targetScale = 1.025f))
+        },
+        contentAlignment = Alignment.Center,
+        label = "coverLyrics",
+        modifier = modifier,
+    ) { shown ->
+        val timeline = remember(document, shown.currentIndex, wordGlowMode) {
+            document?.coverLyricsGlowTimeline(shown, wordGlowMode)
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = shadeAlpha),
+                            Color.Black.copy(alpha = shadeAlpha * 0.78f),
+                            Color.Transparent,
+                        ),
+                        radius = 520f,
+                    ),
+                    shape = RoundedCornerShape(22.dp),
+                )
+                .padding(horizontal = 18.dp, vertical = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (showContext && shown.previous != null) {
+                CoverLyricContextLine(shown.previous, blurRadius = 1.8f, alpha = 0.52f)
+            }
+            GlowingLyricText(
+                text = shown.current,
+                timeline = timeline,
+                positionMs = positionMs,
+                isPlaying = isPlaying,
+                accent = readableAccent,
+                motionPercent = motionPercent,
+                restingColor = readableAccent,
+                fontSize = 20.sp,
+                lineHeight = 24.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                textStyle = MaterialTheme.typography.titleMedium.copy(
+                    shadow = Shadow(Color.Black.copy(alpha = 0.92f), Offset(0f, 2f), 8f),
+                ),
+            )
+            if (showContext && shown.next != null) {
+                CoverLyricContextLine(shown.next, blurRadius = 1.2f, alpha = 0.68f)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoverLyricContextLine(text: String, blurRadius: Float, alpha: Float) {
+    Text(
+        text = text,
+        modifier = Modifier.blur(blurRadius.dp),
+        color = Color.White.copy(alpha = alpha),
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Medium,
+        textAlign = TextAlign.Center,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        style = MaterialTheme.typography.bodyMedium.copy(
+            shadow = Shadow(Color.Black.copy(alpha = 0.88f), Offset(0f, 1f), 6f),
+        ),
+    )
 }
 
 /**

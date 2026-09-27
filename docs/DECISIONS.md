@@ -212,7 +212,7 @@ group among several, and a settings screen whose whole first screen is colour re
 as if colour were all there is to set. Groups open in place, one at a time, and
 nothing is open on arrival.
 
-## D-013 — Timed text reports what it actually has, and never invents timing
+## D-013 — Parsing reports source truth; visual estimates stay presentation-only
 
 A matched subtitle is turned into one normalized model -- lines with optional word
 times plus a separate list of untimed lines -- and every surface reads that model.
@@ -222,6 +222,11 @@ Nothing downstream decides what a file meant.
   apart in their own list and the surface says it cannot follow the file. Spacing
   them across the track's duration would make a lyric sheet look synced while being
   wrong from the first line to the last, which is worse than saying so.
+- **A line-timed file remains line-timed in the normalized model.** The optional
+  Smart word-glow presentation may derive a temporary grapheme timeline from a
+  line's real start/end (or the next LRC line's start), but it labels that timeline
+  estimated and never writes it into `TimedTextLine.words`, Room or the source file.
+  `Exact only` remains available for people who prefer no inferred progress.
 - **A bare time tag is a pause, not a line.** `[00:28.34]` with no text after it
   produces no lyric line, so the previous line stays current through the silence
   rather than the reader seeing an empty row they cannot read or seek to. Real files
@@ -250,3 +255,82 @@ Nothing downstream decides what a file meant.
 Timed-text parsing stays outside visualizer scenes and is cached by document
 identity -- URI, size and modified time -- so an edited file is re-read rather than
 served stale.
+
+## D-014 — Cover lyrics are a bounded scene owned by focus and playback together
+
+Lyrics appear on a wall card only while that card is both focused and the current
+Media3 item. Browsing focus alone must not start a lyric clock, and playback alone
+must not paint words onto an unrelated focused cover. Moving focus, changing track,
+leaving the wall or opening another surface clears the old request immediately.
+The wall reuses D-013's parsed-document stream and playback position; it never
+parses files or runs a second timer.
+
+The cover scene holds at most previous/current/next rather than composing the full
+document. The Bento wall keeps the compact centred composition. The Folia wall is
+instead a measured poster composition: header near 10% height, the current line's
+own centre exactly at 50%, context-line centres at 35.5% and 64.5%, the transport
+band near 88% and a thin progress line near 95%. These normalized positions follow
+the poster's own dimensions, so square, portrait and landscape focus shapes share
+one visual hierarchy rather than a collection of phone-dp exceptions. The full
+reader keeps its separate three-line lead-in because it is a scrolling document,
+not a poster. Untimed text is not animated as if it followed playback.
+
+An ordinary Folia poster uses the same near-square edge, shade and lower-left type
+hierarchy as the hero, but never inherits its lyric or transport chrome. It keeps
+only artwork, a small truthful folder/audio discriminator, title and metadata.
+
+Readability comes from a local black field whose alpha is derived from the bounded
+focused-cover palette. Bright artwork receives more shade, dark artwork less. The
+bitmap itself is not permanently blurred; only context text receives a restrained
+blur/alpha treatment. Line transitions use the global motion percentage. Folia's
+small bottom icons and progress line retain real play/pause, previous/next, seek,
+lyrics-detail and clear-focus actions; visual parity must never be obtained with
+dead replica buttons.
+
+## D-015 — The first immersive lyric visualizer is a bounded Media3 view
+
+The first full-screen lyric scene replaces the app bar with its own translucent
+back/title overlay and reuses the full player's navigation ownership. It receives
+the current `PlaybackState`, normalized timed document, cover artwork and bounded
+cover palette; it never creates a player, reparses a file or runs a permanent frame
+loop. The palette request is for one current cover and is cancelled with the scene.
+
+The scene composes at most two previous and two next lines. A line-index change
+cross-fades and moves in the seek direction using the global motion percentage;
+zero percent changes immediately. Word glow can be off, exact-only, or Smart. Smart
+prefers source word timestamps, then derives a presentation-only grapheme timeline
+from a line-timed LRC/SRT/VTT; untimed text never enters the scene. Tapping any
+visible line and the bottom slider both seek the shared Media3 session, while
+previous/play/next controls remain real session actions.
+
+Only a timed document for the item Media3 is actually playing enters this scene.
+Before the first line, the first line is a dim preview rather than an early current
+line. Loading, missing, unreadable, empty, untimed and timed-but-non-current states
+keep the existing diagnostic/scrolling reader. Portrait shows five lyric tiers;
+short landscape space drops the two far tiers and reduces type so transport and
+lyrics do not overlap. The background may use one static blurred cover and cached
+palette gradients, but no audio-reactive shader or continuously animated field is
+part of V1.
+
+## D-016 — Visualizer modes are few, durable and share one truthful clock
+
+Phase 6 begins with three Compose modes rather than a large preset catalogue:
+`Flow` keeps the accepted centred five-tier scene, `Poster` uses Folia-like
+left-aligned hierarchy over a clearer cover, and `Spotlight` reduces the scene to one
+dominant line plus a next-line cue. Each mode changes composition, cover treatment
+and transition language, but all consume the same bounded frame, parsed document
+and Media3 state. The selected mode persists and unknown stored ordinals fall back
+to `Flow`.
+
+Word glow is an independent persisted three-way setting: Off, Smart (default), and
+Exact only. Smart prefers real word timestamps and otherwise derives display
+grapheme intervals from the line's real timing. The derived intervals are explicitly
+presentation state and never enrich the parsed document. Exact only preserves the
+old strict behaviour, while Off returns the whole line to normal.
+
+The wall's bottom-right entry and its panels use a frosted-glass visual treatment:
+translucent surfaces, a light edge, internal highlight and restrained shadow. The
+panel grows and fades from the button's bottom-right origin, and global motion 0%
+makes that transition immediate. This is not a live backdrop-filter implementation;
+capturing and blurring a moving wall would sit on the gesture hot path and is deferred
+until a real phone proves the cost acceptable.

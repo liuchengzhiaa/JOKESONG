@@ -63,6 +63,8 @@ import com.example.asmrplayer.feature.library.LibraryLayoutMode
 import com.example.asmrplayer.feature.library.LibraryLayoutSwitcher
 import com.example.asmrplayer.feature.library.LibraryUiState
 import com.example.asmrplayer.feature.subtitles.SubtitleDetailState
+import com.example.asmrplayer.feature.subtitles.LyricsVisualizerMode
+import com.example.asmrplayer.feature.subtitles.LyricsWordGlowMode
 
 private data class Destination(
     val label: Int,
@@ -93,6 +95,8 @@ fun AsmrPlayerApp(
     onUiStylePresetChange: (Int) -> Unit,
     onUiAccentPaletteChange: (Int) -> Unit,
     onUiScalePercentChange: (Int) -> Unit,
+    onLyricsVisualizerModeChange: (Int) -> Unit,
+    onLyricsWordGlowModeChange: (Int) -> Unit,
     onResetAppearanceDefaults: () -> Unit,
     onOpenSubtitleDetail: (String) -> Unit,
     onCloseSubtitleDetail: () -> Unit,
@@ -134,13 +138,25 @@ fun AsmrPlayerApp(
         showSubtitleDetail = false
     }
 
-    // The surface always shows the lyrics of whatever the player is on, so a queue
-    // advance while it is open loads the next track's file instead of leaving the
-    // previous track's lines on screen.
-    LaunchedEffect(showSubtitleDetail, fullPlayerItem?.id) {
-        val itemId = fullPlayerItem?.id
-        if (showSubtitleDetail && itemId != null) {
-            onOpenSubtitleDetail(itemId)
+    // One parsed-document stream serves both lyric surfaces. The full-screen reader
+    // wins while it is open; otherwise a wall requests lyrics only when the visual
+    // subject is also the current Media3 item. Moving focus or leaving a wall clears
+    // the old document immediately, so another cover can never inherit its words.
+    val focusedPlayingWallItemId = playbackState.mediaId?.takeIf { mediaId ->
+        fullPlayerItem == null &&
+            selectedDestination == 0 &&
+            (layoutMode == LibraryLayoutMode.FocusWall ||
+                layoutMode == LibraryLayoutMode.FoliaWall) &&
+            libraryState.focusedItemId == mediaId
+    }
+    val requestedSubtitleItemId = if (showSubtitleDetail) {
+        fullPlayerItem?.id
+    } else {
+        focusedPlayingWallItemId
+    }
+    LaunchedEffect(requestedSubtitleItemId) {
+        if (requestedSubtitleItemId != null) {
+            onOpenSubtitleDetail(requestedSubtitleItemId)
         } else {
             onCloseSubtitleDetail()
         }
@@ -153,12 +169,13 @@ fun AsmrPlayerApp(
         modifier = Modifier.fillMaxSize(),
         containerColor = if (fullPlayerItem != null) Color(0xFF090A0D) else MaterialTheme.colorScheme.background,
         topBar = {
-            CenterAlignedTopAppBar(
+            // The lyric scene owns its small translucent back/title overlay. Keeping
+            // the app bar here would make it a player page with a visualizer below,
+            // rather than the full-screen scene promised by phase 5.
+            if (!showSubtitleDetail) CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = if (showSubtitleDetail) {
-                            stringResource(R.string.subtitle_detail)
-                        } else fullPlayerItem?.title
+                        text = fullPlayerItem?.title
                             ?: libraryState.folderTitle.ifBlank { stringResource(R.string.folders) },
                         maxLines = 1,
                     )
@@ -253,8 +270,21 @@ fun AsmrPlayerApp(
                         item = fullPlayerItem,
                         subtitles = subtitleState,
                         playbackState = playbackState,
+                        motionPercent = libraryState.motionPercent,
+                        visualizerMode = LyricsVisualizerMode.fromOrdinal(
+                            libraryState.lyricsVisualizerOrdinal,
+                        ),
+                        wordGlowMode = LyricsWordGlowMode.fromOrdinal(
+                            libraryState.lyricsWordGlowModeOrdinal,
+                        ),
+                        onVisualizerModeChange = {
+                            onLyricsVisualizerModeChange(it.ordinal)
+                        },
+                        onBack = { showSubtitleDetail = false },
                         onTogglePlayPause = onTogglePlayPause,
                         onSeekTo = onSeekTo,
+                        onPrevious = onPrevious.takeIf { playbackState.hasPrevious },
+                        onNext = onNext.takeIf { playbackState.hasNext },
                     )
                 } else {
                     PlayerDetail(
@@ -277,6 +307,7 @@ fun AsmrPlayerApp(
                 LibraryContent(
                     state = libraryState,
                     playbackState = playbackState,
+                    subtitleState = subtitleState,
                     layoutMode = layoutMode,
                     onLayoutModeChange = { onLibraryLayoutChange(it.ordinal) },
                     onChooseRoot = onChooseRoot,
@@ -285,6 +316,10 @@ fun AsmrPlayerApp(
                     onOpenPlayer = {
                         showSubtitleDetail = false
                         fullPlayerItemId = it.id
+                    },
+                    onOpenLyrics = {
+                        fullPlayerItemId = it.id
+                        showSubtitleDetail = true
                     },
                     onFocusedItemChange = onFocusedItemChange,
                     onViewportChange = onViewportChange,
@@ -300,6 +335,8 @@ fun AsmrPlayerApp(
                     onRevealPlayingItem = onRevealPlayingItem,
                     onTogglePlayPause = onTogglePlayPause,
                     onSeekTo = onSeekTo,
+                    onPrevious = onPrevious,
+                    onNext = onNext,
                 )
             } else if (selectedDestination == 3) {
                 SettingsScreen(
@@ -310,6 +347,7 @@ fun AsmrPlayerApp(
                     onUiAccentPaletteChange = onUiAccentPaletteChange,
                     onMotionPercentChange = onMotionPercentChange,
                     onUiScalePercentChange = onUiScalePercentChange,
+                    onLyricsWordGlowModeChange = onLyricsWordGlowModeChange,
                     onResetAppearanceDefaults = onResetAppearanceDefaults,
                 )
             } else {
@@ -326,12 +364,14 @@ fun AsmrPlayerApp(
 private fun LibraryContent(
     state: LibraryUiState,
     playbackState: PlaybackState,
+    subtitleState: SubtitleDetailState,
     layoutMode: LibraryLayoutMode,
     onLayoutModeChange: (LibraryLayoutMode) -> Unit,
     onChooseRoot: () -> Unit,
     onRefresh: () -> Unit,
     onOpenFolder: (LibraryItem) -> Unit,
     onOpenPlayer: (LibraryItem) -> Unit,
+    onOpenLyrics: (LibraryItem) -> Unit,
     onFocusedItemChange: (String?) -> Unit,
     onViewportChange: (Float, Float, Float) -> Unit,
     onWallDensityChange: (Int) -> Unit,
@@ -346,6 +386,8 @@ private fun LibraryContent(
     onRevealPlayingItem: (String) -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
 ) {
     val focusedItemId = state.focusedItemId
     BackHandler(enabled = focusedItemId != null) { onFocusedItemChange(null) }
@@ -490,12 +532,19 @@ private fun LibraryContent(
                     contentKey = state.folderKey,
                     focusedItemId = focusedItemId,
                     playbackState = playbackState,
+                    subtitleState = subtitleState,
+                    wordGlowMode = LyricsWordGlowMode.fromOrdinal(
+                        state.lyricsWordGlowModeOrdinal,
+                    ),
                     viewportState = viewportState,
                     style = FocusWallStyle.Bento,
                     onFocusedItemChange = onFocusedItemChange,
                     onRevealPlayingItem = revealPlayingItem,
                     onTogglePlayPause = onTogglePlayPause,
                     onSeekTo = onSeekTo,
+                    onPrevious = onPrevious,
+                    onNext = onNext,
+                    onOpenLyrics = onOpenLyrics,
                     onDensityChange = onWallDensityChange,
                     onFocusShapeChange = onWallFocusShapeChange,
                     onFocusSizeChange = onWallFocusSizeChange,
@@ -523,12 +572,19 @@ private fun LibraryContent(
                     contentKey = "${state.folderKey}:folia",
                     focusedItemId = focusedItemId,
                     playbackState = playbackState,
+                    subtitleState = subtitleState,
+                    wordGlowMode = LyricsWordGlowMode.fromOrdinal(
+                        state.lyricsWordGlowModeOrdinal,
+                    ),
                     viewportState = foliaViewportState,
                     style = FocusWallStyle.Folia,
                     onFocusedItemChange = onFocusedItemChange,
                     onRevealPlayingItem = revealPlayingItem,
                     onTogglePlayPause = onTogglePlayPause,
                     onSeekTo = onSeekTo,
+                    onPrevious = onPrevious,
+                    onNext = onNext,
+                    onOpenLyrics = onOpenLyrics,
                     onDensityChange = onWallDensityChange,
                     onFocusShapeChange = onWallFocusShapeChange,
                     onFocusSizeChange = onWallFocusSizeChange,

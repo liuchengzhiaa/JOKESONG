@@ -49,7 +49,7 @@ first direct image for now. Embedded audio artwork and recursive child-folder
 fallback are still pending, so the full product artwork precedence is not yet
 complete.
 
-## Current slice: Folia presentation plan and phase 1 ambient light
+## Current slice: Folia presentation roadmap through immersive lyrics V1
 
 The owner asked that the complete Folia research and recommended implementation
 sequence become repository state so Codex and manually started Claude Code can
@@ -464,17 +464,350 @@ explicit request, which is how the crash was found rather than guessed at:
   between the focus tap and the activate tap, so a coordinate aimed at one cover
   landed on a neighbour. Reaching a named track is better done by the owner.
 
-Still not settled by that run, and left for the phase-4 visual layer: whether the
-lines are legible over a bright cover, and whether the three-line lead-in is the
-right anchor.
+Those two questions now have an implementation answer in the Codex phase-4 slice
+below, but still need the owner's visual acceptance on the phone.
+
+### Codex slice: lyrics on the focused/current cover
+
+Phase 4 is implemented in the current working tree without adding another parser,
+subtitle cache or playback timer:
+
+- `AsmrPlayerApp` chooses one subtitle request. The full-screen reader wins while
+  open; otherwise a wall requests the item only when the selected layout is a wall
+  and `focusedItemId == PlaybackState.mediaId`. Moving focus, advancing the queue,
+  leaving the wall or opening another surface clears the old state immediately.
+- `feature/subtitles/CoverLyrics.kt` is a pure bounded projection. It asks the
+  shared `TimedTextDocument` for the line at Media3 position and returns at most
+  previous/current/next. Before the first timed line, for an untimed document, or
+  without a readable match, the cover scene is absent rather than invented.
+- `FocusCoverCard` mounts that scene only for the focused current audio. Bento keeps
+  the earlier compact centred scene. Folia has a separate measured poster chrome in
+  `FoliaPosterChromeSpec`: the status/title are upper-left, the current line's own
+  centre is at 50%, and context centres are exactly equidistant at
+  35.5%/64.5%, controls sit near 88% and a thin progress line sits near 95%. Those are
+  proportions of the focused card, not fixed phone pixels. The current font factor is
+  0.070 (down from 0.094), with a 12--30 sp safety clamp. Four pure tests pin line
+  ordering, exact symmetry, insets and typographic scale.
+- The focused palette already decoded for the border and ambient light also drives
+  a pure 36%--72% local shade: the brightest representative colour decides how
+  much black the text needs. The bitmap itself is not blurred. A dark cover keeps
+  more artwork; a bright cover receives more protection.
+- Folia replaces the large type badge, filled 48 dp play button and Material slider
+  with the reference's tiny status tag, small lower-left icons and a hairline seek
+  track. Every shown icon is live: play/pause, available previous/next, direct lyrics
+  detail and clear focus. The seek line has a larger invisible drag band and progress
+  semantics. No fake repeat/queue icons were added while those destinations do not
+  exist.
+- Ordinary Folia cards no longer fall through to the generic wall card. They use
+  the same 2 dp corner and subdued poster shade, a proportional lower-left title and
+  metadata, and a tiny square folder/audio discriminator. They deliberately omit the
+  generic round type icon, now-playing pill, lyrics and transport controls.
+
+Pure coverage in `CoverLyricsTest` verifies the bounded three-line window, edge
+clamping, absence before timing/for untimed text, adaptive shade ordering and the
+empty-palette fallback. The first verification run on 2026-09-27 completed:
+
+```powershell
+$env:GRADLE_USER_HOME='C:\Users\LiuDeZhou\.gradle'
+$env:TEMP='C:\jtmp'
+$env:TMP='C:\jtmp'
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle testDebugUnitTest lintDebug
+```
+
+- `testDebugUnitTest`: **203/203 passed**, 29 suites, 0 failures, 0 errors, 0 skipped.
+- Kotlin compilation succeeded with only the same three deprecation warnings
+  already present in `AsmrPlayerApp.kt` and `PlayerDetail.kt`.
+- `lintDebug`: **BUILD SUCCESSFUL**, 0 errors and 16 warnings, matching the
+  pre-slice warning count; no warning points at a file added by this slice.
+- `git diff --check`: clean apart from Git's informational LF-to-CRLF notices.
+- No APK was installed or app launched; per the owner's standing instruction, he
+  runs the build unless he explicitly asks the agent to do so.
+
+Real-device review remains mandatory. Use a bright-cover track with a timed file,
+focus it, start playback and inspect square plus portrait/landscape/full-cover
+heroes. Confirm the Folia title, lyric tiers, icon row and progress line match the
+reference's relative positions and remain usable; confirm the shade is sufficient,
+context does not collide with transport and focus/track changes never leave stale
+words. Android regex behavior was not changed in this slice, but the existing ICU
+warning still applies to any future parser edit.
+
+### Codex slice: focus-wall frame-path optimization
+
+The owner reported that the accepted visuals felt low-frame-rate and asked for an
+optimization that changed no feature. The current working tree therefore keeps the
+same layout, focus policy, lighting, lyrics, seek/playback actions and transitions,
+but removes avoidable work from the wall's hot paths:
+
+- `FocusCoverWall` wraps the changing `PlaybackState` in a stable state holder and
+  passes stable identity/transport flags to `FocusWallCanvas`. Only the subcomposition
+  of the focused current card reads the live value; ordinary cards no longer observe
+  the 500 ms Media3 position ticker.
+- Distance alpha now follows pan directly. The previous implementation handed every
+  visible card a new alpha target on every drag frame, so every card continuously
+  restarted a 260 ms tween. Only the discrete lights-out fraction is animated now;
+  its final alpha and exemptions are unchanged.
+- One `VisibleWallCard` calculation supplies culling, depth order, alpha and final
+  placement. Screen coordinates and the `hypot`-based depth scale are no longer
+  recalculated up to three times per card per frame. Existing depth draw order is
+  preserved.
+- Near-visible composition remains buffered, but drops from 0.75/0.35 viewport on
+  the vertical/horizontal axes to 0.50/0.25. Exact scaled-card intersection checks
+  remain, so this changes precomposition cost rather than visible content.
+- Stable environment-light brushes and per-poster tint/shade brushes use
+  `drawWithCache`. Each card's three overlay boxes became one cached draw node.
+- Ordinary cards no longer allocate a Material `Surface`, tonal elevation and a
+  3 dp GPU shadow. The tightly packed posters were already clipped/background-filled;
+  the focused card keeps a 12 dp shadow and every clickable/semantic child remains.
+
+Automated verification after the optimization:
+
+```powershell
+$env:GRADLE_USER_HOME='C:\Users\LiuDeZhou\.gradle'
+$env:TEMP='C:\jtmp'
+$env:TMP='C:\jtmp'
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle testDebugUnitTest lintDebug
+```
+
+- `testDebugUnitTest`: **203/203 passed**, 29 suites, 0 failures, 0 errors, 0 skipped.
+- `lintDebug`: **BUILD SUCCESSFUL**, 0 errors and the same 16 warnings.
+- `git diff --check`: clean apart from informational LF-to-CRLF notices.
+- No APK was installed and no app/device was started. Automated tests protect
+  behaviour, not frame time; the owner must compare drag, inertial release, pinch,
+  focus reflow, ambient transition and live-lyric playback on the same phone.
+
+### Codex slice: immersive lyric visualizer V1
+
+After the owner accepted the phase-4 cover lyrics and the frame-path optimization,
+phase 5 was implemented in the same uncommitted working tree:
+
+- `feature/subtitles/ImmersiveLyrics.kt` is the pure scene projection. It retains at
+  most two previous and two next lines, reports no frame before the first line starts
+  and finds the last enhanced-LRC word whose timestamp has begun. Five tests cover
+  bounds, pre-roll truthfulness and word selection.
+- `ui/ImmersiveLyricsScene.kt` is one full-screen Compose scene over the existing
+  Media3 `PlaybackState`. One static blurred cover, the already bounded/cached cover
+  palette and three cached gradients form the background. There is no infinite
+  animation or audio-reactive loop. The palette coroutine belongs to the composition
+  and is cancelled when it leaves.
+- A line-index change cross-fades and moves in the seek direction. Its 380 ms ceiling
+  is scaled by the persisted global motion percentage; 0% swaps immediately. Position
+  ticks update word colour and the transport without retargeting the whole scene
+  animation. Ordinary timed formats retain line timing and do not receive invented
+  word timing.
+- Portrait composes five lyric tiers. A short landscape viewport removes the two far
+  tiers, reduces type and uses a smaller centre slot so lyrics do not overlap the
+  persistent bottom transport. Every visible line seeks to its real timestamp; the
+  slider provides precise seek and previous/play-next call the shared session.
+- `AsmrPlayerApp` hides its ordinary top app bar while subtitle detail is open. The
+  scene and every reader fallback now own a truthful back affordance. A timed document
+  enters the visualizer only when the viewed item is the current Media3 item. Loading,
+  missing, unreadable, empty, untimed and timed-but-non-current states retain the
+  existing diagnostic/scrolling reader.
+
+Verification on 2026-09-27:
+
+```powershell
+$env:GRADLE_USER_HOME='C:\Users\LiuDeZhou\.gradle'
+$env:TEMP='C:\jtmp'
+$env:TMP='C:\jtmp'
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle testDebugUnitTest lintDebug
+```
+
+- `testDebugUnitTest`: **208/208 passed**, 30 suites, 0 failures, 0 errors, 0 skipped.
+- `lintDebug`: **BUILD SUCCESSFUL**, 0 errors and the same 16 warnings.
+- Kotlin compilation succeeded; the existing top-app-bar/ViewList deprecation
+  warnings remain unchanged.
+- `git diff --check`: clean apart from informational LF-to-CRLF notices.
+- No APK was installed and no app/device was launched, following the owner's standing
+  instruction. Phone acceptance is still required for bright-cover contrast,
+  long-line wrapping, enhanced-LRC word colour, portrait/landscape spacing, precise
+  scrub and transition feel at both 100% and 0% motion.
+
+The owner subsequently answered "没问题" and explicitly approved moving to the
+next phase, so phase 5 is accepted even though no agent-driven device run occurred.
+
+### Codex slice: phase-6 registry, word glow and glass wall tools
+
+The first phase-6 slice is implemented in the same working tree:
+
+- `feature/subtitles/LyricsVisualizerMode.kt` is a three-entry registry with stable
+  IDs and defensive ordinal restoration: Flow (the accepted centred scene), Poster
+  (Folia-like left-aligned typography and a clearer cover) and Spotlight (one
+  dominant line plus a next-line cue). A top-right button in the full lyric scene
+  opens the selector, and the choice is persisted through `AppPreferences` and
+  `LibraryUiState`.
+- Each mode has a distinct composition, background treatment and transition: Flow
+  moves vertically, Poster moves horizontally in seek direction and Spotlight
+  fades/scales. All three reuse one `ImmersiveLyricsFrame` and one Media3 clock.
+  Global motion 0% still swaps immediately.
+- Settings gained a separate `歌词与可视化` group with persisted word-glow
+  presentation. This first version was an enhanced-LRC-only switch; the following
+  slice supersedes it with Off / Smart / Exact-only modes while preserving the old
+  preference through migration.
+- The wall's 42 dp bottom-right tools button is now a translucent glass treatment
+  with a one-pixel light edge, internal highlight and restrained shadow. Its panels
+  share the translucent edged material and scale/fade from the button's bottom-right
+  origin; the button icon turns 45 degrees while open. All duration is derived from
+  the global motion percentage.
+- This is deliberately **not live backdrop blur**. Standard Compose blur affects a
+  layer's own pixels, not what is behind it; capturing and filtering the moving wall
+  would add GPU work to the gesture hot path that was just optimized. The current
+  treatment is the safe visual approximation. True backdrop sampling remains an
+  optional, capability-gated experiment after phone profiling.
+
+Verification on 2026-09-27:
+
+- `testDebugUnitTest`: **211/211 passed**, 31 suites, 0 failures, 0 errors, 0 skipped.
+- `lintDebug`: **BUILD SUCCESSFUL**, 0 errors and the same 16 warnings.
+- `LyricsVisualizerModeTest` pins ordinal restoration, unknown-value fallback and
+  unique stable IDs. Existing immersive/timed-text/wall tests remain green.
+- No APK was installed and no app/device was launched.
+
+Phone review should compare all three modes on the same timed track, compare Off /
+Smart / Exact-only glow, rotate during each scene, restart to prove persistence,
+and inspect the wall tool material over both a bright and a dark cover. Judge whether
+the translucent approximation is sufficient before authorizing a costlier live blur.
+
+### Codex slice: Smart grapheme glow for line-timed lyrics
+
+The owner questioned the enhanced-LRC-only restriction after reviewing Folia's
+source. The restriction is removed without weakening D-013's source-truth contract:
+
+- `LyricsWordGlowMode` replaces the Boolean with three stable persisted policies:
+  Off, Smart (default) and Exact only. Existing `lyrics_word_glow=false` migrates to
+  Off; true or an absent preference migrates to Smart. A new ordinal is validated at
+  the feature boundary before entering `LibraryUiState`.
+- `LyricGlowTimeline` is presentation-only. Exact enhanced-LRC word times always
+  win. Smart line-only fallback splits text with Unicode `BreakIterator`, gives CJK
+  graphemes equal weight, groups Latin words with a small length weight, keeps
+  punctuation brief, uses 90% of the line interval for reveal and caps implausibly
+  long plain-LRC gaps with a reading-time bound. The timeline carries Exact or
+  Estimated explicitly and never mutates `TimedTextDocument`.
+- The immersive scene draws two coincident text layers. The body moves from dim to
+  completed white with the active grapheme in the cover-derived accent. A separate
+  transparent layer carries a hot shadow plus a two-grapheme afterglow, so the light
+  can be stronger without making glyph bodies heavy. Its alpha peaks and recedes
+  over the active grapheme interval.
+- Media3 remains the clock of record at its existing 500 ms app-wide rate. A
+  composition-local scheduler wakes only at the next grapheme boundary or at a
+  500 ms resync while the lyric scene is visible and playing; it does not make the
+  wall, player or library observe a faster ticker. The glow layer is removed from
+  accessibility semantics so the same lyric is not announced twice.
+- Settings now explains that Smart estimation affects display only and presents all
+  three policies as explicit radio choices. `resetDefaults()` returns to Smart.
+
+Verification on 2026-09-27:
+
+- `testDebugUnitTest`: **223/223 passed**, 34 suites, 0 failures, 0 errors, 0 skipped.
+- `lintDebug`: **BUILD SUCCESSFUL**, 0 errors, the same 16 warnings and one existing
+  hint. No report entry points at this slice.
+- New coverage pins mode restoration, legacy-Boolean migration, exact-time priority,
+  ordinary-LRC estimation, long-gap bounding, Exact-only refusal, state boundaries
+  and a combining Unicode grapheme.
+- `git diff --check`: clean apart from informational LF-to-CRLF notices.
+- No APK was installed and no emulator/phone UI was launched, following the owner's
+  standing instruction. Phone review remains necessary for shadow strength, very
+  long lines, pause/seek resynchronization and whether 20/13/8 px glow radii feel
+  Folia-like on the actual display.
+
+### Codex slice: Smart grapheme glow on the focused cover
+
+The owner noticed that phase-6 glow initially reached only the full-screen lyric
+scene. It now also reaches the lyric current line on the one focused cover that is
+the current Media3 item:
+
+- `ui/GlowingLyricText.kt` is the shared two-layer renderer and next-boundary
+  scheduler. `ImmersiveLyricsScene` delegates to it instead of retaining a private
+  copy, so the full-screen and cover treatments cannot silently diverge.
+- `CoverLyrics.coverLyricsGlowTimeline` resolves the bounded cover frame back to its
+  matching source line, including exact enhanced-LRC words and the next line start.
+  A text-identity guard prevents an outgoing `AnimatedContent` frame from borrowing
+  the next line's timing during the cross-fade.
+- Both Bento and Folia focused covers receive the persisted Off / Smart / Exact-only
+  mode. Folia preserves its measured 50% vertical anchor, width, type scale and
+  readability shadow; only the current line gains the moving body/reveal and hot
+  two-grapheme afterglow. Context lyrics and ordinary cards stay static.
+- The existing wall performance boundary is preserved: `FocusWallCanvas` still
+  supplies live `PlaybackState` only when a card is both focused and current. No
+  other card creates a glow timeline, scheduler or high-frequency state.
+
+Verification on 2026-09-27:
+
+- Focused-cover narrow test: **BUILD SUCCESSFUL**.
+- `testDebugUnitTest`: **225/225 passed**, 34 suites, 0 failures, 0 errors, 0 skipped.
+- `lintDebug`: **BUILD SUCCESSFUL**, 0 errors, the same 16 warnings and one existing
+  hint; no report item points at this slice.
+- New tests pin Smart cover-timeline reuse, Off behaviour and the outgoing-frame
+  identity guard.
+- No APK was installed and no emulator/phone was launched. Phone review should
+  compare Bento and Folia with Off / Smart / Exact-only, especially glow strength on
+  a bright cover, pause/seek synchronization and long two-line lyrics.
+
+### Claude review round: independent verification of the uncommitted Codex slice
+
+The owner asked for a status review of everything Codex had written since the timed
+text commit. Nothing was modified by this round; the findings are recorded here so
+they survive the next handover.
+
+Verification was re-run rather than read off Codex's own output:
+
+- `testDebugUnitTest --rerun-tasks`: **225/225 passed, 34 suites, 0 failures, 0
+  errors, 0 skipped**, with the result XMLs rewritten at 14:30 on 2026-09-27 -- so
+  this is a genuine execution of the current sources, not a cached report.
+- `lintDebug`: **0 errors, 16 warnings, 1 hint**, the same counts every slice since
+  the appearance work carried.
+- `compileDebugKotlin` executes cleanly; the only warnings are the three
+  pre-existing deprecations (`centerAlignedTopAppBarColors` twice in
+  `AsmrPlayerApp.kt`, `Icons.Filled.ViewList` in `PlayerDetail.kt`).
+
+The performance and ownership claims were checked in the source, not taken from the
+slice notes. All of them hold:
+
+- Only a card that is both focused and current reads the live `PlaybackState`
+  (`FocusCoverWall.kt:1350-1354`); every other card receives an inert constant, and
+  the lyric overlay re-asserts `isFocused && isCurrent` at `:1734-1740`, so an
+  ordinary poster cannot paint words.
+- Dragging no longer retargets a tween per card per frame. The four animated
+  geometry values are **world** placements (`:1318-1337`) while pan is applied
+  through `graphicsLayer` translation (`:1406-1407`), so a drag moves cards without
+  restarting an animation; distance alpha is computed directly (`:1348`).
+- Per-card geometry is calculated once and reused for culling, z-order, depth and
+  placement (`:1264-1291`); the prefetch buffer is 0.50/0.25 viewport (`:175-176`);
+  ordinary cards carry no GPU shadow and the focused card keeps 12 dp (`:1411`).
+- The immersive scene binds its one palette request to the composition
+  (`ImmersiveLyricsScene.kt:116-118`), caches its gradients in `drawWithCache`, and
+  contains no infinite animation.
+- The grapheme scheduler wakes only at the next boundary or a 500 ms resync
+  (`GlowingLyricText.kt:156-162`); Media3's 500 ms tick remains the only app-wide
+  clock.
+- The preference migration is correct: a stored ordinal wins over the legacy
+  Boolean, `false` becomes Off, `true` or absent becomes Smart, and both new
+  ordinals are validated at the ViewModel boundary before entering `LibraryUiState`.
+
+Two findings, both minor, neither reproduced on a device:
+
+1. **A fading-out line borrows the new position's word index.**
+   `ImmersiveLyricsScene.kt:436-437` rebuilds the outgoing frame with the *current*
+   `positionMs`, so under real enhanced-LRC word timing the previous line can light
+   its last word during the 380 ms cross-fade. `CoverLyrics.kt:39` guards exactly
+   this case with a text-identity check; the immersive scene does not. Cosmetic and
+   brief, but worth a look before phase 6 is called done.
+2. **Grapheme segmentation is a second JVM-versus-ICU surface.**
+   `LyricGlowTimeline.kt:218` splits text with `java.text.BreakIterator`, which the
+   JVM implements in the JDK and Android delegates to ICU. This is the same class of
+   divergence that produced the `PatternSyntaxException` crash: the test that pins a
+   combining grapheme proves the JVM's behaviour, not the phone's. The failure mode
+   here is only a wrong glow step for emoji ZWJ sequences and similar, never a
+   crash, but the distinction is worth keeping straight.
 
 ### Where the next agent starts
 
-The slice above is committed as `d187138` on `master`, with the working tree clean
-apart from the untracked `bash.exe.stackdump`. That commit also carries the
-appearance slice that was uncommitted in the tree when this work began (the level
-crests, the grouped settings surface, the accent in the top bar), because those
-files interleave with the timed-text work line by line and could not be separated.
+The timed-text foundation is committed as `d187138`, and the handoff pointer as
+`be04f5f`, both on `master`. Everything Codex wrote after that is **uncommitted**:
+14 modified files and 15 new ones, roughly 2,000 changed lines covering roadmap
+phases 4, 5 and the first slice of 6. Preserve that diff -- and the untracked
+pre-existing `bash.exe.stackdump` -- and commit it before starting another slice,
+since three phases now exist only in a working tree.
 
 Reading order for whoever picks this up next:
 
@@ -482,14 +815,20 @@ Reading order for whoever picks this up next:
 2. This file, from the top: "Current slice" through the section above.
 3. `docs/TASKS.md` -- what is open, and the roadmap ordering.
 4. `docs/DECISIONS.md`, especially D-013 (timed text) and D-004/D-012 (the wall).
-5. `docs/FOLIA_PRESENTATION_PLAN.md` -- **phase 4 is the next slice**: lyrics on the
-   focused/current cover, which is where the two visual questions above get answered.
+5. `docs/FOLIA_PRESENTATION_PLAN.md` -- phase 5 is accepted; phase 6 now includes
+   the registry, glass tools and Smart grapheme glow on both immersive and focused
+   cover current lines. GPU/audio-reactive work still requires profiling.
 6. `docs/ARCHITECTURE.md` -- the module seams and the JVM-versus-ICU testing bullet.
 7. `docs/PRODUCT_SPEC.md`, the "Player and subtitles" section.
 
-The one thing not to repeat: a green JVM unit suite says nothing about regex
-behaviour on the device. Escape every literal brace and bracket, and treat a run on
-the phone as the only proof.
+The safest next action is phone review of Off / Smart / Exact-only on one ordinary
+LRC and one enhanced LRC in both the focused cover and immersive scene, plus the
+three visualizer modes and glass tool treatment, then small value/layout corrections.
+Do not add RuntimeShader,
+audio-reactive loops or live wall backdrop blur before profiling. Also do not repeat
+the parser failure: a green JVM unit suite says nothing about regex behaviour on the
+device. Escape every literal brace and bracket, and treat a run on the phone as the
+only proof.
 
 ## Completed slice: folder snapshots, Media3 playback, card transport, layouts
 

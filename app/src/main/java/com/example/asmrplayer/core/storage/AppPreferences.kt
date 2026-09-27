@@ -15,6 +15,14 @@ import kotlinx.coroutines.flow.map
 
 private val Context.appPreferences by preferencesDataStore(name = "wall_presentation_preferences")
 
+internal fun resolveLyricsWordGlowModeOrdinal(
+    storedOrdinal: Int?,
+    legacyEnabled: Boolean?,
+): Int = storedOrdinal ?: when (legacyEnabled) {
+    false -> 0 // LyricsWordGlowMode.Off
+    else -> AppSettings.DefaultLyricsWordGlowModeOrdinal
+}
+
 /** Process-durable defaults and global presentation choices. */
 data class AppSettings(
     val libraryLayoutOrdinal: Int = DefaultLibraryLayoutOrdinal,
@@ -30,10 +38,16 @@ data class AppSettings(
     val uiStylePresetOrdinal: Int = UiStylePreset.Balanced.ordinal,
     val uiAccentPaletteOrdinal: Int = UiAccentPalette.Ocean.ordinal,
     val uiScalePercent: Int = 100,
+    /** Raw ordinal; the subtitles feature owns the visualizer registry type. */
+    val lyricsVisualizerOrdinal: Int = 0,
+    /** Raw ordinal; the subtitles feature owns the glow-timing policy type. */
+    val lyricsWordGlowModeOrdinal: Int = DefaultLyricsWordGlowModeOrdinal,
 ) {
     companion object {
         // LibraryLayoutMode.FocusWall.ordinal, kept raw so storage owns no UI type.
         const val DefaultLibraryLayoutOrdinal = 3
+        // LyricsWordGlowMode.Smart.ordinal, kept raw so storage owns no UI type.
+        const val DefaultLyricsWordGlowModeOrdinal = 1
     }
 }
 
@@ -69,6 +83,11 @@ class AppPreferences(private val context: Context) {
                 uiAccentPaletteOrdinal = preferences[UiAccentPaletteKey]
                     ?: UiAccentPalette.Ocean.ordinal,
                 uiScalePercent = (preferences[UiScaleKey] ?: 100).coerceIn(85, 120),
+                lyricsVisualizerOrdinal = preferences[LyricsVisualizerKey] ?: 0,
+                lyricsWordGlowModeOrdinal = resolveLyricsWordGlowModeOrdinal(
+                    storedOrdinal = preferences[LyricsWordGlowModeKey],
+                    legacyEnabled = preferences[LegacyLyricsWordGlowKey],
+                ),
             )
         }
 
@@ -95,6 +114,14 @@ class AppPreferences(private val context: Context) {
     suspend fun setUiScalePercent(percent: Int) = edit {
         it[UiScaleKey] = percent.coerceIn(85, 120)
         it[UiStylePresetKey] = UiStylePreset.Custom.ordinal
+    }
+
+    suspend fun setLyricsVisualizer(ordinal: Int) = edit {
+        it[LyricsVisualizerKey] = ordinal.coerceAtLeast(0)
+    }
+
+    suspend fun setLyricsWordGlowMode(ordinal: Int) = edit {
+        it[LyricsWordGlowModeKey] = ordinal.coerceAtLeast(0)
     }
 
     suspend fun applyUiStylePreset(ordinal: Int) {
@@ -128,6 +155,9 @@ class AppPreferences(private val context: Context) {
         val UiStylePresetKey = intPreferencesKey("ui_style_preset")
         val UiAccentPaletteKey = intPreferencesKey("ui_accent_palette")
         val UiScaleKey = intPreferencesKey("ui_scale_percent")
+        val LyricsVisualizerKey = intPreferencesKey("lyrics_visualizer_mode")
+        val LyricsWordGlowModeKey = intPreferencesKey("lyrics_word_glow_mode")
+        val LegacyLyricsWordGlowKey = booleanPreferencesKey("lyrics_word_glow")
         val LegacyPosterTintStrengthKey = intPreferencesKey("wall_poster_tint_strength")
         val LegacyReducedMotionKey = booleanPreferencesKey("wall_reduced_motion")
     }

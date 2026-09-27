@@ -23,12 +23,14 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,6 +51,7 @@ import com.example.asmrplayer.R
 import com.example.asmrplayer.core.settings.UiAccentPalette
 import com.example.asmrplayer.core.settings.UiStylePreset
 import com.example.asmrplayer.feature.library.LibraryUiState
+import com.example.asmrplayer.feature.subtitles.LyricsWordGlowMode
 import com.example.asmrplayer.ui.theme.accent
 import com.example.asmrplayer.ui.theme.accentContentColor
 import kotlin.math.roundToInt
@@ -71,12 +74,14 @@ fun SettingsScreen(
     onUiAccentPaletteChange: (Int) -> Unit,
     onMotionPercentChange: (Int) -> Unit,
     onUiScalePercentChange: (Int) -> Unit,
+    onLyricsWordGlowModeChange: (Int) -> Unit,
     onResetAppearanceDefaults: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Two flags rather than one enum: each is what its own group row renders from,
-    // and opening either closes the other, so the page stays one screen tall.
+    // Each group owns the state it renders. Opening one closes the others so the
+    // settings root remains a short index rather than three nested screens at once.
     var appearanceOpen by rememberSaveable { mutableStateOf(false) }
+    var lyricsOpen by rememberSaveable { mutableStateOf(false) }
     var libraryOpen by rememberSaveable { mutableStateOf(false) }
 
     LazyColumn(
@@ -106,6 +111,7 @@ fun SettingsScreen(
                 expanded = appearanceOpen,
                 onToggle = {
                     appearanceOpen = !appearanceOpen
+                    lyricsOpen = false
                     libraryOpen = false
                 },
             )
@@ -124,6 +130,29 @@ fun SettingsScreen(
         }
         item {
             SettingsGroupRow(
+                titleRes = R.string.settings_lyrics,
+                summaryRes = R.string.settings_lyrics_summary,
+                icon = Icons.Default.Subtitles,
+                expanded = lyricsOpen,
+                onToggle = {
+                    lyricsOpen = !lyricsOpen
+                    appearanceOpen = false
+                    libraryOpen = false
+                },
+            )
+        }
+        if (lyricsOpen) {
+            item {
+                WordGlowModeSettings(
+                    selectedMode = LyricsWordGlowMode.fromOrdinal(
+                        state.lyricsWordGlowModeOrdinal,
+                    ),
+                    onModeChange = { onLyricsWordGlowModeChange(it.ordinal) },
+                )
+            }
+        }
+        item {
+            SettingsGroupRow(
                 titleRes = R.string.settings_library,
                 summaryRes = R.string.settings_library_summary,
                 icon = Icons.Default.FolderOpen,
@@ -131,6 +160,7 @@ fun SettingsScreen(
                 onToggle = {
                     libraryOpen = !libraryOpen
                     appearanceOpen = false
+                    lyricsOpen = false
                 },
             )
         }
@@ -152,6 +182,95 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun WordGlowModeSettings(
+    selectedMode: LyricsWordGlowMode,
+    onModeChange: (LyricsWordGlowMode) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                Icons.Default.Subtitles,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    stringResource(R.string.lyrics_word_glow),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    stringResource(R.string.lyrics_word_glow_description),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+        LyricsWordGlowMode.entries.forEach { mode ->
+            val selected = mode == selectedMode
+            OutlinedCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onModeChange(mode) },
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = if (selected) {
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.46f)
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+                ),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    RadioButton(
+                        selected = selected,
+                        onClick = { onModeChange(mode) },
+                    )
+                    Column(
+                        Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            stringResource(mode.wordGlowLabelResource()),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Text(
+                            stringResource(mode.wordGlowDescriptionResource()),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun LyricsWordGlowMode.wordGlowLabelResource(): Int = when (this) {
+    LyricsWordGlowMode.Off -> R.string.lyrics_word_glow_off
+    LyricsWordGlowMode.Smart -> R.string.lyrics_word_glow_smart
+    LyricsWordGlowMode.ExactOnly -> R.string.lyrics_word_glow_exact
+}
+
+private fun LyricsWordGlowMode.wordGlowDescriptionResource(): Int = when (this) {
+    LyricsWordGlowMode.Off -> R.string.lyrics_word_glow_off_description
+    LyricsWordGlowMode.Smart -> R.string.lyrics_word_glow_smart_description
+    LyricsWordGlowMode.ExactOnly -> R.string.lyrics_word_glow_exact_description
 }
 
 /**
@@ -467,4 +586,3 @@ private fun UiAccentPalette.titleResource(): Int = when (this) {
     UiAccentPalette.Mint -> R.string.accent_mint
     UiAccentPalette.Rose -> R.string.accent_rose
 }
-

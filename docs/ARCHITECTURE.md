@@ -58,6 +58,12 @@ Never mutate canonical metadata to implement privacy presentation.
 - Decode artwork to the actual display bucket and cap memory/disk caches.
 - Make focus-wall layout a pure deterministic function of ordered item keys and
   density; only compose visible/near-visible cards.
+- A Media3 position tick may invalidate only the focused current wall card. Ordinary
+  posters consume stable identity/presentation inputs and must not observe the live
+  playback clock.
+- Drag-frame work stays linear in the near-visible set: calculate screen geometry
+  once per card, cache stable brushes, and animate only discrete presentation state.
+  Do not start a tween whose target is the continuously changing pan/depth value.
 - Do not hash complete multi-gigabyte files during routine scans. Fingerprints use
   URI, size, modified time and bounded content sampling when needed.
 
@@ -105,6 +111,41 @@ Never mutate canonical metadata to implement privacy presentation.
   library state on every folder change and the playing track's lyrics must survive
   that. The surface loads on request -- current listing, then cache, then file -- and
   shows nothing rather than another track's lines while a load is in flight.
+- The cover lyric layer is a bounded projection of that same state: at most three
+  strings and one palette-derived shade. It is requested only for a focused Media3
+  current item, owns no parser or clock, and disappears when either identity moves.
+  Its current line may reuse the shared grapheme-glow renderer, but only this single
+  focused/current subcomposition receives playback ticks or owns a next-boundary
+  wake-up; ordinary wall cards remain independent of the Media3 position ticker.
+  Full-reader following and cover-centred composition intentionally use different
+  anchors because one is a document and the other is a poster scene.
+- The immersive lyric scene is another bounded projection, not another player. Its
+  pure feature model selects at most two lines on either side; the Compose layer
+  consumes the existing `PlaybackState`, the
+  cached focused-cover palette and the parsed document. Line changes animate only
+  when the current line index changes. There is no visualizer coroutine or permanent
+  frame loop, and disposing the surface cancels its one bounded palette request.
+- A timed document opens the immersive scene only when the viewed item is the current
+  Media3 item. Loading, missing, empty, untimed and non-current cases stay on the
+  diagnostic reader, which preserves truthful failure states and full-document
+  browsing rather than inventing a visualizer clock.
+- `LyricsVisualizerMode` is the registry boundary for full-screen lyric scenes.
+  Storage persists only its validated ordinal, while the UI maps each entry to a
+  distinct composition and transition. Switching modes cannot alter the normalized
+  document, Media3 clock or queue. The active mode and word-glow timing policy
+  are global presentation preferences and survive process recreation.
+- `LyricGlowTimeline` is a presentation projection outside the parser. It splits
+  display text into Unicode grapheme clusters, prefers real enhanced-LRC word times,
+  and in Smart mode estimates a bounded timeline from line timing. It carries an
+  Exact/Estimated source marker and never mutates `TimedTextDocument`. A local
+  boundary scheduler shared by the immersive scene and focused-cover current line
+  wakes only at the next grapheme transition (or a 500 ms resync), so smooth lyric
+  timing does not raise the app-wide Media3 position tick rate.
+- The focus-wall tools use a translucent frosted-glass treatment with a highlight
+  border and a bottom-end scale/fade reveal. It deliberately avoids live backdrop
+  capture/blur in this base implementation: sampling and blurring the moving mosaic
+  would reintroduce continuous GPU work on the interaction path. True backdrop blur
+  remains capability-gated visual tuning after phone profiling.
 - Privacy aliases are applied before artwork-derived presentation. Canonical
   artwork and metadata never change.
 

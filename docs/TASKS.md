@@ -185,6 +185,16 @@
       his verdict on these three points is still outstanding. The same build is also
       the first to carry roadmap phases 1 and 2, so the two entries below can be closed
       in the same review.
+- [ ] Review the last two Codex slices on the phone, which have no acceptance record
+      anywhere: the Off / Smart / Exact-only word-glow policy in Settings and on the
+      focused cover, and the translucent glass treatment of the wall tools button and
+      its panels. Compare all three glow policies on the same timed track, check glow
+      strength over a bright cover, pause/seek resynchronization, and whether the
+      translucent approximation is good enough before authorizing a costlier live
+      blur. The same build also carries the frame-path optimization, which needs the
+      owner's comparison of drag, inertial release, pinch and focus reflow. Verified
+      automatically at 225/225 tests with lint at 0 errors; see the Claude review
+      round in `docs/HANDOFF.md` for two minor findings that a device run would settle.
 - [ ] Decide whether an appearance reset should also wipe every folder's wall viewport.
       `resetAppearanceDefaults()` currently rewrites all cached snapshots' zoom, density,
       focus shape/size and ambient, and the new grouping puts that button visibly inside
@@ -234,13 +244,48 @@ order because each layer consumes the stable model built by the one before it:
       visual questions -- legibility over a bright cover and the exact anchor of the
       current line -- are carried into phase 4 rather than left open here, because that
       is the layer that owns them.
-- [ ] **4. Lyrics on the focused/current cover.** Mount a bounded previous/current/
-      next lyric scene only on the expanded playing card, with contrast shade and
-      restrained blur/alpha/scale motion.
-- [ ] **5. Immersive lyric visualizer V1.** Ship one strong full-screen Compose
-      scene with shared playback clock, palette and lyric inputs plus reduced motion.
-- [ ] **6. Visualizer registry and advanced backgrounds.** Add carefully selected
-      modes and only then consider profiled GPU/audio-reactive effects.
+- [x] **4. Lyrics on the focused/current cover.** Implementation and automated
+      verification are complete (203/203 tests): the wall reuses the phase-3
+      parsed-document stream, requests it only when focus and Media3 current item
+      agree, and mounts at most previous/current/next on that expanded card. Bento
+      stays compact and centred; Folia now uses the measured reference composition
+      with upper-left metadata, a vertically centred current lyric, equidistant
+      context lines, a small real-action control cluster and a thin bottom seek line.
+      The focused/current cover now shares the phase-6 Off / Smart / Exact-only
+      grapheme glow renderer with the immersive scene; ordinary cards never create
+      a timeline or observe the local boundary scheduler.
+      Ordinary Folia cards now use the same shaded square-edged poster language with
+      only type/title/metadata. A palette-luminance shade protects bright artwork
+      without blurring the bitmap. Keep this open until phone review accepts
+      readability, proportional placement, hit targets and transport coexistence.
+      The same working tree includes a no-feature-change frame-path optimization:
+      position ticks now reach only the focused current card, drag alpha no longer
+      restarts a tween per card per frame, geometry is calculated once, stable
+      gradients are cached, ordinary shadows are removed and off-screen composition
+      is bounded more tightly. Automated verification remains 203/203 with lint 0
+      errors. The owner accepted the result and frame pacing on 2026-09-27, then
+      explicitly moved the roadmap to the next optimization.
+- [x] **5. Immersive lyric visualizer V1.** Implementation and automated verification
+      are complete (208/208 tests, lint 0 errors): a current timed track opens one
+      full-screen Compose scene driven by the shared playback clock, cached cover
+      palette and normalized document. It keeps at most five lyric lines (three in
+      short landscape), honours global motion including zero-motion, highlights
+      enhanced-LRC words, seeks by line or precise slider and exposes real
+      previous/play/next actions. It owns no player/parser/frame loop. Keep open until
+      phone review accepts contrast, long-line layout, word colouring, scrub accuracy
+      and portrait/landscape spacing. The owner accepted V1 on 2026-09-27 and moved
+      the roadmap to phase 6.
+- [ ] **6. Visualizer registry and advanced backgrounds.** The first slice is
+      implemented and verified (211/211 tests, lint 0 errors): Flow, Folia Poster and
+      Spotlight share one bounded lyric frame and Media3 clock; mode selection is
+      available in the lyric scene and persists. Settings now has persisted Off,
+      Smart and Exact-only word glow; Smart prefers source word timing and otherwise
+      builds a presentation-only grapheme timeline from real line timing. The same
+      policy and renderer now drive the one focused/current cover in both wall styles.
+      The wall tool button/panels use a translucent
+      glass treatment and scale/fade from the bottom-right origin, honouring 0% global
+      motion. Keep open for phone acceptance and for later profiled GPU/audio-reactive
+      backgrounds; live backdrop capture/blur is not on the wall gesture path.
 
 ## Next
 

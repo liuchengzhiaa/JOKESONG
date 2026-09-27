@@ -71,6 +71,10 @@ class MainActivity : ComponentActivity() {
                     onUiStylePresetChange = libraryViewModel::onUiStylePresetChange,
                     onUiAccentPaletteChange = libraryViewModel::onUiAccentPaletteChange,
                     onUiScalePercentChange = libraryViewModel::onUiScalePercentChange,
+                    onLyricsVisualizerModeChange =
+                        libraryViewModel::onLyricsVisualizerModeChange,
+                    onLyricsWordGlowModeChange =
+                        libraryViewModel::onLyricsWordGlowModeChange,
                     onResetAppearanceDefaults = libraryViewModel::resetAppearanceDefaults,
                     onOpenSubtitleDetail = libraryViewModel::openSubtitleDetail,
                     onCloseSubtitleDetail = libraryViewModel::closeSubtitleDetail,

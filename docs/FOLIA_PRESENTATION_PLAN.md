@@ -216,28 +216,67 @@ Acceptance still requiring a phone review:
 - implement subtitle detail first so parser and timing can be verified without
   the expensive visual layers.
 
-### Phase 4 — lyrics on the focused/current cover
+### Phase 4 — lyrics on the focused/current cover (implemented and owner-accepted)
 
-- only the currently playing, expanded audio card receives live lyrics;
-- previous/current/next lines use bounded blur/alpha/scale transitions;
-- add a cover shade whose strength follows contrast, not a permanent destructive
-  blur of the bitmap;
-- word-progress colouring is optional after line timing works;
-- the compact seek bar and playback controls remain operable above the layer.
+- only the currently playing, expanded audio card receives live lyrics; the one
+  shared subtitle state is requested while focus and Media3 identity agree and is
+  cleared as soon as they do not;
+- a pure projection reduces the cached document to at most previous/current/next,
+  so the wall never composes the complete subtitle file;
+- Bento keeps the compact centred lyric treatment. Folia now follows the owner's
+  470 x 467 reference as normalized poster geometry: status/title at upper-left,
+  the current lyric centred at 50%, symmetric context centres at 35.5%/64.5%, small
+  transport icons near 88%, and a thin seek line near 95%;
+- line changes cross-fade according to the global motion percentage;
+- a cover-wide asymmetric black field derives its alpha from the brightest
+  representative cover colour (36%--72%). It protects bright-cover readability
+  without permanently blurring the artwork bitmap or putting a rounded pill behind
+  the words;
+- Folia exposes only real actions in its reference-sized control cluster:
+  play/pause, available previous/next, lyrics detail, clear focus and precise seek;
+  it does not draw non-functional repeat or queue icons merely to copy the frame;
+- non-focused Folia cards now share the hero's 2 dp corner, restrained shade and
+  proportional lower-left typography, but omit lyrics and all transport/playback
+  badges. A tiny square folder/audio mark remains because the product still needs
+  to distinguish the two item types without inventing Folia's queue numbers;
+- untimed text remains absent from this synchronized scene rather than pretending
+  to follow playback. The current line now reuses phase 6's Off / Smart / Exact-only
+  grapheme glow and its presentation-only timeline; previous/next lines stay static.
+  Only the focused/current poster owns the local boundary scheduler, so ordinary
+  cards do not recompose at lyric cadence.
 
-### Phase 5 — immersive lyric visualizer V1
+The owner accepted the current result after the measured Folia composition and the
+frame-path optimization. Later visual tuning may still refine individual values,
+but it no longer blocks the next presentation phase.
 
-- the cover action opens one full-screen Compose lyric scene;
-- scene inputs are playback clock, normalized lyrics, palette and artwork;
-- the first scene prioritizes excellent typography, transitions and reliable seek;
-- implement reduced-motion, lifecycle pause and a conservative frame budget;
-- the full player remains the navigation owner; the scene does not create another
-  player instance.
+### Phase 5 — immersive lyric visualizer V1 (implemented and owner-accepted)
 
-### Phase 6 — visualizer registry and advanced backgrounds
+- the cover action now opens one full-screen Compose lyric scene for a timed file on
+  the current Media3 item; all diagnostic/untimed/non-current states retain the
+  proven reader;
+- scene inputs are the shared playback clock, normalized lyrics, bounded focused
+  palette and artwork; it creates neither a player nor another parser;
+- a five-tier lyric field (three tiers in short landscape) changes only on line
+  boundaries, moves in seek direction and follows global motion strength; enhanced
+  LRC receives active-word colouring without pretending ordinary formats have it;
+- every visible line is a seek target, and a precise slider plus previous/play/next
+  controls operate the existing Media3 session;
+- one static blurred cover and cached palette gradients provide depth. There is no
+  permanent frame loop; the palette load is cancelled when the scene leaves.
 
-- introduce a registry only after V1 is stable;
-- add a small set of meaningfully different modes rather than many weak presets;
+The owner accepted V1 on the phone and explicitly moved the work to phase 6.
+
+### Phase 6 — visualizer registry and advanced backgrounds (first slice implemented)
+
+- `LyricsVisualizerMode` now registers three meaningfully different Compose modes:
+  centred Flow, left-aligned Folia Poster and minimal Spotlight. The selected mode
+  persists and is changed from the lyric scene's top-right selector;
+- word glow has a persisted Off / Smart / Exact-only policy. Smart prefers real
+  enhanced-LRC word timing; line-only formats receive a labelled presentation
+  estimate built from Unicode graphemes, CJK/Latin weighting, brief punctuation,
+  a 90% reveal window and a bounded long-gap rule. Parser data remains untouched;
+- the wall tools use a translucent glass treatment and a bottom-right scale/fade
+  reveal. Live backdrop capture/blur is intentionally not on the gesture path;
 - add optional GPU/audio-reactive backgrounds only after profiling a modern Xiaomi
   device and an emulator;
 - expose per-mode parameters with safe defaults and export/import support;

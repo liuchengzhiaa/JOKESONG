@@ -19,7 +19,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Subtitles
@@ -28,6 +30,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -56,6 +59,8 @@ import com.example.asmrplayer.core.subtitles.TimedTextLine
 import com.example.asmrplayer.feature.player.formatPlaybackTime
 import com.example.asmrplayer.feature.subtitles.LyricsFollowing
 import com.example.asmrplayer.feature.subtitles.LyricsView
+import com.example.asmrplayer.feature.subtitles.LyricsVisualizerMode
+import com.example.asmrplayer.feature.subtitles.LyricsWordGlowMode
 import com.example.asmrplayer.feature.subtitles.SubtitleDetailState
 import com.example.asmrplayer.feature.subtitles.lyricsView
 import com.example.asmrplayer.ui.theme.artworkBrush
@@ -75,8 +80,15 @@ fun SubtitleArtworkDetail(
     item: LibraryItem,
     subtitles: SubtitleDetailState,
     playbackState: PlaybackState,
+    motionPercent: Int,
+    visualizerMode: LyricsVisualizerMode,
+    wordGlowMode: LyricsWordGlowMode,
+    onVisualizerModeChange: (LyricsVisualizerMode) -> Unit,
+    onBack: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
+    onPrevious: (() -> Unit)?,
+    onNext: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     // A state that belongs to the track that was playing a moment ago is not this
@@ -88,6 +100,30 @@ fun SubtitleArtworkDetail(
     // would highlight the wrong line for the whole track.
     val positionMs = playbackState.positionMs.takeIf { playbackState.isCurrent(item.id) }
 
+    // The immersive scene is intentionally reserved for a timed document following
+    // this exact Media3 item. Everything else keeps the proven reader and its honest
+    // loading/no-file/untimed states instead of fabricating a visualizer timeline.
+    if (view is LyricsView.Timed && positionMs != null) {
+        ImmersiveTimedLyricsScene(
+            item = item,
+            document = view.document,
+            sourceName = subtitles.sourceName,
+            languageTag = subtitles.languageTag,
+            playbackState = playbackState,
+            motionPercent = motionPercent,
+            visualizerMode = visualizerMode,
+            wordGlowMode = wordGlowMode,
+            onVisualizerModeChange = onVisualizerModeChange,
+            onBack = onBack,
+            onTogglePlayPause = onTogglePlayPause,
+            onSeekTo = onSeekTo,
+            onPrevious = onPrevious,
+            onNext = onNext,
+            modifier = modifier,
+        )
+        return
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -96,6 +132,7 @@ fun SubtitleArtworkDetail(
         ArtworkBackdrop(item, dimmed = view is LyricsView.Timed || view is LyricsView.Untimed)
 
         Column(modifier = Modifier.fillMaxSize()) {
+            SubtitleDetailHeader(item.title, onBack)
             SubtitleSourceCaption(subtitles, view)
             Box(Modifier.weight(1f)) {
                 when (view) {
@@ -132,6 +169,41 @@ fun SubtitleArtworkDetail(
                 isCurrentItem = positionMs != null,
             )
         }
+    }
+}
+
+@Composable
+private fun SubtitleDetailHeader(title: String, onBack: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .size(44.dp)
+                .background(Color.Black.copy(alpha = 0.28f), CircleShape),
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                stringResource(R.string.back_to_player),
+                tint = Color.White,
+            )
+        }
+        Text(
+            text = title,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp),
+            color = Color.White,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            textAlign = TextAlign.Start,
+        )
+        Spacer(Modifier.size(44.dp))
     }
 }
 
