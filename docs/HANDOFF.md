@@ -802,9 +802,9 @@ Two findings, both minor, neither reproduced on a device:
 
 ### Claude slice: the word glow becomes a continuous left-to-right wipe
 
-The owner reported that the per-grapheme highlight was "很生硬，从一个字很生硬地跳到下一个字",
-and supplied the approved Folia poster as the reference: the colour is covered on from
-left to right across the line, rather than switched on one character at a time.
+The owner reported the per-grapheme highlight as "很生硬，从一个字很生硬的跳到下一个字" and
+supplied the approved Folia poster as the reference: the colour is covered on from left
+to right across the line, rather than switched on one character at a time.
 
 The cause was structural, not a matter of tuning. `snapshotAt` returned only
 `(completedCount, activeIndex)`, so the body renderer could map a display character to
@@ -881,17 +881,17 @@ long two-line lyric, needs the owner's phone.
 
 ### Where the next agent starts
 
-`master` carries three commits: the timed-text foundation (`d187138`), the handoff
-pointer (`be04f5f`), and all of Codex's phase 4/5/6 work (`64be907`, 29 files,
-+4073/-212).
+`master` carries four commits: the timed-text foundation (`d187138`), the handoff
+pointer (`be04f5f`), all of Codex's phase 4/5/6 work (`64be907`, 29 files, +4073/-212),
+and the lyric wipe (`67d9fd8`).
 
-**This wipe slice is the commit directly on top of `64be907`** -- 9 files, +446/-170,
-three sources (`feature/subtitles/LyricGlowTimeline.kt`, `ui/GlowingLyricText.kt`,
-`LyricGlowTimelineTest.kt`) and six docs (`ARCHITECTURE`, `DECISIONS`,
-`FOLIA_PRESENTATION_PLAN`, `HANDOFF`, `PRODUCT_SPEC`, `TASKS`), authored by Claude and
-carrying no Codex work. It waited for the owner's own phone confirmation before being
-committed, which is why the acceptance note above sits inside it. The only untracked
-file is the pre-existing `bash.exe.stackdump`, which must stay untracked.
+**The wipe slice is `67d9fd8`, committed directly on top of `64be907`** -- 9 files,
++451/-170, three sources (`feature/subtitles/LyricGlowTimeline.kt`,
+`ui/GlowingLyricText.kt`, `LyricGlowTimelineTest.kt`) and six docs (`ARCHITECTURE`,
+`DECISIONS`, `FOLIA_PRESENTATION_PLAN`, `HANDOFF`, `PRODUCT_SPEC`, `TASKS`), authored by
+Claude and carrying no Codex work. It waited for the owner's own phone confirmation
+before being committed, which is why the acceptance note above sits inside it. The only
+untracked file is the pre-existing `bash.exe.stackdump`, which must stay untracked.
 
 Reading order for whoever picks this up next:
 
