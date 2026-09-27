@@ -328,6 +328,15 @@ grapheme intervals from the line's real timing. The derived intervals are explic
 presentation state and never enrich the parsed document. Exact only preserves the
 old strict behaviour, while Off returns the whole line to normal.
 
+Those intervals reach the screen as one continuous left-to-right colour wipe rather
+than a per-character highlight: the front is interpolated in x between the grapheme
+being sung and the next one, so it crosses a display character and can rest inside
+it. The wipe is a pure rendering projection of the same intervals -- it introduces
+no new timing state and no new stored setting, and it is what the approved Folia
+poster reference shows. The old per-grapheme projection is still readable from the
+same lookup -- it returns the discrete pair alongside the fraction, so a caller that
+ignores the fraction gets exactly the previous behaviour.
+
 The wall's bottom-right entry and its panels use a frosted-glass visual treatment:
 translucent surfaces, a light edge, internal highlight and restrained shadow. The
 panel grows and fades from the button's bottom-right origin, and global motion 0%

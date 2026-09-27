@@ -241,8 +241,8 @@ Acceptance still requiring a phone review:
   to distinguish the two item types without inventing Folia's queue numbers;
 - untimed text remains absent from this synchronized scene rather than pretending
   to follow playback. The current line now reuses phase 6's Off / Smart / Exact-only
-  grapheme glow and its presentation-only timeline; previous/next lines stay static.
-  Only the focused/current poster owns the local boundary scheduler, so ordinary
+  wipe and its presentation-only timeline; previous/next lines stay static.
+  Only the focused/current poster owns the local sweep-front scheduler, so ordinary
   cards do not recompose at lyric cadence.
 
 The owner accepted the current result after the measured Folia composition and the
@@ -274,7 +274,10 @@ The owner accepted V1 on the phone and explicitly moved the work to phase 6.
 - word glow has a persisted Off / Smart / Exact-only policy. Smart prefers real
   enhanced-LRC word timing; line-only formats receive a labelled presentation
   estimate built from Unicode graphemes, CJK/Latin weighting, brief punctuation,
-  a 90% reveal window and a bounded long-gap rule. Parser data remains untouched;
+  a 90% reveal window and a bounded long-gap rule. The estimate drives one
+  continuous left-to-right colour wipe over the current line -- the front crosses a
+  character instead of switching on it, which is what the Folia reference shows.
+  Parser data remains untouched;
 - the wall tools use a translucent glass treatment and a bottom-right scale/fade
   reveal. Live backdrop capture/blur is intentionally not on the gesture path;
 - add optional GPU/audio-reactive backgrounds only after profiling a modern Xiaomi

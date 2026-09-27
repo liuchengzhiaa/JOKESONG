@@ -77,7 +77,7 @@ class LyricGlowTimelineTest {
     }
 
     @Test
-    fun `snapshot distinguishes future active and completed graphemes`() {
+    fun `sweep distinguishes future active and completed graphemes`() {
         val line = TimedTextLine(1_000L, 2_000L, "AB")
         val timeline = line.lyricGlowTimeline(
             TimedTextFormat.Vtt,
@@ -85,11 +85,131 @@ class LyricGlowTimelineTest {
             mode = LyricsWordGlowMode.Smart,
         )!!
 
-        assertEquals(LyricGlowSnapshot(0, -1), timeline.snapshotAt(999L))
-        assertEquals(LyricGlowSnapshot(0, 0), timeline.snapshotAt(1_100L))
-        assertEquals(LyricGlowSnapshot(1, 1), timeline.snapshotAt(1_600L))
-        assertEquals(LyricGlowSnapshot(2, -1), timeline.snapshotAt(2_000L))
-        assertTrue(timeline.nextBoundaryAfter(1_100L)!! > 1_100L)
+        // Two graphemes over 1_000..1_900: A holds 1_000..1_450, B holds 1_450..1_900.
+        val beforeStart = timeline.sweepAt(999L)
+        assertEquals(0, beforeStart.completedCount)
+        assertEquals(-1, beforeStart.activeIndex)
+
+        val onA = timeline.sweepAt(1_100L)
+        assertEquals(0, onA.completedCount)
+        assertEquals(0, onA.activeIndex)
+        assertEquals(2f / 9f, onA.fraction, 1e-4f)
+
+        val onB = timeline.sweepAt(1_600L)
+        assertEquals(1, onB.completedCount)
+        assertEquals(1, onB.activeIndex)
+        assertEquals(1f / 3f, onB.fraction, 1e-4f)
+
+        val afterEnd = timeline.sweepAt(2_000L)
+        assertEquals(2, afterEnd.completedCount)
+        assertEquals(-1, afterEnd.activeIndex)
+    }
+
+    @Test
+    fun `the wipe front crosses a grapheme boundary instead of stepping over it`() {
+        val line = TimedTextLine(1_000L, 2_000L, "AB")
+        val timeline = line.lyricGlowTimeline(
+            TimedTextFormat.Vtt,
+            nextLineStartMillis = null,
+            mode = LyricsWordGlowMode.Smart,
+        )!!
+
+        // The front, expressed in graphemes, must never go backwards and must
+        // never advance by a whole grapheme in one millisecond. This is the
+        // property a per-grapheme highlight cannot satisfy.
+        var previous = -1f
+        for (position in 900L..2_100L) {
+            val sweep = timeline.sweepAt(position)
+            val front = sweep.completedCount + sweep.fraction
+            assertTrue("front went backwards at $position", front >= previous)
+            assertTrue("front jumped at $position", front - previous <= 1f)
+            previous = front
+        }
+        assertEquals(2f, previous, 1e-3f)
+
+        // The A/B boundary at 1_450 ms specifically: continuous across it, where
+        // the old discrete projection stepped by a full grapheme.
+        val before = timeline.sweepAt(1_449L).let { it.completedCount + it.fraction }
+        val after = timeline.sweepAt(1_450L).let { it.completedCount + it.fraction }
+        assertTrue("boundary stepped by ${after - before}", after - before < 0.01f)
+    }
+
+    @Test
+    fun `an unstarted line leaves the wipe on its first knot and a finished line on its last`() {
+        val line = TimedTextLine(1_000L, 2_000L, "AB")
+        val timeline = line.lyricGlowTimeline(
+            TimedTextFormat.Vtt,
+            nextLineStartMillis = null,
+            mode = LyricsWordGlowMode.Smart,
+        )!!
+
+        assertEquals(LyricWipeFront(0, 0, 0f), timeline.wipeFrontAt(900L))
+        assertEquals(LyricWipeFront(2, 2, 1f), timeline.wipeFrontAt(2_100L))
+
+        // Halfway through A the front is heading for B's left edge, not sitting
+        // on A's own.
+        val onA = timeline.wipeFrontAt(1_225L)
+        assertEquals(0, onA.fromOffset)
+        assertEquals(1, onA.toOffset)
+        assertEquals(0.5f, onA.fraction, 1e-4f)
+    }
+
+    @Test
+    fun `the wipe front aims at the next grapheme so untimed gaps are swept too`() {
+        val line = TimedTextLine(
+            startMillis = 1_000L,
+            endMillis = null,
+            text = "one two three",
+            words = listOf(
+                TimedTextWord(1_000L, 1_600L, "one"),
+                TimedTextWord(2_000L, 2_600L, "three"),
+            ),
+        )
+        val timeline = line.lyricGlowTimeline(
+            TimedTextFormat.Lrc,
+            nextLineStartMillis = 3_000L,
+            mode = LyricsWordGlowMode.Smart,
+        )!!
+
+        // "one" holds offsets 0..3 and "three" starts at 8, so the last grapheme
+        // of the first word interpolates across the untimed " two " instead of
+        // teleporting over it when the word changes.
+        val inWord = timeline.wipeFrontAt(1_500L)
+        assertEquals(2, inWord.fromOffset)
+        assertEquals(8, inWord.toOffset)
+
+        // Between the two words the front waits on the next knot, which is
+        // exactly where that interpolation was heading.
+        val inGap = timeline.wipeFrontAt(1_800L)
+        assertEquals(8, inGap.fromOffset)
+        assertEquals(8, inGap.toOffset)
+    }
+
+    @Test
+    fun `every wipe front stays inside the text it wipes`() {
+        val line = TimedTextLine(
+            startMillis = 1_000L,
+            endMillis = null,
+            text = "one two three",
+            words = listOf(
+                TimedTextWord(1_000L, 1_600L, "one"),
+                TimedTextWord(2_000L, 2_600L, "three"),
+            ),
+        )
+        val timeline = line.lyricGlowTimeline(
+            TimedTextFormat.Lrc,
+            nextLineStartMillis = 3_000L,
+            mode = LyricsWordGlowMode.Smart,
+        )!!
+
+        // The renderer hands these offsets straight to TextLayoutResult lookups,
+        // which are only defined inside 0..text.length.
+        for (position in 900L..3_100L) {
+            val front = timeline.wipeFrontAt(position)
+            assertTrue("from ${front.fromOffset} at $position", front.fromOffset in 0..line.text.length)
+            assertTrue("to ${front.toOffset} at $position", front.toOffset in front.fromOffset..line.text.length)
+            assertTrue("fraction ${front.fraction} at $position", front.fraction in 0f..1f)
+        }
     }
 
     @Test

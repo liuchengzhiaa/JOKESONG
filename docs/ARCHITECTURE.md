@@ -114,9 +114,9 @@ Never mutate canonical metadata to implement privacy presentation.
 - The cover lyric layer is a bounded projection of that same state: at most three
   strings and one palette-derived shade. It is requested only for a focused Media3
   current item, owns no parser or clock, and disappears when either identity moves.
-  Its current line may reuse the shared grapheme-glow renderer, but only this single
-  focused/current subcomposition receives playback ticks or owns a next-boundary
-  wake-up; ordinary wall cards remain independent of the Media3 position ticker.
+  Its current line may reuse the shared lyric-wipe renderer, but only this single
+  focused/current subcomposition receives playback ticks or runs a sweep-front
+  scheduler; ordinary wall cards remain independent of the Media3 position ticker.
   Full-reader following and cover-centred composition intentionally use different
   anchors because one is a document and the other is a poster scene.
 - The immersive lyric scene is another bounded projection, not another player. Its
@@ -137,9 +137,12 @@ Never mutate canonical metadata to implement privacy presentation.
 - `LyricGlowTimeline` is a presentation projection outside the parser. It splits
   display text into Unicode grapheme clusters, prefers real enhanced-LRC word times,
   and in Smart mode estimates a bounded timeline from line timing. It carries an
-  Exact/Estimated source marker and never mutates `TimedTextDocument`. A local
-  boundary scheduler shared by the immersive scene and focused-cover current line
-  wakes only at the next grapheme transition (or a 500 ms resync), so smooth lyric
+  Exact/Estimated source marker and never mutates `TimedTextDocument`. It exposes a
+  continuous sweep front instead of a per-grapheme on/off state, so the renderer
+  paints one left-to-right colour wipe whose edge can rest inside a display
+  character. A local front scheduler shared by the immersive scene and the
+  focused-cover current line interpolates between Media3's position updates and
+  holds still while the line is paused or global motion is off, so smooth lyric
   timing does not raise the app-wide Media3 position tick rate.
 - The focus-wall tools use a translucent frosted-glass treatment with a highlight
   border and a bottom-end scale/fade reveal. It deliberately avoids live backdrop

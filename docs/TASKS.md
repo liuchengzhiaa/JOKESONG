@@ -193,8 +193,20 @@
       translucent approximation is good enough before authorizing a costlier live
       blur. The same build also carries the frame-path optimization, which needs the
       owner's comparison of drag, inertial release, pinch and focus reflow. Verified
-      automatically at 225/225 tests with lint at 0 errors; see the Claude review
+      automatically at 229/229 tests with lint at 0 errors; see the Claude review
       round in `docs/HANDOFF.md` for two minor findings that a device run would settle.
+- [x] Replace the per-grapheme highlight with a left-to-right lyric wipe. The owner
+      asked for it on 2026-09-27 after finding the highlight too stiff ("一个字很生硬地
+      跳到下一个字") and supplied the approved Folia poster as the reference: the colour
+      is covered on across the line, and the edge may rest inside a character. The
+      renderer is now a continuous wipe over the measured layout, and the sung side is
+      solid accent rather than a near-white completed state. Installed and confirmed
+      by the owner himself on 2026-09-27 -- "我自己测试了，没问题". Automated verification
+      is 229/229 with lint at 0 errors, but note the draw path itself has **no**
+      automated coverage -- the repository has no Robolectric or Compose test
+      dependency -- so the phone remains the only proof for how the wipe looks. If the
+      contrast between the sung and unsung halves is ever reopened, the one knob is
+      `UnsungAlphaFraction` in `ui/GlowingLyricText.kt`.
 - [ ] Decide whether an appearance reset should also wipe every folder's wall viewport.
       `resetAppearanceDefaults()` currently rewrites all cached snapshots' zoom, density,
       focus shape/size and ambient, and the new grouping puts that button visibly inside
@@ -281,7 +293,9 @@ order because each layer consumes the stable model built by the one before it:
       available in the lyric scene and persists. Settings now has persisted Off,
       Smart and Exact-only word glow; Smart prefers source word timing and otherwise
       builds a presentation-only grapheme timeline from real line timing. The same
-      policy and renderer now drive the one focused/current cover in both wall styles.
+      policy and renderer now drive the one focused/current cover in both wall styles,
+      and that renderer paints one continuous left-to-right wipe instead of lighting
+      graphemes one at a time (see the wipe review item above).
       The wall tool button/panels use a translucent
       glass treatment and scale/fade from the bottom-right origin, honouring 0% global
       motion. Keep open for phone acceptance and for later profiled GPU/audio-reactive

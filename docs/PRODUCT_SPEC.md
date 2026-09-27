@@ -268,8 +268,10 @@ user requests another batch. The current audio remains in the replacement sample
 - Tapping artwork opens a full-screen subtitle detail view while keeping playback
   controls available. A timed file for the current Media3 item opens the immersive
   lyric scene: artwork and its bounded palette form the background, up to two lines
-  on either side provide context, exact or intelligently estimated graphemes glow as
-  their display intervals begin, and every visible line plus the precise slider can seek. The scene follows
+  on either side provide context, the current line is covered left to right by one
+  continuous colour wipe that advances with the display intervals of its graphemes
+  (exact where the file carries word timing, otherwise estimated) rather than
+  switching character by character, and every visible line plus the precise slider can seek. The scene follows
   global motion strength and compacts to three lines in short landscape space. It
   owns no player or timer. Other states use the diagnostic reader, which names the
   file it matched and states plainly when no matching file was found, when the file
@@ -278,7 +280,7 @@ user requests another batch. The current audio remains in the replacement sample
   are centred flow, Folia-style left-aligned poster and a minimal spotlight scene;
   switching modes never changes playback or subtitle selection. Settings provides a
   persisted word-glow policy: Smart prefers real word timestamps and estimates from
-  line timing otherwise; Exact only refuses estimates; Off removes the moving glow.
+  line timing otherwise; Exact only refuses estimates; Off removes the moving wipe.
   The policy applies consistently to the immersive current line and the current line
   on a focused/current wall cover. Estimates affect presentation only and are never
   written into parsed or media data.
@@ -290,7 +292,8 @@ user requests another batch. The current audio remains in the replacement sample
   current playing media. The cover scene shows a bounded previous/current/next
   context, uses an artwork-aware contrast shade and restrained context blur, and
   yields space rather than covering playback controls. Its current line uses the
-  global word-glow policy while the previous/next context remains visually quiet.
+  global word-glow policy -- the same left-to-right wipe, on the same grapheme
+  intervals -- while the previous/next context remains visually quiet.
   Bento uses the compact
   centred treatment. Folia follows the approved poster reference: tiny status and
   media information at upper-left, a left-aligned lyric hierarchy whose current

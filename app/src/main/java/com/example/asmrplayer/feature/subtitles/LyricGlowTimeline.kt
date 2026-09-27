@@ -21,13 +21,20 @@ data class LyricGlowSegment(
 
 /**
  * A bounded, source-labelled projection used only by lyric presentation surfaces.
- * Offsets are UTF-16 offsets so they can be applied directly to AnnotatedString.
+ * Offsets are UTF-16 offsets into the line's display text, so a renderer can feed
+ * them straight to `TextLayoutResult` lookups or to an `AnnotatedString`.
  */
 data class LyricGlowTimeline(
     val source: LyricGlowTimingSource,
     val segments: List<LyricGlowSegment>,
 ) {
-    fun snapshotAt(positionMillis: Long): LyricGlowSnapshot {
+    /**
+     * Continuous sweep position: whole graphemes already sung plus the progress
+     * through the one being sung. The discrete pair keeps the same meaning it
+     * always had, so a caller that ignores [LyricGlowSweep.fraction] sees exactly
+     * the old grapheme-by-grapheme projection.
+     */
+    fun sweepAt(positionMillis: Long): LyricGlowSweep {
         var completedCount = 0
         var activeIndex = -1
         segments.forEachIndexed { index, segment ->
@@ -37,23 +44,65 @@ data class LyricGlowTimeline(
                 activeIndex = index
             }
         }
-        return LyricGlowSnapshot(
+        val active = segments.getOrNull(activeIndex)
+        val fraction = if (active == null) {
+            0f
+        } else {
+            val duration = (active.endMillis - active.startMillis).coerceAtLeast(1L)
+            ((positionMillis - active.startMillis).toFloat() / duration.toFloat())
+                .coerceIn(0f, 1f)
+        }
+        return LyricGlowSweep(
             completedCount = completedCount,
             activeIndex = activeIndex,
+            fraction = fraction,
         )
     }
 
-    /** Next moment at which [snapshotAt] can change. */
-    fun nextBoundaryAfter(positionMillis: Long): Long? = segments
-        .asSequence()
-        .flatMap { sequenceOf(it.startMillis, it.endMillis) }
-        .filter { it > positionMillis }
-        .minOrNull()
+    /**
+     * The two text offsets the coloured wipe travels between, and how far it has
+     * moved. The front is a straight interpolation in x between the left edge of
+     * the grapheme being sung and the left edge of the next one, so it crosses a
+     * display character instead of switching on it.
+     *
+     * Aiming at the *next* grapheme's start (rather than this one's end) also
+     * sweeps the gap when exact word timing leaves untimed text between two
+     * words, instead of teleporting across it at the boundary.
+     */
+    fun wipeFrontAt(positionMillis: Long): LyricWipeFront {
+        val sweep = sweepAt(positionMillis)
+        if (sweep.activeIndex >= 0) {
+            val active = segments[sweep.activeIndex]
+            return LyricWipeFront(
+                fromOffset = active.startOffset,
+                toOffset = segments.getOrNull(sweep.activeIndex + 1)?.startOffset
+                    ?: active.endOffset,
+                fraction = sweep.fraction,
+            )
+        }
+        if (sweep.completedCount >= segments.size) {
+            val last = segments.last()
+            return LyricWipeFront(last.endOffset, last.endOffset, 1f)
+        }
+        // Nothing is active: the line has not started yet, or this is a gap
+        // between two timed segments. Both park the front on the next knot,
+        // which is exactly where the previous segment's interpolation ended.
+        val next = segments[sweep.completedCount]
+        return LyricWipeFront(next.startOffset, next.startOffset, 0f)
+    }
 }
 
-data class LyricGlowSnapshot(
+data class LyricGlowSweep(
     val completedCount: Int,
     val activeIndex: Int,
+    val fraction: Float,
+)
+
+/** A wipe front expressed in text offsets, never in pixels. */
+data class LyricWipeFront(
+    val fromOffset: Int,
+    val toOffset: Int,
+    val fraction: Float,
 )
 
 /**

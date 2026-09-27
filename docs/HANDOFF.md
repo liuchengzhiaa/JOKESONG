@@ -800,30 +800,116 @@ Two findings, both minor, neither reproduced on a device:
    here is only a wrong glow step for emoji ZWJ sequences and similar, never a
    crash, but the distinction is worth keeping straight.
 
+### Claude slice: the word glow becomes a continuous left-to-right wipe
+
+The owner reported that the per-grapheme highlight was "很生硬，从一个字很生硬地跳到下一个字",
+and supplied the approved Folia poster as the reference: the colour is covered on from
+left to right across the line, rather than switched on one character at a time.
+
+The cause was structural, not a matter of tuning. `snapshotAt` returned only
+`(completedCount, activeIndex)`, so the body renderer could map a display character to
+one of three fixed colours at best, and every grapheme boundary produced four
+simultaneous discontinuities: the outgoing character dropped `accent -> resting@0.92`,
+the incoming one jumped `resting@0.40 -> accent`, the hot-core/afterglow spans shifted
+by a whole grapheme, and `glowAlpha` was hard-reset with `snapTo(0.24f)` before each
+pulse.
+
+- `LyricGlowTimeline.sweepAt` now returns `LyricGlowSweep(completedCount, activeIndex,
+  fraction)` -- the same discrete pair plus progress through the grapheme being sung.
+  `wipeFrontAt` turns that into `LyricWipeFront(fromOffset, toOffset, fraction)`, the
+  two text offsets the front travels between. It aims at the *next* grapheme's start,
+  so when exact word timing leaves untimed text between two words the gap is swept
+  during the preceding word instead of teleporting at the boundary.
+- `snapshotAt`, `LyricGlowSnapshot` and `nextBoundaryAfter` are deleted; no surface
+  consumed a per-boundary wake-up any more. `LyricGlowTimingSource`, both timeline
+  builders and every timing constant are untouched, so the time table and its four
+  pinned assertions do not move.
+- `ui/GlowingLyricText.kt` is now the dim base `Text` plus an offscreen-composited
+  overlay. The overlay reuses the base's measured `TextLayoutResult` (handed over
+  through `onTextLayout`) and paints the accent fill with two `clipRect` + `drawText`
+  passes -- whole lines above the front, then the swept part of the front's own line.
+  A `SrcAtop` gradient rect adds a short glowing head at the front, sized by
+  `motionPercent`, so 0% motion degrades to a clean hard edge. Nothing rebuilds an
+  annotated string per frame, the per-frame allocation is one `Brush` plus a
+  three-field value object, and the front state is read only inside the draw lambda.
+- `rememberLyricWipeFront` interpolates with `withFrameNanos` between Media3's position
+  updates. Paused, or with motion at 0%, the front holds where the last update left it,
+  and no loop runs at all when the line is not on screen.
+- The old hot-core/afterglow spans are gone. They only read as light while a single
+  grapheme is lit; once the swept side is solid accent they are invisible, and their
+  per-grapheme shift was itself one of the hard steps.
+- The public signature is unchanged, so all three call sites -- the Folia poster
+  current line, the focused cover card overlay and the immersive scene -- are
+  untouched. Bento, ordinary cards and context lines do not change.
+
+The visual change the owner should expect: the sung side of the line is now solid
+`accent` (the Folia violet) instead of returning to a near-white `resting@0.92`, while
+the unsung side keeps today's dim `resting@0.40`. If that contrast is wrong, the one
+knob is `UnsungAlphaFraction` in `ui/GlowingLyricText.kt`.
+
+**The owner accepted the result on his own phone on 2026-09-27** -- "我自己测试了，没
+问题" -- after installing the build below himself. The wipe is therefore closed as a
+presentation change; the automated numbers that follow were the pre-install check, and
+the phone, not the JVM suite, is what settled it.
+
+Verification on 2026-09-27:
+
+- `testDebugUnitTest --rerun-tasks`, run once more after the final source edit:
+  **229/229 passed**, 34 suites, 0 failures, 0 errors, 0 skipped, counted from the
+  result XMLs rather than the console.
+- `lintDebug`: **0 errors, 16 warnings, 1 hint** -- unchanged from every slice since
+  the appearance work, and no report item points at either modified file.
+- `assembleDebug`, rebuilt after the last source edit: APK 75,125,239 bytes, SHA-256
+  `0A59CBE28930D1F325E48212B47D540BED99EA01600F92493DDD6BF39DC3F168`. That directory is
+  a mutable build output, overwritten by every build, and it is not byte-reproducible:
+  repacking behaviourally identical sources moved the artifact by 53 KB. Treat the
+  recorded hash as "which build the owner installed", not as a verification value.
+- The plan predicted 230 tests; the count is 229 because the planned "two layout lines"
+  case was folded into the bounds-invariant test rather than written separately.
+  Nothing was dropped, and `LyricGlowTimelineTest` grew from 6 cases to 10.
+- No APK was installed by this round and no emulator or phone was launched from here,
+  following the owner's standing instruction. The owner installed that APK himself and
+  confirmed the wipe on 2026-09-27.
+
+The renderer itself still has **no automated coverage**: the test stack is junit4 plus
+`room.testing` only (`app/build.gradle.kts:76-77`), with no Robolectric and no Compose
+test dependency, so the draw path cannot be exercised off-device. The four new tests
+plus one rewritten one cover the pure half -- continuity across a boundary, both
+parked fronts, the untimed gap, and the offset bounds that the `TextLayoutResult`
+lookups depend on. How the wipe actually looks, and whether it wraps correctly on a
+long two-line lyric, needs the owner's phone.
+
 ### Where the next agent starts
 
-The timed-text foundation is committed as `d187138`, and the handoff pointer as
-`be04f5f`, both on `master`. Everything Codex wrote after that is **uncommitted**:
-14 modified files and 15 new ones, roughly 2,000 changed lines covering roadmap
-phases 4, 5 and the first slice of 6. Preserve that diff -- and the untracked
-pre-existing `bash.exe.stackdump` -- and commit it before starting another slice,
-since three phases now exist only in a working tree.
+`master` carries three commits: the timed-text foundation (`d187138`), the handoff
+pointer (`be04f5f`), and all of Codex's phase 4/5/6 work (`64be907`, 29 files,
++4073/-212).
+
+**This wipe slice is the commit directly on top of `64be907`** -- 9 files, +446/-170,
+three sources (`feature/subtitles/LyricGlowTimeline.kt`, `ui/GlowingLyricText.kt`,
+`LyricGlowTimelineTest.kt`) and six docs (`ARCHITECTURE`, `DECISIONS`,
+`FOLIA_PRESENTATION_PLAN`, `HANDOFF`, `PRODUCT_SPEC`, `TASKS`), authored by Claude and
+carrying no Codex work. It waited for the owner's own phone confirmation before being
+committed, which is why the acceptance note above sits inside it. The only untracked
+file is the pre-existing `bash.exe.stackdump`, which must stay untracked.
 
 Reading order for whoever picks this up next:
 
 1. `AGENTS.md`, then `CLAUDE.md`, for the shared rules and the split of authorship.
-2. This file, from the top: "Current slice" through the section above.
+2. This file: "Current slice" through the two sections above.
 3. `docs/TASKS.md` -- what is open, and the roadmap ordering.
-4. `docs/DECISIONS.md`, especially D-013 (timed text) and D-004/D-012 (the wall).
-5. `docs/FOLIA_PRESENTATION_PLAN.md` -- phase 5 is accepted; phase 6 now includes
-   the registry, glass tools and Smart grapheme glow on both immersive and focused
-   cover current lines. GPU/audio-reactive work still requires profiling.
+4. `docs/DECISIONS.md`, especially D-013 (timed text), D-016 (visualizer modes and
+   word glow) and D-004/D-012 (the wall).
+5. `docs/FOLIA_PRESENTATION_PLAN.md` -- phase 5 is accepted; phase 6 includes the
+   registry, glass tools and the wipe on both immersive and focused cover current
+   lines. GPU/audio-reactive work still requires profiling.
 6. `docs/ARCHITECTURE.md` -- the module seams and the JVM-versus-ICU testing bullet.
 7. `docs/PRODUCT_SPEC.md`, the "Player and subtitles" section.
 
-The safest next action is phone review of Off / Smart / Exact-only on one ordinary
-LRC and one enhanced LRC in both the focused cover and immersive scene, plus the
-three visualizer modes and glass tool treatment, then small value/layout corrections.
+The safest next action is phone review of the new wipe at 100% and 0% global motion,
+on one ordinary LRC and one enhanced LRC, in both the focused cover and the immersive
+scene -- plus the three visualizer modes and the glass tool treatment, which are still
+awaiting their first device look.
 Do not add RuntimeShader,
 audio-reactive loops or live wall backdrop blur before profiling. Also do not repeat
 the parser failure: a green JVM unit suite says nothing about regex behaviour on the
