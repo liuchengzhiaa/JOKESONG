@@ -67,6 +67,14 @@ internal fun GlowingLyricText(
     modifier: Modifier = Modifier,
     restingColor: Color = Color.White,
     textStyle: TextStyle = TextStyle.Default,
+    /**
+     * How far ahead of the front the fill fades in, in pixels. Zero is the hard
+     * wipe every mode but one uses; a soft edge reads as light moving across the
+     * line rather than as a mask being dragged over it.
+     */
+    edgeSoftnessPx: Float = 0f,
+    /** Strength of the halo around the sung text, 0 for none. */
+    glowStrength: Float = 0f,
 ) {
     if (timeline == null) {
         Text(
@@ -117,7 +125,18 @@ internal fun GlowingLyricText(
                 // SrcAtop below has to blend against this layer's own glyphs, not
                 // against the cover art sitting behind them.
                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                .drawBehind { drawLyricWipe(layout.value, front.value, accent, shadow, fontSize, motionPercent) },
+                .drawBehind {
+                    drawLyricWipe(
+                        layout = layout.value,
+                        front = front.value,
+                        accent = accent,
+                        shadow = shadow,
+                        fontSize = fontSize,
+                        motionPercent = motionPercent,
+                        edgeSoftnessPx = edgeSoftnessPx,
+                        glowStrength = glowStrength,
+                    )
+                },
         )
     }
 }
@@ -157,6 +176,8 @@ private fun DrawScope.drawLyricWipe(
     shadow: Shadow?,
     fontSize: TextUnit,
     motionPercent: Int,
+    edgeSoftnessPx: Float,
+    glowStrength: Float,
 ) {
     if (layout == null) return
     val length = layout.layoutInput.text.length
@@ -182,8 +203,52 @@ private fun DrawScope.drawLyricWipe(
             drawText(layout, color = accent, shadow = shadow)
         }
     }
-    clipRect(0f, lineTop, frontX, lineBottom) {
-        drawText(layout, color = accent, shadow = shadow)
+
+    // The halo goes under the fill, and only over the part playback has reached: a
+    // line glowing ahead of the wipe would be a picture of something that has not
+    // happened. It is clipped at the front, so the halo does not bloom past it.
+    if (glowStrength > 0f) {
+        val fontPx = fontSize.toPx()
+        clipRect(0f, lineTop, frontX, lineBottom) {
+            drawText(
+                layout,
+                color = accent,
+                shadow = Shadow(
+                    color = accent.copy(alpha = OuterHaloAlpha * glowStrength),
+                    offset = Offset.Zero,
+                    blurRadius = fontPx * OuterHaloRadiusEm * glowStrength,
+                ),
+            )
+            drawText(
+                layout,
+                color = accent,
+                shadow = Shadow(
+                    color = accent.copy(alpha = InnerHaloAlpha * glowStrength),
+                    offset = Offset.Zero,
+                    blurRadius = fontPx * InnerHaloRadiusEm * glowStrength,
+                ),
+            )
+        }
+    }
+
+    if (edgeSoftnessPx > 0f && size.width > 0f) {
+        // A soft front cannot be a clip: the fill is drawn whole and then masked with
+        // a gradient, so the leading edge ramps in. DstIn multiplies the layer's own
+        // alpha, which is why the mask has to run inside the offscreen layer this
+        // composable already draws into.
+        clipRect(0f, lineTop, size.width, lineBottom) {
+            drawText(layout, color = accent, shadow = shadow)
+            drawRect(
+                brush = softFrontMask(frontX = frontX, softness = edgeSoftnessPx),
+                topLeft = Offset(0f, lineTop),
+                size = Size(size.width, lineBottom - lineTop),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+    } else {
+        clipRect(0f, lineTop, frontX, lineBottom) {
+            drawText(layout, color = accent, shadow = shadow)
+        }
     }
 
     val hotWidth = HotHeadWidthEm * fontSize.toPx() * (motionPercent.coerceIn(0, 100) / 100f)
@@ -210,8 +275,36 @@ private fun DrawScope.drawLyricWipe(
     }
 }
 
+/**
+ * The mask that gives a soft front its ramp: opaque where the line is sung, a
+ * gradient across the last [softness] pixels, and clear ahead of it.
+ *
+ * The stops are clamped inwards so a front near either edge of the layout cannot
+ * produce stops outside the gradient's own range or out of order.
+ */
+private fun DrawScope.softFrontMask(frontX: Float, softness: Float): Brush {
+    val frontStop = (frontX / size.width).coerceIn(0f, 1f)
+    val backStop = ((frontX - softness) / size.width).coerceIn(0f, frontStop)
+    return Brush.horizontalGradient(
+        colorStops = arrayOf(
+            0f to Color.White,
+            backStop to Color.White,
+            frontStop to Color.Transparent,
+            1f to Color.Transparent,
+        ),
+        startX = 0f,
+        endX = size.width,
+    )
+}
+
 /** Share of [GlowingLyricText]'s resting alpha used by the not-yet-sung text. */
 private const val UnsungAlphaFraction = 0.40f
+
+/** The halo's two passes, as fractions of the line's own font size. */
+private const val InnerHaloRadiusEm = 0.30f
+private const val OuterHaloRadiusEm = 0.62f
+private const val InnerHaloAlpha = 0.55f
+private const val OuterHaloAlpha = 0.30f
 
 /** Glowing head width, in ems of the line's own font size. */
 private const val HotHeadWidthEm = 0.45f

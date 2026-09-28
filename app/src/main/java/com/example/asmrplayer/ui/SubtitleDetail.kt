@@ -57,12 +57,16 @@ import com.example.asmrplayer.core.media.toggleCommandFor
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.subtitles.TimedTextLine
 import com.example.asmrplayer.feature.player.formatPlaybackTime
+import com.example.asmrplayer.feature.subtitles.LuminousTuning
+import com.example.asmrplayer.feature.subtitles.PendoloTuning
+import com.example.asmrplayer.feature.subtitles.TemperaTuning
 import com.example.asmrplayer.feature.subtitles.LyricsFollowing
 import com.example.asmrplayer.feature.subtitles.LyricsView
 import com.example.asmrplayer.feature.subtitles.LyricsVisualizerMode
 import com.example.asmrplayer.feature.subtitles.LyricsWordGlowMode
 import com.example.asmrplayer.feature.subtitles.SubtitleDetailState
 import com.example.asmrplayer.feature.subtitles.lyricsView
+import com.example.asmrplayer.ui.lyrics.ImmersiveTimedLyricsScene
 import com.example.asmrplayer.ui.theme.artworkBrush
 
 /**
@@ -83,7 +87,17 @@ fun SubtitleArtworkDetail(
     motionPercent: Int,
     visualizerMode: LyricsVisualizerMode,
     wordGlowMode: LyricsWordGlowMode,
+    backgroundOrdinal: Int?,
+    luminousTuning: LuminousTuning,
+    pendoloTuning: PendoloTuning,
+    temperaTuning: TemperaTuning,
     onVisualizerModeChange: (LyricsVisualizerMode) -> Unit,
+    onBackgroundChange: (Int?) -> Unit,
+    onMotionPercentChange: (Int) -> Unit,
+    onWordGlowModeChange: (LyricsWordGlowMode) -> Unit,
+    onLuminousTuningChange: (LuminousTuning) -> Unit,
+    onPendoloTuningChange: (PendoloTuning) -> Unit,
+    onTemperaTuningChange: (TemperaTuning) -> Unit,
     onBack: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -107,14 +121,21 @@ fun SubtitleArtworkDetail(
         ImmersiveTimedLyricsScene(
             item = item,
             document = view.document,
-            sourceName = subtitles.sourceName,
-            languageTag = subtitles.languageTag,
             playbackState = playbackState,
             motionPercent = motionPercent,
             visualizerMode = visualizerMode,
             wordGlowMode = wordGlowMode,
+            backgroundStoredOrdinal = backgroundOrdinal,
+            luminousTuning = luminousTuning,
+            pendoloTuning = pendoloTuning,
+            temperaTuning = temperaTuning,
             onVisualizerModeChange = onVisualizerModeChange,
-            onBack = onBack,
+            onBackgroundChange = onBackgroundChange,
+            onMotionPercentChange = onMotionPercentChange,
+            onWordGlowModeChange = onWordGlowModeChange,
+            onLuminousTuningChange = onLuminousTuningChange,
+            onPendoloTuningChange = onPendoloTuningChange,
+            onTemperaTuningChange = onTemperaTuningChange,
             onTogglePlayPause = onTogglePlayPause,
             onSeekTo = onSeekTo,
             onPrevious = onPrevious,

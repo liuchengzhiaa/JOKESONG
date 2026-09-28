@@ -312,15 +312,43 @@ lyrics do not overlap. The background may use one static blurred cover and cache
 palette gradients, but no audio-reactive shader or continuously animated field is
 part of V1.
 
-## D-016 — Visualizer modes are few, durable and share one truthful clock
+## D-016 — The full-screen lyric scene is a host over two append-only registries
 
-Phase 6 begins with three Compose modes rather than a large preset catalogue:
-`Flow` keeps the accepted centred five-tier scene, `Poster` uses Folia-like
-left-aligned hierarchy over a clearer cover, and `Spotlight` reduces the scene to one
-dominant line plus a next-line cue. Each mode changes composition, cover treatment
-and transition language, but all consume the same bounded frame, parsed document
-and Media3 state. The selected mode persists and unknown stored ordinals fall back
-to `Flow`.
+The lyric surface is not one decorated page. It is a host that resolves two
+independent registries -- a **visualizer** for the lines and a **background** for the
+artwork -- from the same playback clock, parsed document and cover palette, and then
+mounts each. Adding a presentation means adding a registry entry, not editing the
+scene: both dispatchers are exhaustive `when`s with no `else`, so a new enum entry
+does not compile until it has an implementation.
+
+This supersedes the earlier "three modes rather than a large preset catalogue"
+position. The owner chose the reference's scale, and the reference (Folia, AGPL-3.0)
+is a behavioural and visual reference only -- its source is not translated or
+copied, and the modes are implemented independently in Compose.
+
+Six modes ship: `Flow` (centred five-tier flow), `Poster` (left-aligned hierarchy
+over a readable cover), `Spotlight` (one dominant line, a rule, a cue), `Luminous`
+(the current line inside a wide halo built from the cover's leading colour, changing
+by breathing rather than by moving), `Diorama` (the artwork as a lit, tilted card
+with the lyrics set beneath it, the card lifting as each line arrives) and `Pendolo`
+(the line hung from a pivot, settling on a damped spring after each change, the next
+line following a beat later). Six backgrounds ship: blurred cover, sharp poster,
+dark spotlight, colour field, lattice and drift.
+
+Ordinals are persisted user settings in both registries, so entries may only ever be
+**appended**, and an unknown or out-of-range ordinal falls back to the default
+(`Flow`, or the mode's own background) rather than failing. **Backgrounds are
+orthogonal**: any background combines with any mode, and a background is handed a
+deliberately smaller input -- artwork, palette, line index and motion, never the
+lyric text -- so it cannot take over typography. Because
+the three original modes' treatments are now the first three backgrounds, and because
+a background setting of `null` means *follow the mode*, an install that never opens
+the background picker looks exactly as it did before that setting existed.
+
+The reference has more modes than these (Mindscape, Monet, Tempera and others); they
+are recorded as follow-ups rather than silently dropped. Nothing in this change adds
+a frame loop: the newer modes move on line boundaries only, and a motion setting of
+0% is asserted motionless by unit test rather than judged by eye.
 
 Word glow is an independent persisted three-way setting: Off, Smart (default), and
 Exact only. Smart prefers real word timestamps and otherwise derives display
@@ -343,3 +371,192 @@ panel grows and fades from the button's bottom-right origin, and global motion 0
 makes that transition immediate. This is not a live backdrop-filter implementation;
 capturing and blurring a moving wall would sit on the gesture hot path and is deferred
 until a real phone proves the cost acceptable.
+
+## D-017 — A bounded frame loop, a second registry shape, and per-mode parameters
+
+The owner rejected the first visualizer slice on looks rather than on structure: the
+modes were shallow, not wrong. Checking the reference confirmed it. `Flow`, `Poster`
+and `Spotlight` were reproductions of the reference's *lowest* family (a still,
+parameterless mode with no background layer); `Luminous` and `Pendolo` carried the
+reference's names but drew nothing like it. The fix was depth in two modes rather
+than more modes, so `流光` (formerly `Luminous`) and `时计` (formerly `Pendolo`) are
+taken to reference grade, their mode names kept, and the other four are left exactly
+as they were.
+
+This changes three settled rules, each deliberately:
+
+**A frame loop is now allowed in the foreground lyric scene, and nowhere else.** D-015
+and D-016 both promised no visualizer coroutine and no permanent frame loop. That
+promise survives for the wall, ordinary cards and the cover lyric layer -- none of
+them may run one -- and for the four modes that do not need it. It is lifted only for
+the full-screen scene, and only while three things hold at once: the scene is composed,
+playback is running, and the global motion setting is above zero. Leaving the scene,
+pausing, or 0% motion ends the coroutine (`ui/lyrics/LyricsSceneClock.kt`); the loop
+lives inside the mode's composable, so Compose's own lifecycle is the visibility test
+and there is no second visibility flag to fall out of step. This was approved by the
+owner explicitly, and the alternative -- interpolating a cloud that breathes on a
+7-second cycle from line boundaries alone -- does not exist.
+
+**The registry has two shapes.** A windowed mode is handed a `LyricRailWindow` (the
+active line plus seven either side, indices allowed to fall off both ends) and lays
+the whole slice out for itself as one moving object, because a wheel whose neighbours
+curve away cannot be drawn one line at a time. The stage gives such a mode no
+per-line `AnimatedContent` and no compact height, and the registry `when` still has no
+`else`, so a new mode must choose a shape at compile time.
+
+**A mode may own parameters.** `流光` has three, `时计` has nine, each with a declared
+integer range and a pure clamp, and they are persisted per mode. They are deliberately
+*not* part of the global motion setting: motion is the master switch that decides
+whether anything moves and scales how far, while a parameter is an absolute position
+that decides the shape -- folding the two together would make them fight. The scene
+header offers the sheet only where `hasTunings` is true; a drag is drawn live but
+written only on release, and a commit writes that mode's whole parameter set in one
+storage edit, so storage never sees half a change. The preview lives beside the stored
+value rather than inside it, and is dropped when the sheet closes, so a gesture that is
+never released cannot leave an unpersisted value on screen. Storage keeps these as the
+feature's own value types rather than raw ordinals, unlike the registry choices, and
+the reasoning is recorded in `AppPreferences.kt`: the one place where raw storage
+protects something (an enum whose contents the feature owns) does not apply to a flat
+record of primitives that *is* the stored shape.
+
+Declared degradations are in `docs/HANDOFF.md`; the reference's audio-reactive terms
+are answered with the reference's own no-audio default rather than by inventing an
+audio pipeline.
+
+## D-018 — The reference's 镜台 is a 3D particle corridor; Compose does not attempt it
+
+The reference's `diorama` is a react-three-fiber scene -- thousands of lines across
+23 files, a GLSL particle shader and a camera path -- in which the lyric text is
+rasterised into 3D world space along a winding corridor. Our `Diorama` shares the name
+and nothing else: it is a lit, tilted cover card with the lines set beneath it.
+
+That is a deliberate stopping point, not an unfinished one. A 2D Compose scene cannot
+be an equivalent of a 3D world-space text renderer, and a half-version would be a
+worse lie than an honest different picture. `Diorama` therefore keeps its current
+implementation and its name, and this entry exists so that nobody later compares the
+two by name and reads the difference as a bug. If the 3D corridor is ever wanted, it
+is a new rendering decision with its own cost, not a fix to this mode.
+
+## D-019 — Full-screen visualizers are an edge-to-edge stage, and reference modes return one by one
+
+The owner explicitly reopened the breadth decision after reviewing Folia's three
+published demonstrations and the official source. This supersedes D-017's final
+"two modes, not thirteen" stopping point and D-018's *permanent* stop, without
+pretending the technical warning was wrong: 镜台 will still require a real GPU/3D
+renderer when its turn comes, not a deeper Compose card.
+
+The official project is used as an AGPL-3.0 behavioural reference only. Its renderer
+or shader source and assets are not copied or translated. Each Android mode is a
+clean-room implementation against an observed contract and is appended to the
+persisted enum; existing ordinals are never renumbered. Legacy app-specific modes
+remain available until a separate migration decision removes them.
+
+The common scene shell is now a true stage:
+
+- the timed immersive route clears `Scaffold` content insets and draws under the
+  physical status/navigation areas;
+- system bars hide only while that route is composed, remain transiently reachable
+  by an edge swipe, and are restored on disposal;
+- renderer bounds never change when controls appear;
+- the title/actions and transport are small palette-tinted glass overlays with 48dp
+  hit targets, scale/fade/slide in, and auto-hide after 3.2 seconds while playing;
+- a first tap on the hidden stage reveals controls rather than seeking accidentally;
+  paused playback keeps them visible.
+
+`Claddagh` (回环) is the first newly appended reference mode. It is a
+`WindowedLyricsVisualizer`: a bounded rail advances as one spring-driven tilted
+ellipse, keeps history/current/future present during hand-off, projects scale,
+opacity, blur and tangent angle from depth, and sends the current line through the
+shared grapheme wipe. It has no second player, parser, document, or permanent clock.
+
+`Tempera` (凝彩) is the second appended mode, at ordinal 7. Its first implementation
+establishes the required pure compiler/runtime split: a deterministic, bounded shot
+program (initially eight families, no more than twelve expressive slices) is projected
+from absolute playback time, and the renderer separates artwork, geometry, decorative
+type and the always-readable current lyric. This is an architectural milestone, not
+a parity claim; GPU post effects, paragraph carry and broader shot vocabulary remain
+explicitly incomplete.
+
+The remaining order follows implementation truth rather than menu order:
+云阶/倾诉/莫奈 first (Compose typography); 心象/浮名 next (single Canvas with
+cached measurement); 群唱 after its speaker/avatar model; 凝彩 then 商籁 as
+compiled, absolute-time GPU scene programs; and 镜台 last as a genuine 3D camera
+scene. 凝彩 is not accepted as "large text plus transitions": it needs deterministic
+shot compilation, layered artwork/geometry/type, a stable readable subtitle and
+capability-gated post-processing.
+
+## D-020: Narrow the production visualizer registry and unify its settings
+
+**Decision:** While the four selected modes are taken to reference quality, the app
+ships only 流光 (`Luminous`), 时计 (`Pendolo`), 回环 (`Claddagh`) and 凝彩
+(`Tempera`). Flow, Poster, Spotlight and the knowingly non-equivalent 2D Diorama are
+removed rather than left as misleading presets. Early builds persisted enum ordinals,
+so the survivors expose legacy stored values 3, 5, 6 and 7; removed and unknown values
+degrade to 流光. New enum ordinals are never written.
+
+The scene exposes one settings entry whose overlay has stable 通用 / 背景 / 歌词动画 /
+字幕 tabs. Background remains independent from foreground animation. 凝彩's first
+mode-specific settings are cover versus a bounded persistable-SAF image library and a
+full-screen, 4:4 or 4:3 fitted stage. Image URIs are presentation preferences; images
+are neither copied nor written back. This supersedes D-019's plan to immediately add
+the rest of the thirteen-mode catalogue, but retains its clean-room and depth rules.
+
+## D-021 — One global record and three shells over one full player
+
+The conventional mini player is replaced, not supplemented, by one circular global
+record at the lower-left of ordinary app destinations. It displays current artwork,
+rotates slowly while Media3 is playing and opens the full player. It is absent when
+there is no current media and while either the full player or immersive lyric scene
+is already open. The abandoned roll-up playback-bar proposal is not part of the
+product.
+
+The full player has three persisted visual shells: Folia, Poweramp and Fusion, with
+Fusion as the default. They are not three player implementations. Media3 connection,
+metadata read, timeline, seek state, queue, bookmarks, chapters and actions are
+created once and passed into the selected arrangement. The same rule applies to
+future features: add one shared capability and expose it through each shell rather
+than copying behaviour.
+
+The record-to-player motion is presentation only. The record rotates by updating a
+render layer rather than recomposing every frame; the route keeps the outgoing item
+long enough to finish its reverse animation; 0% global motion removes the scale
+travel. This preserves a lower-cost path and makes future navigation replacement
+possible without putting route state inside the record composable.
+
+## D-022 — The full player has one layout; lyrics are entered by an artwork swipe
+
+This supersedes D-021's three-shell full-player experiment immediately after device
+review. Folia/Poweramp/Fusion are removed as product choices, including their stored
+preference and settings UI. The player has one adaptive layout: artwork above, no
+top chrome, and one rounded lower surface containing metadata, queue position, thin
+seek line, previous/next, backward/forward jumps and secondary player panels.
+
+Artwork tap is deliberately unbound. A left horizontal swipe on the artwork opens
+the immersive lyric scene, which prevents an ordinary cover tap from unexpectedly
+changing routes and leaves room for future artwork gestures. Android Back remains the
+way out of both the player and lyric scene.
+
+The lyric scene's top overlay contains only the settings icon, drawn directly over
+the scene without a separate disc, boundary or filename. Settings-open state belongs
+to the scene host rather than the transient header; while it is open the 3.2-second
+chrome timer is suspended, so recomposition or inactivity cannot close the panel.
+The focus wall, full player and lyric transport share `FoliaSeekBar`.
+
+## D-023 — Records and the 时计 wheel use direct manipulation
+
+The global record is a movable control, not a permanently lower-left decoration.
+Dragging is constrained to the current safe content viewport; release snaps to the
+nearest horizontal edge. Only the normalized settled edge and height are persisted,
+so rotation and different screen sizes do not restore an obsolete pixel coordinate.
+Drag frames never write DataStore.
+
+“轮盘” also names the complete mechanical lyric wheel in 时计. Its clockwork and lyric
+rail move together under a two-axis drag because both continue to derive from one
+`PendoloTuning` centre. The renderer previews locally and commits only on release;
+the horizontal and vertical settings remain equivalent controls. Tapping a neighbour
+lyric and opening scene chrome remain separate gestures.
+
+The full-player artwork follows the focused Folia poster's visual vocabulary without
+duplicating its playback/lyric chrome: bounded near-square size, 2 dp edge, translucent
+cover accent border and the same dark vertical/horizontal shade. Metadata and player
+actions remain solely in the lower control surface.

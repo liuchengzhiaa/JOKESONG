@@ -5,9 +5,19 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.asmrplayer.core.settings.UiAccentPalette
 import com.example.asmrplayer.core.settings.UiStylePreset
+import com.example.asmrplayer.feature.subtitles.LuminousTuning
+import com.example.asmrplayer.feature.subtitles.PendoloGearDecor
+import com.example.asmrplayer.feature.subtitles.PendoloTuning
+import com.example.asmrplayer.feature.subtitles.TemperaArtworkSource
+import com.example.asmrplayer.feature.subtitles.TemperaColorMode
+import com.example.asmrplayer.feature.subtitles.TemperaImageDepth
+import com.example.asmrplayer.feature.subtitles.TemperaStageAspect
+import com.example.asmrplayer.feature.subtitles.TemperaTuning
+import com.example.asmrplayer.feature.subtitles.clamped
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -38,16 +48,44 @@ data class AppSettings(
     val uiStylePresetOrdinal: Int = UiStylePreset.Balanced.ordinal,
     val uiAccentPaletteOrdinal: Int = UiAccentPalette.Ocean.ordinal,
     val uiScalePercent: Int = 100,
+    /** Normalized position of the draggable global record within its safe viewport. */
+    val globalVinylXPerMille: Int = 0,
+    val globalVinylYPerMille: Int = 1_000,
     /** Raw ordinal; the subtitles feature owns the visualizer registry type. */
-    val lyricsVisualizerOrdinal: Int = 0,
+    val lyricsVisualizerOrdinal: Int = DefaultLyricsVisualizerStoredValue,
+    /**
+     * Raw ordinal of the chosen lyric background, or null to follow whichever
+     * background the selected visualizer mode was designed around. Null is the
+     * default because it is what keeps an install that predates the setting
+     * looking exactly as it did.
+     */
+    val lyricsBackgroundOrdinal: Int? = null,
     /** Raw ordinal; the subtitles feature owns the glow-timing policy type. */
     val lyricsWordGlowModeOrdinal: Int = DefaultLyricsWordGlowModeOrdinal,
+    /**
+     * The two lyric modes that expose parameters of their own.
+     *
+     * These are the feature's own value types rather than raw ordinals, unlike the
+     * registry choices above. An ordinal is fragile because the feature decides what
+     * the enum contains, so storage must not know the list. A tuning is the opposite
+     * case: it is the stored shape itself -- a flat, immutable record of primitives
+     * with no Compose or UI dependency -- so importing it keeps one schema instead of
+     * a parallel copy that would have to be kept in step by hand. The one ordinal
+     * inside (`PendoloGearDecor`) still resolves through the feature's own
+     * `fromOrdinal`, so a stored value this build does not know degrades to the mode's
+     * default rather than to a broken mode.
+     */
+    val luminousTuning: LuminousTuning = LuminousTuning(),
+    val pendoloTuning: PendoloTuning = PendoloTuning(),
+    val temperaTuning: TemperaTuning = TemperaTuning(),
 ) {
     companion object {
         // LibraryLayoutMode.FocusWall.ordinal, kept raw so storage owns no UI type.
         const val DefaultLibraryLayoutOrdinal = 3
         // LyricsWordGlowMode.Smart.ordinal, kept raw so storage owns no UI type.
         const val DefaultLyricsWordGlowModeOrdinal = 1
+        // LyricsVisualizerMode.Luminous.storedValue. Kept raw so storage owns no UI type.
+        const val DefaultLyricsVisualizerStoredValue = 3
     }
 }
 
@@ -63,6 +101,12 @@ class AppPreferences(private val context: Context) {
                 3 -> 50
                 else -> 0
             }
+            // A key that was never written falls back to the mode's own default rather
+            // than to a copy of it kept here, so an install that predates the parameter
+            // looks exactly like a fresh one and the two defaults cannot drift.
+            val luminousDefaults = LuminousTuning()
+            val pendoloDefaults = PendoloTuning()
+            val temperaDefaults = TemperaTuning()
             AppSettings(
                 libraryLayoutOrdinal = preferences[LibraryLayoutKey]
                     ?: AppSettings.DefaultLibraryLayoutOrdinal,
@@ -83,11 +127,81 @@ class AppPreferences(private val context: Context) {
                 uiAccentPaletteOrdinal = preferences[UiAccentPaletteKey]
                     ?: UiAccentPalette.Ocean.ordinal,
                 uiScalePercent = (preferences[UiScaleKey] ?: 100).coerceIn(85, 120),
-                lyricsVisualizerOrdinal = preferences[LyricsVisualizerKey] ?: 0,
+                globalVinylXPerMille = (preferences[GlobalVinylXKey] ?: 0)
+                    .coerceIn(0, 1_000),
+                globalVinylYPerMille = (preferences[GlobalVinylYKey] ?: 1_000)
+                    .coerceIn(0, 1_000),
+                lyricsVisualizerOrdinal = preferences[LyricsVisualizerKey]
+                    ?: AppSettings.DefaultLyricsVisualizerStoredValue,
+                lyricsBackgroundOrdinal = preferences[LyricsBackgroundKey],
                 lyricsWordGlowModeOrdinal = resolveLyricsWordGlowModeOrdinal(
                     storedOrdinal = preferences[LyricsWordGlowModeKey],
                     legacyEnabled = preferences[LegacyLyricsWordGlowKey],
                 ),
+                // `clamped()` on the way out, so a stored number that this build would
+                // not produce -- written by an older one, or edited by hand -- degrades
+                // to the nearest legal parameter instead of failing the read.
+                luminousTuning = LuminousTuning(
+                    wordRotation = preferences[LuminousWordRotationKey]
+                        ?: luminousDefaults.wordRotation,
+                    breathingFloatPercent = preferences[LuminousBreathingFloatKey]
+                        ?: luminousDefaults.breathingFloatPercent,
+                    wordSpacingPercent = preferences[LuminousWordSpacingKey]
+                        ?: luminousDefaults.wordSpacingPercent,
+                ).clamped(),
+                pendoloTuning = PendoloTuning(
+                    wheelCenterXPerMille = preferences[PendoloWheelCenterXKey]
+                        ?: pendoloDefaults.wheelCenterXPerMille,
+                    wheelCenterYPerMille = preferences[PendoloWheelCenterYKey]
+                        ?: pendoloDefaults.wheelCenterYPerMille,
+                    arcRadiusPercent = preferences[PendoloArcRadiusKey]
+                        ?: pendoloDefaults.arcRadiusPercent,
+                    arcAngleDegrees = preferences[PendoloArcAngleKey]
+                        ?: pendoloDefaults.arcAngleDegrees,
+                    tickSnappinessPerTen = preferences[PendoloTickSnappinessKey]
+                        ?: pendoloDefaults.tickSnappinessPerTen,
+                    activeScalePercent = preferences[PendoloActiveScaleKey]
+                        ?: pendoloDefaults.activeScalePercent,
+                    gearDecor = preferences[PendoloGearDecorKey]
+                        ?.let(PendoloGearDecor::fromOrdinal)
+                        ?: pendoloDefaults.gearDecor,
+                    centreGradient = preferences[PendoloCentreGradientKey]
+                        ?: pendoloDefaults.centreGradient,
+                    coverOnDial = preferences[PendoloCoverOnDialKey]
+                        ?: pendoloDefaults.coverOnDial,
+                    lineGlow = preferences[PendoloLineGlowKey] ?: pendoloDefaults.lineGlow,
+                ).clamped(),
+                temperaTuning = TemperaTuning(
+                    artworkSource = preferences[TemperaArtworkSourceKey]
+                        ?.let(TemperaArtworkSource::fromOrdinal)
+                        ?: temperaDefaults.artworkSource,
+                    stageAspect = preferences[TemperaStageAspectKey]
+                        ?.let(TemperaStageAspect::fromOrdinal)
+                        ?: temperaDefaults.stageAspect,
+                    imageUris = preferences[TemperaImageUrisKey]?.toList().orEmpty(),
+                    cameraIntensityPercent = preferences[TemperaCameraIntensityKey]
+                        ?: temperaDefaults.cameraIntensityPercent,
+                    glyphMotionPercent = preferences[TemperaGlyphMotionKey]
+                        ?: temperaDefaults.glyphMotionPercent,
+                    glyphSettleStretchPercent = preferences[TemperaGlyphSettleStretchKey]
+                        ?: temperaDefaults.glyphSettleStretchPercent,
+                    wholeLineLyrics = preferences[TemperaWholeLineKey]
+                        ?: temperaDefaults.wholeLineLyrics,
+                    colorMode = preferences[TemperaColorModeKey]
+                        ?.let(TemperaColorMode::fromOrdinal) ?: temperaDefaults.colorMode,
+                    showBlocks = preferences[TemperaShowBlocksKey] ?: temperaDefaults.showBlocks,
+                    showDecor = preferences[TemperaShowDecorKey] ?: temperaDefaults.showDecor,
+                    showCornerMarks = preferences[TemperaShowCornerMarksKey]
+                        ?: temperaDefaults.showCornerMarks,
+                    textInversion = preferences[TemperaTextInversionKey]
+                        ?: temperaDefaults.textInversion,
+                    enableTransitions = preferences[TemperaEnableTransitionsKey]
+                        ?: temperaDefaults.enableTransitions,
+                    imageFrequencyPercent = preferences[TemperaImageFrequencyKey]
+                        ?: temperaDefaults.imageFrequencyPercent,
+                    imageDepth = preferences[TemperaImageDepthKey]
+                        ?.let(TemperaImageDepth::fromOrdinal) ?: temperaDefaults.imageDepth,
+                ).clamped(),
             )
         }
 
@@ -116,12 +230,77 @@ class AppPreferences(private val context: Context) {
         it[UiStylePresetKey] = UiStylePreset.Custom.ordinal
     }
 
+    suspend fun setGlobalVinylPosition(xPerMille: Int, yPerMille: Int) = edit {
+        it[GlobalVinylXKey] = xPerMille.coerceIn(0, 1_000)
+        it[GlobalVinylYKey] = yPerMille.coerceIn(0, 1_000)
+    }
+
     suspend fun setLyricsVisualizer(ordinal: Int) = edit {
         it[LyricsVisualizerKey] = ordinal.coerceAtLeast(0)
     }
 
     suspend fun setLyricsWordGlowMode(ordinal: Int) = edit {
         it[LyricsWordGlowModeKey] = ordinal.coerceAtLeast(0)
+    }
+
+    /** Passing null clears the choice, so the background follows the mode again. */
+    suspend fun setLyricsBackground(ordinal: Int?) = edit { preferences ->
+        if (ordinal == null) {
+            preferences.remove(LyricsBackgroundKey)
+        } else {
+            preferences[LyricsBackgroundKey] = ordinal.coerceAtLeast(0)
+        }
+    }
+
+    /**
+     * Writes a mode's whole parameter set in one edit.
+     *
+     * The sheet commits on release rather than on every drag frame, so this is called
+     * once per gesture: one edit for all of the mode's keys keeps a half-written set
+     * out of storage and costs one round trip instead of one per slider.
+     */
+    suspend fun setLuminousTuning(tuning: LuminousTuning) = edit { preferences ->
+        val safe = tuning.clamped()
+        preferences[LuminousWordRotationKey] = safe.wordRotation
+        preferences[LuminousBreathingFloatKey] = safe.breathingFloatPercent
+        preferences[LuminousWordSpacingKey] = safe.wordSpacingPercent
+    }
+
+    suspend fun setPendoloTuning(tuning: PendoloTuning) = edit { preferences ->
+        val safe = tuning.clamped()
+        preferences[PendoloWheelCenterXKey] = safe.wheelCenterXPerMille
+        preferences[PendoloWheelCenterYKey] = safe.wheelCenterYPerMille
+        preferences[PendoloArcRadiusKey] = safe.arcRadiusPercent
+        preferences[PendoloArcAngleKey] = safe.arcAngleDegrees
+        preferences[PendoloTickSnappinessKey] = safe.tickSnappinessPerTen
+        preferences[PendoloActiveScaleKey] = safe.activeScalePercent
+        preferences[PendoloGearDecorKey] = safe.gearDecor.ordinal
+        preferences[PendoloCentreGradientKey] = safe.centreGradient
+        preferences[PendoloCoverOnDialKey] = safe.coverOnDial
+        preferences[PendoloLineGlowKey] = safe.lineGlow
+    }
+
+    suspend fun setTemperaTuning(tuning: TemperaTuning) = edit { preferences ->
+        val safe = tuning.clamped()
+        preferences[TemperaArtworkSourceKey] = safe.artworkSource.ordinal
+        preferences[TemperaStageAspectKey] = safe.stageAspect.ordinal
+        preferences[TemperaCameraIntensityKey] = safe.cameraIntensityPercent
+        preferences[TemperaGlyphMotionKey] = safe.glyphMotionPercent
+        preferences[TemperaGlyphSettleStretchKey] = safe.glyphSettleStretchPercent
+        preferences[TemperaWholeLineKey] = safe.wholeLineLyrics
+        preferences[TemperaColorModeKey] = safe.colorMode.ordinal
+        preferences[TemperaShowBlocksKey] = safe.showBlocks
+        preferences[TemperaShowDecorKey] = safe.showDecor
+        preferences[TemperaShowCornerMarksKey] = safe.showCornerMarks
+        preferences[TemperaTextInversionKey] = safe.textInversion
+        preferences[TemperaEnableTransitionsKey] = safe.enableTransitions
+        preferences[TemperaImageFrequencyKey] = safe.imageFrequencyPercent
+        preferences[TemperaImageDepthKey] = safe.imageDepth.ordinal
+        if (safe.imageUris.isEmpty()) {
+            preferences.remove(TemperaImageUrisKey)
+        } else {
+            preferences[TemperaImageUrisKey] = safe.imageUris.toSet()
+        }
     }
 
     suspend fun applyUiStylePreset(ordinal: Int) {
@@ -155,8 +334,39 @@ class AppPreferences(private val context: Context) {
         val UiStylePresetKey = intPreferencesKey("ui_style_preset")
         val UiAccentPaletteKey = intPreferencesKey("ui_accent_palette")
         val UiScaleKey = intPreferencesKey("ui_scale_percent")
+        val GlobalVinylXKey = intPreferencesKey("global_vinyl_x_per_mille")
+        val GlobalVinylYKey = intPreferencesKey("global_vinyl_y_per_mille")
         val LyricsVisualizerKey = intPreferencesKey("lyrics_visualizer_mode")
+        val LyricsBackgroundKey = intPreferencesKey("lyrics_visualizer_background")
         val LyricsWordGlowModeKey = intPreferencesKey("lyrics_word_glow_mode")
+        val LuminousWordRotationKey = booleanPreferencesKey("lyrics_luminous_word_rotation")
+        val LuminousBreathingFloatKey = intPreferencesKey("lyrics_luminous_breathing_percent")
+        val LuminousWordSpacingKey = intPreferencesKey("lyrics_luminous_word_spacing_percent")
+        val PendoloWheelCenterXKey = intPreferencesKey("lyrics_pendolo_wheel_center_x")
+        val PendoloWheelCenterYKey = intPreferencesKey("lyrics_pendolo_wheel_center_y")
+        val PendoloArcRadiusKey = intPreferencesKey("lyrics_pendolo_arc_radius")
+        val PendoloArcAngleKey = intPreferencesKey("lyrics_pendolo_arc_angle")
+        val PendoloTickSnappinessKey = intPreferencesKey("lyrics_pendolo_tick_snappiness")
+        val PendoloActiveScaleKey = intPreferencesKey("lyrics_pendolo_active_scale")
+        val PendoloGearDecorKey = intPreferencesKey("lyrics_pendolo_gear_decor")
+        val PendoloCentreGradientKey = booleanPreferencesKey("lyrics_pendolo_centre_gradient")
+        val PendoloCoverOnDialKey = booleanPreferencesKey("lyrics_pendolo_cover_on_dial")
+        val PendoloLineGlowKey = booleanPreferencesKey("lyrics_pendolo_line_glow")
+        val TemperaArtworkSourceKey = intPreferencesKey("lyrics_tempera_artwork_source")
+        val TemperaStageAspectKey = intPreferencesKey("lyrics_tempera_stage_aspect")
+        val TemperaImageUrisKey = stringSetPreferencesKey("lyrics_tempera_image_uris")
+        val TemperaCameraIntensityKey = intPreferencesKey("lyrics_tempera_camera_intensity_percent")
+        val TemperaGlyphMotionKey = intPreferencesKey("lyrics_tempera_glyph_motion_percent")
+        val TemperaGlyphSettleStretchKey = intPreferencesKey("lyrics_tempera_glyph_settle_percent")
+        val TemperaWholeLineKey = booleanPreferencesKey("lyrics_tempera_whole_line")
+        val TemperaColorModeKey = intPreferencesKey("lyrics_tempera_color_mode")
+        val TemperaShowBlocksKey = booleanPreferencesKey("lyrics_tempera_show_blocks")
+        val TemperaShowDecorKey = booleanPreferencesKey("lyrics_tempera_show_decor")
+        val TemperaShowCornerMarksKey = booleanPreferencesKey("lyrics_tempera_show_corner_marks")
+        val TemperaTextInversionKey = booleanPreferencesKey("lyrics_tempera_text_inversion")
+        val TemperaEnableTransitionsKey = booleanPreferencesKey("lyrics_tempera_enable_transitions")
+        val TemperaImageFrequencyKey = intPreferencesKey("lyrics_tempera_image_frequency_percent")
+        val TemperaImageDepthKey = intPreferencesKey("lyrics_tempera_image_depth")
         val LegacyLyricsWordGlowKey = booleanPreferencesKey("lyrics_word_glow")
         val LegacyPosterTintStrengthKey = intPreferencesKey("wall_poster_tint_strength")
         val LegacyReducedMotionKey = booleanPreferencesKey("wall_reduced_motion")

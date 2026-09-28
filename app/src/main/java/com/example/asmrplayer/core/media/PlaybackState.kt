@@ -10,6 +10,9 @@ data class PlaybackState(
     val isConnected: Boolean = false,
     val mediaId: String? = null,
     val title: String? = null,
+    /** Presentation metadata retained by Media3 even when the library is elsewhere. */
+    val artworkUri: String? = null,
+    val documentUri: String? = null,
     val isPlaying: Boolean = false,
     val playWhenReady: Boolean = false,
     val isBuffering: Boolean = false,

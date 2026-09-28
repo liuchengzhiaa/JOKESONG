@@ -2,11 +2,18 @@ package com.example.asmrplayer.ui
 
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -29,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -43,6 +51,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -63,6 +72,9 @@ import com.example.asmrplayer.feature.library.LibraryLayoutMode
 import com.example.asmrplayer.feature.library.LibraryLayoutSwitcher
 import com.example.asmrplayer.feature.library.LibraryUiState
 import com.example.asmrplayer.feature.subtitles.SubtitleDetailState
+import com.example.asmrplayer.feature.subtitles.LuminousTuning
+import com.example.asmrplayer.feature.subtitles.PendoloTuning
+import com.example.asmrplayer.feature.subtitles.TemperaTuning
 import com.example.asmrplayer.feature.subtitles.LyricsVisualizerMode
 import com.example.asmrplayer.feature.subtitles.LyricsWordGlowMode
 
@@ -95,8 +107,13 @@ fun AsmrPlayerApp(
     onUiStylePresetChange: (Int) -> Unit,
     onUiAccentPaletteChange: (Int) -> Unit,
     onUiScalePercentChange: (Int) -> Unit,
+    onGlobalVinylPositionChange: (Int, Int) -> Unit,
     onLyricsVisualizerModeChange: (Int) -> Unit,
+    onLyricsBackgroundChange: (Int?) -> Unit,
     onLyricsWordGlowModeChange: (Int) -> Unit,
+    onLuminousTuningChange: (LuminousTuning) -> Unit,
+    onPendoloTuningChange: (PendoloTuning) -> Unit,
+    onTemperaTuningChange: (TemperaTuning) -> Unit,
     onResetAppearanceDefaults: () -> Unit,
     onOpenSubtitleDetail: (String) -> Unit,
     onCloseSubtitleDetail: () -> Unit,
@@ -115,9 +132,34 @@ fun AsmrPlayerApp(
 
     val itemById = remember(libraryState.items) { libraryState.items.associateBy(LibraryItem::id) }
     val nowPlayingItem = playbackState.mediaId?.let(itemById::get)
-    val openedItem = fullPlayerItemId?.let(itemById::get)
+    var retainedNowPlayingItem by remember { mutableStateOf<LibraryItem?>(null) }
+    val sessionNowPlayingItem = playbackState.mediaId?.let { mediaId ->
+        nowPlayingItem ?: retainedNowPlayingItem?.takeIf { it.id == mediaId } ?: LibraryItem(
+            id = mediaId,
+            title = playbackState.title.orEmpty().ifBlank { stringResource(R.string.now_playing) },
+            subtitle = stringResource(R.string.local_audio),
+            type = LibraryItemType.Audio,
+            paletteSeed = mediaId.hashCode(),
+            documentUri = playbackState.documentUri,
+            artworkUri = playbackState.artworkUri,
+        )
+    }
+    LaunchedEffect(playbackState.mediaId, sessionNowPlayingItem) {
+        retainedNowPlayingItem = when {
+            playbackState.mediaId == null -> null
+            sessionNowPlayingItem != null -> sessionNowPlayingItem
+            else -> retainedNowPlayingItem
+        }
+    }
+    val openedItem = fullPlayerItemId?.let { itemId ->
+        itemById[itemId] ?: retainedNowPlayingItem?.takeIf { it.id == itemId }
+    }
     // While the player is open it follows the session, so next/previous update it.
-    val fullPlayerItem = if (fullPlayerItemId == null) null else nowPlayingItem ?: openedItem
+    val fullPlayerItem = if (fullPlayerItemId == null) null else sessionNowPlayingItem ?: openedItem
+    var retainedFullPlayerItem by remember { mutableStateOf<LibraryItem?>(null) }
+    LaunchedEffect(fullPlayerItem) {
+        if (fullPlayerItem != null) retainedFullPlayerItem = fullPlayerItem
+    }
     val playerQueue = remember(libraryState.items) {
         libraryState.items.filter { it.type == LibraryItemType.Audio }
     }
@@ -168,36 +210,31 @@ fun AsmrPlayerApp(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = if (fullPlayerItem != null) Color(0xFF090A0D) else MaterialTheme.colorScheme.background,
+        // The lyric renderer is the whole window. Its chrome applies transient
+        // system-bar insets to itself, so Scaffold must not reserve another opaque
+        // strip above and below the stage while that route is open.
+        contentWindowInsets = if (showSubtitleDetail || fullPlayerItem != null) {
+            WindowInsets(0, 0, 0, 0)
+        } else {
+            ScaffoldDefaults.contentWindowInsets
+        },
         topBar = {
             // The lyric scene owns its small translucent back/title overlay. Keeping
             // the app bar here would make it a player page with a visualizer below,
             // rather than the full-screen scene promised by phase 5.
-            if (!showSubtitleDetail) CenterAlignedTopAppBar(
+            if (!showSubtitleDetail && fullPlayerItem == null) CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = fullPlayerItem?.title
-                            ?: libraryState.folderTitle.ifBlank { stringResource(R.string.folders) },
+                        text = if (selectedDestination == 0) {
+                            libraryState.folderTitle.ifBlank { stringResource(R.string.folders) }
+                        } else {
+                            stringResource(destinations[selectedDestination].label)
+                        },
                         maxLines = 1,
                     )
                 },
                 navigationIcon = {
                     when {
-                        fullPlayerItem != null -> {
-                            IconButton(
-                                onClick = {
-                                    if (showSubtitleDetail) {
-                                        showSubtitleDetail = false
-                                    } else {
-                                        fullPlayerItemId = null
-                                    }
-                                },
-                            ) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                    stringResource(R.string.back_to_library),
-                                )
-                            }
-                        }
                         selectedDestination == 0 && libraryState.canNavigateUp -> {
                             IconButton(onClick = onNavigateUp) {
                                 Icon(
@@ -209,44 +246,37 @@ fun AsmrPlayerApp(
                     }
                 },
                 actions = {
-                    if (fullPlayerItem == null && selectedDestination == 0 && libraryState.hasRoot) {
+                    if (selectedDestination == 0 && libraryState.hasRoot) {
                         IconButton(onClick = onRefresh, enabled = !libraryState.isScanning) {
                             Icon(Icons.Default.Refresh, stringResource(R.string.refresh_current_folder))
                         }
                     }
-                    if (fullPlayerItem == null && selectedDestination == 0) {
+                    if (selectedDestination == 0) {
                         IconButton(onClick = onChooseRoot) {
                             Icon(Icons.Default.FolderOpen, stringResource(R.string.choose_library_root))
                         }
                     }
                 },
-                colors = if (fullPlayerItem != null) {
-                    // The player's bar is immersive chrome: a fixed near-black surface
-                    // that deliberately ignores the theme's light and dark surfaces. The
-                    // accent's light variant is unreadable on it, so this bar stays
-                    // neutral rather than half-following a palette it is not part of.
-                    TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = Color(0xFF090A0D),
-                        titleContentColor = Color(0xFFF4F4F6),
-                        navigationIconContentColor = Color(0xFFF4F4F6),
-                        actionIconContentColor = Color(0xFFF4F4F6),
-                    )
-                } else {
+                colors =
                     // Title, back arrow and the refresh / folder actions all take the
                     // global accent. Without this the setting reached the bottom
                     // navigation bar and nothing else, so the top bar read as if it
                     // were not part of the app's appearance at all.
                     TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.96f),
                         titleContentColor = MaterialTheme.colorScheme.primary,
                         navigationIconContentColor = MaterialTheme.colorScheme.primary,
                         actionIconContentColor = MaterialTheme.colorScheme.primary,
-                    )
-                },
+                    ),
             )
         },
         bottomBar = {
             if (fullPlayerItem == null && !(isLandscape && selectedDestination == 0)) {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f),
+                    tonalElevation = 0.dp,
+                ) {
                     destinations.forEachIndexed { index, destination ->
                         NavigationBarItem(
                             selected = selectedDestination == index,
@@ -264,10 +294,26 @@ fun AsmrPlayerApp(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            if (fullPlayerItem != null) {
+            val routeMotionMillis = if (libraryState.motionPercent <= 0) 0 else 420
+            AnimatedVisibility(
+                visible = fullPlayerItem != null,
+                modifier = Modifier.fillMaxSize(),
+                enter = fadeIn(tween(routeMotionMillis)) + scaleIn(
+                    animationSpec = tween(routeMotionMillis),
+                    initialScale = 0.78f,
+                    transformOrigin = TransformOrigin(0f, 1f),
+                ),
+                exit = fadeOut(tween(routeMotionMillis / 2)) + scaleOut(
+                    animationSpec = tween(routeMotionMillis),
+                    targetScale = 0.78f,
+                    transformOrigin = TransformOrigin(0f, 1f),
+                ),
+                label = "global vinyl to player",
+            ) {
+              (fullPlayerItem ?: retainedFullPlayerItem)?.let { playerItem ->
                 if (showSubtitleDetail) {
                     SubtitleArtworkDetail(
-                        item = fullPlayerItem,
+                        item = playerItem,
                         subtitles = subtitleState,
                         playbackState = playbackState,
                         motionPercent = libraryState.motionPercent,
@@ -277,9 +323,21 @@ fun AsmrPlayerApp(
                         wordGlowMode = LyricsWordGlowMode.fromOrdinal(
                             libraryState.lyricsWordGlowModeOrdinal,
                         ),
+                        backgroundOrdinal = libraryState.lyricsBackgroundOrdinal,
+                        luminousTuning = libraryState.luminousTuning,
+                        pendoloTuning = libraryState.pendoloTuning,
+                        temperaTuning = libraryState.temperaTuning,
                         onVisualizerModeChange = {
-                            onLyricsVisualizerModeChange(it.ordinal)
+                            onLyricsVisualizerModeChange(it.storedValue)
                         },
+                        onBackgroundChange = onLyricsBackgroundChange,
+                        onMotionPercentChange = onMotionPercentChange,
+                        onWordGlowModeChange = {
+                            onLyricsWordGlowModeChange(it.ordinal)
+                        },
+                        onLuminousTuningChange = onLuminousTuningChange,
+                        onPendoloTuningChange = onPendoloTuningChange,
+                        onTemperaTuningChange = onTemperaTuningChange,
                         onBack = { showSubtitleDetail = false },
                         onTogglePlayPause = onTogglePlayPause,
                         onSeekTo = onSeekTo,
@@ -288,7 +346,7 @@ fun AsmrPlayerApp(
                     )
                 } else {
                     PlayerDetail(
-                        item = fullPlayerItem,
+                        item = playerItem,
                         queueItems = playerQueue,
                         playbackState = playbackState,
                         onTogglePlayPause = onTogglePlayPause,
@@ -300,10 +358,20 @@ fun AsmrPlayerApp(
                             fullPlayerItemId = selected.id
                             onPlayItem(selected)
                         },
-                        onArtworkClick = { showSubtitleDetail = true },
+                        onArtworkSwipeLeft = { showSubtitleDetail = true },
                     )
                 }
-            } else if (selectedDestination == 0) {
+              }
+            }
+            AnimatedVisibility(
+                visible = fullPlayerItem == null,
+                modifier = Modifier.fillMaxSize(),
+                enter = fadeIn(tween(routeMotionMillis)),
+                exit = fadeOut(tween(routeMotionMillis / 2)),
+                label = "app destinations",
+            ) {
+              Box(Modifier.fillMaxSize()) {
+              if (selectedDestination == 0) {
                 LibraryContent(
                     state = libraryState,
                     playbackState = playbackState,
@@ -338,7 +406,7 @@ fun AsmrPlayerApp(
                     onPrevious = onPrevious,
                     onNext = onNext,
                 )
-            } else if (selectedDestination == 3) {
+              } else if (selectedDestination == 3) {
                 SettingsScreen(
                     state = libraryState,
                     onChooseRoot = onChooseRoot,
@@ -350,11 +418,40 @@ fun AsmrPlayerApp(
                     onLyricsWordGlowModeChange = onLyricsWordGlowModeChange,
                     onResetAppearanceDefaults = onResetAppearanceDefaults,
                 )
-            } else {
+              } else {
                 MessageState(
                     title = stringResource(destinations[selectedDestination].label),
                     message = stringResource(R.string.feature_coming_soon),
                 )
+              }
+              }
+            }
+
+            AnimatedVisibility(
+                visible = fullPlayerItem == null && retainedNowPlayingItem != null,
+                modifier = Modifier
+                    .fillMaxSize(),
+                enter = fadeIn(tween(routeMotionMillis)),
+                exit = fadeOut(tween(routeMotionMillis / 2)),
+                label = "global vinyl player",
+            ) {
+                retainedNowPlayingItem?.let { playingItem ->
+                    GlobalVinylPlayer(
+                        item = playingItem,
+                        isPlaying = playbackState.isPlaying,
+                        motionPercent = libraryState.motionPercent,
+                        xPerMille = libraryState.globalVinylXPerMille,
+                        yPerMille = libraryState.globalVinylYPerMille,
+                        onPositionSettled = onGlobalVinylPositionChange,
+                        onClick = {
+                            showSubtitleDetail = false
+                            fullPlayerItemId = playingItem.id
+                        },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(12.dp),
+                    )
+                }
             }
         }
     }

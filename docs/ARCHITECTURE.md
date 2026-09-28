@@ -123,17 +123,91 @@ Never mutate canonical metadata to implement privacy presentation.
   pure feature model selects at most two lines on either side; the Compose layer
   consumes the existing `PlaybackState`, the
   cached focused-cover palette and the parsed document. Line changes animate only
-  when the current line index changes. There is no visualizer coroutine or permanent
-  frame loop, and disposing the surface cancels its one bounded palette request.
+  when the current line index changes. Disposing the surface cancels its one bounded
+  palette request.
+- **No frame loop outside the foreground scene.** The wall, ordinary cards and the
+  cover lyric layer never run one: they read the Media3 position ticker or a line
+  boundary, and every animation they start ends. The full-screen lyric scene is the
+  one exception, and only under three conditions at once -- the scene is composed
+  (so it is on screen), playback is running, and the global motion setting is above
+  zero. Under those conditions two modes (`流光`, `时计`) advance their own clock
+  with `withFrameNanos` from `ui/lyrics/LyricsSceneClock.kt`; leaving the scene,
+  pausing, or setting motion to 0% ends the coroutine and the picture stops where it
+  stands. Compose's own lifecycle is the visibility test -- the loop lives inside the
+  mode's composable, so there is no separate visibility flag to get out of step.
+  `回环` uses the same bounded rule only while its one line-boundary spring is
+  settling; it has no free-running ambient clock. Every other mode keeps the older
+  promise: motion amplitudes are pure functions that
+  return zero at 0% motion, driven by a line boundary with a spring or tween that
+  ends.
+- `凝彩` is split at a pure scene-program boundary. `TemperaProgram` deterministically
+  compiles the track/line identity and shared word timing into one bounded shot with
+  no more than twelve expressive slices and absolute start/settle/end times. The
+  Compose renderer is a consumer of that immutable program: artwork, geometry,
+  expressive type and the stable readable lyric are separate planes. It may read the
+  bounded scene position while composed, but never reparses lyrics, generates random
+  values at draw time or owns playback. Future post effects must be capability-gated
+  and measured before they join this runtime.
 - A timed document opens the immersive scene only when the viewed item is the current
   Media3 item. Loading, missing, empty, untimed and non-current cases stay on the
   diagnostic reader, which preserves truthful failure states and full-document
   browsing rather than inventing a visualizer clock.
-- `LyricsVisualizerMode` is the registry boundary for full-screen lyric scenes.
-  Storage persists only its validated ordinal, while the UI maps each entry to a
-  distinct composition and transition. Switching modes cannot alter the normalized
-  document, Media3 clock or queue. The active mode and word-glow timing policy
-  are global presentation preferences and survive process recreation.
+- `LyricsVisualizer` has **two shapes**, and the registry holds both. The ordinary
+  shape draws the current line and is given a `ContentTransform` for the line change,
+  which the stage applies with `AnimatedContent`. The second, `WindowedLyricsVisualizer`,
+  is handed a `LyricRailWindow` -- a bounded slice of the document around the active
+  line -- and lays every line in it out itself as one moving object, so the stage
+  gives it no per-line transition and no compact height. `时计` and `回环` are
+  windowed: the former is one lyric wheel and the latter is one depth-sorted tilted
+  orbit, and neither can be assembled one line at a time. The registry's `when`
+  still has no `else`, so a new mode has to pick a shape.
+- While the timed immersive route is composed it owns the entire window. The outer
+  `Scaffold` reserves no system-bar insets, the renderer draws edge-to-edge, and a
+  scene-local `WindowInsetsControllerCompat` hides the bars with transient swipe
+  reveal and restores them on disposal. Header and transport are palette-derived
+  overlays: they never change renderer bounds, auto-hide while playback runs, and
+  retain 48dp touch targets even though their visible glass is smaller.
+- The full-screen lyric scene is a host over **two** registries. `LyricsVisualizer`
+  owns the lines and the line-change transition; `LyricsBackground` owns the artwork
+  treatment and the shade over it. Both are resolved by exhaustive `when`s with no
+  `else`, so a new entry cannot compile until it is implemented, and
+  `ui/lyrics/LyricsSceneHost.kt` is the only place that knows about both. Switching
+  either one cannot alter the normalized document, Media3 clock or queue; the mode,
+  the background and the word-glow timing policy are global presentation preferences
+  and survive process recreation.
+- The production foreground registry currently contains exactly four modes:
+  `Luminous`, `Pendolo`, `Claddagh` and `Tempera`. Removed prototypes are not kept as
+  dormant composables. Because early builds persisted raw enum ordinals, each
+  surviving mode declares its legacy `storedValue` (3, 5, 6 and 7); removed/unknown
+  values migrate to `Luminous`. Never persist the shortened enum's new ordinal.
+- 凝彩's optional image library is a bounded list of persistable SAF document URIs
+  in DataStore, not copied images and not a directory scan. The renderer chooses an
+  image deterministically from the compiled shot id and falls back to the audio cover
+  if the library is empty or unavailable. Its stage aspect is a rendering constraint
+  inside the full-screen host, so a 4:4 or 4:3 canvas cannot move chrome or system
+  insets.
+- The split is enforced by the input types, not by convention: a visualizer receives
+  `LyricsSceneInputs` (which includes the frame, the format and the glow policy),
+  while a background receives `LyricsBackgroundInputs` (artwork, palette, line index
+  and motion only). A background therefore has no access to lyric text and cannot
+  take over typography. `lineIndex` is the only playback state it sees, which lets a
+  boundary-driven background move on a line change without needing a frame loop.
+- A mode may expose **parameters of its own** (`feature/subtitles/LyricModeTuning.kt`:
+  three for `流光`, ten for `时计`). They are absolute positions with declared ranges,
+  stored as integers per mode, and they are deliberately not part of the global motion
+  setting: motion decides whether the scene moves at all and scales how far anything
+  travels, while a mode's parameters decide the shape it moves in, so the two cannot
+  fight. The scene header offers a settings sheet only where
+  `LyricsVisualizerMode.hasTunings` is true, a drag previews locally and commits once
+  on release, and a commit writes that mode's whole parameter set in a single storage
+  edit.
+- `LyricsVisualizerMode` and `LyricsVisualizerBackground` are the two persisted
+  registries. Storage persists only validated ordinals and each enum keeps its
+  rendering in `ui/lyrics`; entries may only be appended because the ordinal is a
+  user setting. The background ordinal is nullable and `null` means *follow the mode*
+  -- every mode declares a default background, and the three original modes' defaults
+  are exactly the treatments they had before backgrounds were selectable, so an
+  install that predates the setting renders identically.
 - `LyricGlowTimeline` is a presentation projection outside the parser. It splits
   display text into Unicode grapheme clusters, prefers real enhanced-LRC word times,
   and in Smart mode estimates a bounded timeline from line timing. It carries an
@@ -151,6 +225,40 @@ Never mutate canonical metadata to implement privacy presentation.
   remains capability-gated visual tuning after phone profiling.
 - Privacy aliases are applied before artwork-derived presentation. Canonical
   artwork and metadata never change.
+
+## Global now-playing entry and full-player presentation
+
+`PlaybackState` carries the current Media3 title, artwork URI and document URI as
+presentation metadata in addition to transport state. This lets the app shell render
+the global record after navigating away from the folder that created the queue, or
+after reconnecting to a restored session, without rescanning a directory. Media3 is
+still authoritative; this metadata is not a second queue or player model.
+
+`ui/GlobalVinylPlayer.kt` is a stateless route affordance. Rotation is held in an
+`Animatable`, but the angle is consumed by a graphics-layer block so a playback frame
+does not recompose the app shell. It runs only while visible, playing and above 0%
+global motion. `AsmrPlayerApp` owns visibility, route transition and the bounded last
+known `LibraryItem` presentation snapshot.
+
+`ui/PlayerDetail.kt` owns one metadata read, timeline, panels and callback set and
+renders one adaptive portrait/landscape player. There is no presentation registry:
+the artwork region has no top chrome, and the lower control surface is the one home
+for media information, transport and secondary panels. New player features belong in
+that shared control layer. A horizontal left swipe on artwork is the sole transition
+to timed lyrics; a tap has no lyric-navigation meaning.
+
+`ui/FoliaSeekBar.kt` is the shared seek primitive for the focus wall, full player and
+immersive lyric transport. It draws a one-pixel visual line and a tiny head, while the
+whole composable height remains the touch target. Do not replace one surface with a
+Material slider independently, or seeking will change shape and sensitivity between
+otherwise continuous player surfaces.
+
+`ui/GlobalVinylPlayer.kt` owns only bounded direct manipulation and rendering. It
+stores no route or playback state. The shell supplies a normalized X/Y position from
+`AppSettings`; drag frames stay local to Compose, then the settled edge/height is
+written once through `LibraryViewModel`. `PendoloVisualizer` follows the same commit-
+on-release rule for its wheel centre: drag preview is renderer-local, and the final
+`PendoloTuning` is persisted by the existing host callback.
 
 ## Media service
 

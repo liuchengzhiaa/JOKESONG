@@ -213,7 +213,8 @@ private fun TimedTextLine.effectiveLineEnd(nextLineStartMillis: Long?): Long =
     (endMillis ?: nextLineStartMillis ?: (startMillis + LastLineFallbackMillis))
         .coerceAtLeast(startMillis + MinimumLineDurationMillis)
 
-private data class GraphemeRange(val start: Int, val end: Int)
+/** A grapheme cluster, as a half-open offset range into the display text. */
+internal data class GraphemeRange(val start: Int, val end: Int)
 
 private data class EstimatedToken(
     val graphemes: List<GraphemeRange>,
@@ -261,7 +262,7 @@ private fun estimatedTokens(text: String): List<EstimatedToken> {
     return result
 }
 
-private fun graphemeRanges(text: String, start: Int, end: Int): List<GraphemeRange> {
+internal fun graphemeRanges(text: String, start: Int, end: Int): List<GraphemeRange> {
     if (start >= end) return emptyList()
     val slice = text.substring(start, end)
     val iterator = BreakIterator.getCharacterInstance(Locale.ROOT)
@@ -302,7 +303,7 @@ private fun MutableList<LyricGlowSegment>.addEvenSegments(
     }
 }
 
-private fun Int.isCjkCodePoint(): Boolean = when (Character.UnicodeScript.of(this)) {
+internal fun Int.isCjkCodePoint(): Boolean = when (Character.UnicodeScript.of(this)) {
     Character.UnicodeScript.HAN,
     Character.UnicodeScript.HIRAGANA,
     Character.UnicodeScript.KATAKANA,
@@ -311,7 +312,7 @@ private fun Int.isCjkCodePoint(): Boolean = when (Character.UnicodeScript.of(thi
     else -> false
 }
 
-private fun Int.isPunctuationCodePoint(): Boolean = when (Character.getType(this)) {
+internal fun Int.isPunctuationCodePoint(): Boolean = when (Character.getType(this)) {
     Character.CONNECTOR_PUNCTUATION.toInt(),
     Character.DASH_PUNCTUATION.toInt(),
     Character.START_PUNCTUATION.toInt(),

@@ -200,6 +200,8 @@ private fun Player.toPlaybackState(): PlaybackState {
         isConnected = true,
         mediaId = currentMediaItem?.mediaId?.takeIf(String::isNotEmpty),
         title = mediaMetadata.title?.toString(),
+        artworkUri = mediaMetadata.artworkUri?.toString(),
+        documentUri = currentMediaItem?.localConfiguration?.uri?.toString(),
         isPlaying = isPlaying,
         playWhenReady = playWhenReady,
         isBuffering = playbackState == Player.STATE_BUFFERING,

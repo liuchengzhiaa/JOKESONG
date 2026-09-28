@@ -1,6 +1,6 @@
 # Folia-inspired presentation plan
 
-Status: active implementation plan, last updated 2026-09-26.
+Status: active implementation plan, last updated 2026-09-27.
 
 This document is the continuity record for the Folia-inspired visual work. Read
 it together with `PRODUCT_SPEC.md`, `ARCHITECTURE.md`, `DECISIONS.md`, `TASKS.md`
@@ -81,9 +81,13 @@ Android translation:
 
 - make a full-screen `ImmersiveLyricsHost` with stable inputs: playback clock,
   timed lines, representative palette, artwork reference and motion policy;
-- ship one excellent mode before adding a registry of alternatives;
+- ship one excellent mode before adding a registry of alternatives -- done: phase 5
+  shipped one scene, and phase 6 turned it into the host plus the two registries
+  described below;
 - keep future scenes replaceable behind an interface so the player and subtitle
-  parser do not depend on one animation design;
+  parser do not depend on one animation design -- done: `LyricsVisualizer` and
+  `LyricsBackground` are resolved by exhaustive dispatch, and the host owns the
+  clock, the document and the transport for every implementation;
 - respect reduced-motion and battery/thermal constraints from the beginning.
 
 ### 4. Bottom-right wall controls
@@ -266,24 +270,182 @@ but it no longer blocks the next presentation phase.
 
 The owner accepted V1 on the phone and explicitly moved the work to phase 6.
 
-### Phase 6 — visualizer registry and advanced backgrounds (first slice implemented)
+### Phase 6 — the lyric scene is a host over two registries (framework implemented)
 
-- `LyricsVisualizerMode` now registers three meaningfully different Compose modes:
-  centred Flow, left-aligned Folia Poster and minimal Spotlight. The selected mode
-  persists and is changed from the lyric scene's top-right selector;
-- word glow has a persisted Off / Smart / Exact-only policy. Smart prefers real
-  enhanced-LRC word timing; line-only formats receive a labelled presentation
-  estimate built from Unicode graphemes, CJK/Latin weighting, brief punctuation,
-  a 90% reveal window and a bounded long-gap rule. The estimate drives one
-  continuous left-to-right colour wipe over the current line -- the front crosses a
-  character instead of switching on it, which is what the Folia reference shows.
-  Parser data remains untouched;
-- the wall tools use a translucent glass treatment and a bottom-right scale/fade
-  reveal. Live backdrop capture/blur is intentionally not on the gesture path;
+`ui/ImmersiveLyricsScene.kt` was one 913-line file with three hard-coded `when (mode)`
+branches; background and mode were the same choice. It is now a host plus two
+registries, so a presentation is data rather than an edit:
+
+- `ui/lyrics/LyricsSceneHost.kt` owns the resolved palette, the bounded frame, the
+  transport and the two lookups, and mounts a `LyricsVisualizer` and a
+  `LyricsBackground` independently;
+- `LyricsVisualizer` and `LyricsBackground` are dispatched by exhaustive `when`s with
+  no `else`, so a new mode or background cannot compile until it is implemented;
+- a visualizer receives `LyricsSceneInputs` (item, frame, format, position, playing,
+  accent, palette, compact, glow policy, motion, seek) and owns both its lines and
+  its line-change transition. A **background** receives only
+  `LyricsBackgroundInputs` (item, palette, line index, motion) -- never the lyric
+  text -- which is what keeps the two dimensions orthogonal by type;
+- six modes ship: Flow, Poster, Spotlight (the three accepted ones, moved verbatim
+  into their own files), plus Luminous, Diorama and Pendolo;
+- six backgrounds ship: blurred cover, sharp poster, dark spotlight (which are
+  exactly the three original treatments), plus colour field, lattice and drift;
+- the background setting stores `Int?`, where `null` means *follow the mode*. Each
+  mode declares a default background, so an install that predates the setting is
+  pixel-identical to before;
+- the newer modes and the drift background move on line boundaries only -- no frame
+  loop (superseded in phase 7, below, for the two reference-grade modes only), and 0%
+  motion is asserted motionless by unit test;
+- word glow keeps its persisted Off / Smart / Exact-only policy and its continuous
+  left-to-right wipe, shared by every mode through one renderer;
+- the wall tools keep the translucent glass treatment. Live backdrop capture/blur is
+  intentionally not on the gesture path.
+
+**Correction, 2026-09-27: the six modes above are not the reference's modes.** The
+owner rejected this slice on looks and asked for the reference's source to be read
+properly. It was (see `docs/HANDOFF.md`, "Claude investigation"), and the gap is much
+larger than this plan assumed:
+
+- the reference's thirteen modes are each a **different visual language**, not a
+  different arrangement of the same one. Ours reproduce its `still` (静止) mode -- its
+  lowest, parameterless one -- six times over, with the line rendered as a caption.
+  There, the current line is display typography composed into a scene (2.25--4.5rem in
+  `classic`, up to 132 px in `cadenza`) with per-word and per-grapheme animation;
+- its modes have per-mode parameters on a dedicated `歌词样式` animation page, which is
+  most of what makes them feel authored. Ours have none;
+- the three names reused here are attached to unrelated visuals: our `Luminous` is a
+  halo, but the reference's Luminous *is* `classic`; our `Pendolo` is a text swing,
+  but the reference's is a clockwork dial with an escapement and an arc lyric wheel;
+  our `Diorama` is a tilted card, but the reference's is a 3D particle scene with a
+  camera path. Rename or implement -- do not leave them as they are;
+- its backgrounds are **audio-reactive** (`audioPower`/`audioBands`); ours are
+  line-boundary-driven. The orthogonality rule this repository enforces -- a background
+  never receives lyric text -- does match the reference exactly.
+
+The owner then chose a direction, which phase 7 carries out. The framework itself was
+kept: it was shallow content, not a wrong structure.
+
+Still open, and deliberately not claimed as done:
+
+- the reference has roughly thirteen visualizer modes and six background families.
+  Mindscape, Monet and Tempera among others are not implemented; they are recorded in
+  `TASKS.md` as follow-ups rather than dropped;
 - add optional GPU/audio-reactive backgrounds only after profiling a modern Xiaomi
   device and an emulator;
-- expose per-mode parameters with safe defaults and export/import support;
+- per-mode parameters have no export/import yet; they reset with the appearance
+  defaults;
 - degrade gracefully when RuntimeShader/API/GPU capability is unavailable.
+
+### Phase 7 — 流光 and 时计 taken to reference grade (implemented; phone acceptance open)
+
+The owner's direction was "make two or three modes reference-grade; the names stand
+because the pictures will". Two were chosen, and the other four are explicitly out of
+scope for this round.
+
+**流光 (was `Luminous`) is the reference's `classic`**: one line at a time, its words
+scattered into a cloud. Words are placed by a deterministic pseudo-random projection
+seeded from the line's own start time, so a repeat or a seek reproduces the picture
+instead of reshuffling it. A word is waiting, then active (accent colour, grown,
+glowing along the wipe), then passed (back to the base colour); the whole block
+breathes up and down on a 7-second cycle. Timing is projected per display word by
+grouping the existing `LyricGlowTimeline` segments, so exact word timing automatically
+wins and there is no second estimator to disagree with the first.
+
+**时计 (was `Pendolo`) is the reference's `pendolo`**: nine lines along an arc whose hub
+sits on the left edge, spacing widened by measured neighbouring line heights, opacity
+falling off with distance, the focal line scaled up. Behind it a Compose `Canvas`
+draws the escapement: concentric rails, radial ticks, a geared wheel, a balance wheel
+whose phase advances with the frame clock, and a dial. One animated value -- the
+continuous line number -- drives **both** the lyric wheel's rotation and the gear's,
+so they can never come apart, and because that value only moves on a line change the
+gear ratchets only on a line change, which is what the reference does.
+
+Changes the framework needed:
+
+- `WindowedLyricsVisualizer`, a second registry shape for a mode that lays out a
+  whole bounded window of lines itself (see `ARCHITECTURE.md`, `DECISIONS.md` D-017);
+- `ui/lyrics/LyricsSceneClock.kt`: a frame clock and a per-frame position, both
+  started only while the scene is composed, playing and above 0% motion;
+- `feature/subtitles/LyricModeTuning.kt` and a settings sheet in the scene header,
+  three parameters for 流光 and nine for 时计, persisted per mode;
+- `feature/subtitles/LuminousLayout.kt`, `PendoloGeometry.kt`, `LyricRailWindow.kt`
+  and `LyricWordTimeline.kt`: the pure geometry and projection, all unit tested.
+
+Deliberate degradations, so nobody goes looking for them:
+
+- the dial's audio-bass term uses the reference's own no-audio default (`0.18`)
+  rather than inventing an audio pipeline this app does not have;
+- the reference blurs on exit; a `ContentTransform` cannot, so the exit is fade plus
+  scale. The entry blur is real, and is done by the mode itself with the frame clock;
+- the reference keeps breathing while paused. We stop: paused is a still picture,
+  which continues the rule the rest of the app already follows;
+- the reference's `useLegacyLayout` parameter is not implemented -- it exists to
+  support a web layout this app never had. 流光 therefore has three parameters, not
+  four;
+- waiting words are not individually blurred, only the block on entry;
+- the wipe's position smoothing and the cloud's are separate; unifying them would mean
+  touching the accepted wipe renderer.
+
+Explicitly not done, and recorded in `DECISIONS.md` D-018: the reference's `diorama`
+(镜台) is a 3D particle corridor built with react-three-fiber, and our `Diorama` stays
+the 2D tilted card it is. A 2D Compose scene cannot be an equivalent, and a half
+version would be a worse answer than an honest different picture.
+
+### Phase 8 — deep reference catalogue and an actually immersive shell (active)
+
+The owner reopened the catalogue after reviewing the reference PVs. Phase 7's depth
+standard remains, but it is no longer a reason to stop after two modes. The official
+registry contains thirteen foregrounds -- 静止, 流光, 心象, 云阶, 浮名,
+群唱, 倾诉, 回环, 莫奈, 镜台, 时计, 商籁 and 凝彩 -- plus six
+independent background families. They do not share one layout: the set spans DOM-like
+typography, a single measured Canvas, chat/avatar UI, an elliptical lyric orbit,
+Pixi-style compiled storyboards and a real 3D camera corridor.
+
+The common shell is now implemented before another renderer is judged:
+
+- the scene is edge-to-edge and temporarily hides system bars;
+- controls overlay rather than shrink the renderer, use the cover accent instead of
+  fixed Material blue/black, retain 48dp targets, and auto-hide while playing;
+- after D-022 the top overlay is only a bare settings icon -- no header boundary,
+  back control or media filename. An open settings panel suspends auto-hide until it
+  is explicitly dismissed. The bottom transport uses the same thin `FoliaSeekBar`
+  as the focus wall and full player rather than a Material slider;
+- hidden controls consume one reveal tap, then real seek/play/navigation actions work;
+- a slider-preview feedback bug was fixed so a released per-mode value is committed
+  even when the live preview has already been fed back through the host.
+
+`回环` is the first appended mode in this phase. It keeps a stable artwork/background
+anchor while a bounded line rail moves around a tilted ellipse. One spring advances
+the whole orbit, depth controls size/opacity/blur, tangent controls type angle, and
+the focal line keeps the shared timed colour sweep. This matches the reference's
+observable contract (old line down-left, next line up-right, simultaneous hand-off)
+without copying its AGPL implementation.
+
+`凝彩` now has its first Android-native scene-program/runtime boundary. A pure,
+deterministic compiler selects one of eight initial composition families and emits at
+most twelve absolutely timed expressive slices. The renderer keeps artwork,
+geometric composition, expressive type and the readable current lyric on separate
+planes. It is seek-stable and has a zero-motion path. This establishes the correct
+architecture but is not reference parity: the remaining work includes paragraph/
+shot continuity, carried transitions, subject-aware artwork, a larger authored shot
+vocabulary and measured capability-tiered post effects.
+
+The owner subsequently chose to finish four modes before reopening the catalogue.
+The production selector and implementation tree therefore contain only 流光, 时计,
+回环 and 凝彩; the earlier Flow/Poster/Spotlight/2D-Diorama prototypes were removed.
+The other reference modes below remain research order, not dormant product code.
+
+Implementation order from the source and video audit:
+
+1. finish phone acceptance of the edge-to-edge shell, 流光, 时计 and 回环;
+2. deepen the new 凝彩 compiler/runtime with paragraph continuity, transition carry,
+   more authored shots and capability-tiered grain/chromatic/warp passes;
+3. only after these four pass owner acceptance, reconsider 云阶/倾诉/莫奈, then
+   心象/浮名, 群唱, 商籁 and a genuine GPU 镜台 as separate future decisions.
+
+Every step keeps absolute playback time as authority, mounts only the selected
+renderer, caches text/path/bitmap/shader inputs, offers a 0%-motion/static path, and
+adds a lower-cost capability tier before high-cost blur or post-processing ships.
 
 ## Cross-cutting constraints
 
@@ -292,7 +454,8 @@ The owner accepted V1 on the phone and explicitly moved the work to phase 6.
 - **Focus:** browsing focus stays independent unless the user enables auto-focus.
 - **Privacy:** all presentation inputs pass through the future privacy projection.
 - **Lifecycle:** stop frame loops when the surface is not visible; no background
-  visualizer service.
+  visualizer service. The only frame loop in the app belongs to the foreground lyric
+  scene and requires visible + playing + motion above 0% at once.
 - **Accessibility:** keep controls explicit, maintain contrast and offer reduced
   motion; colour alone cannot carry playback state.
 - **Testing:** pure palette/timeline/selection logic gets unit tests; visual tuning

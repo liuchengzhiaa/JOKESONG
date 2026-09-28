@@ -25,8 +25,13 @@ import com.example.asmrplayer.core.subtitles.parseTimedText
 import com.example.asmrplayer.feature.focuswall.FoliaFocusShape
 import com.example.asmrplayer.feature.focuswall.FoliaFocusSize
 import com.example.asmrplayer.feature.subtitles.SubtitleDetailState
+import com.example.asmrplayer.feature.subtitles.LuminousTuning
+import com.example.asmrplayer.feature.subtitles.PendoloTuning
+import com.example.asmrplayer.feature.subtitles.TemperaTuning
+import com.example.asmrplayer.feature.subtitles.LyricsVisualizerBackground
 import com.example.asmrplayer.feature.subtitles.LyricsVisualizerMode
 import com.example.asmrplayer.feature.subtitles.LyricsWordGlowMode
+import com.example.asmrplayer.feature.subtitles.clamped
 import java.util.ArrayDeque
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -77,10 +82,21 @@ data class LibraryUiState(
     val uiStylePresetOrdinal: Int = UiStylePreset.Balanced.ordinal,
     val uiAccentPaletteOrdinal: Int = UiAccentPalette.Ocean.ordinal,
     val uiScalePercent: Int = 100,
+    /** Draggable global record position, normalized inside the current safe viewport. */
+    val globalVinylXPerMille: Int = 0,
+    val globalVinylYPerMille: Int = 1_000,
     /** Persisted full-screen lyric presentation. */
-    val lyricsVisualizerOrdinal: Int = LyricsVisualizerMode.Default.ordinal,
+    val lyricsVisualizerOrdinal: Int = LyricsVisualizerMode.Default.storedValue,
+    /** Persisted lyric backdrop, independent of the visualizer mode above. */
+    val lyricsBackgroundOrdinal: Int? = null,
     /** Persisted source policy for exact or presentation-estimated word glow. */
     val lyricsWordGlowModeOrdinal: Int = LyricsWordGlowMode.Default.ordinal,
+    /** The word cloud's own parameters; only the 流光 mode reads them. */
+    val luminousTuning: LuminousTuning = LuminousTuning(),
+    /** The escapement wheel's own parameters; only the 时计 mode reads them. */
+    val pendoloTuning: PendoloTuning = PendoloTuning(),
+    /** The 凝彩 stage shape and its user-managed SAF image pool. */
+    val temperaTuning: TemperaTuning = TemperaTuning(),
     /**
      * Which track in this listing has lyrics beside it, keyed by item id. Empty when
      * none of them do, which is the ordinary case and not a failure.
@@ -393,16 +409,61 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { appPreferences.setUiScalePercent(safePercent) }
     }
 
+    fun onGlobalVinylPositionChange(xPerMille: Int, yPerMille: Int) {
+        val safeX = xPerMille.coerceIn(0, 1_000)
+        val safeY = yPerMille.coerceIn(0, 1_000)
+        mutableUiState.update {
+            it.copy(
+                globalVinylXPerMille = safeX,
+                globalVinylYPerMille = safeY,
+            )
+        }
+        viewModelScope.launch { appPreferences.setGlobalVinylPosition(safeX, safeY) }
+    }
+
     fun onLyricsVisualizerModeChange(ordinal: Int) {
-        val safeOrdinal = LyricsVisualizerMode.fromOrdinal(ordinal).ordinal
+        val safeOrdinal = LyricsVisualizerMode.fromOrdinal(ordinal).storedValue
         mutableUiState.update { it.copy(lyricsVisualizerOrdinal = safeOrdinal) }
         viewModelScope.launch { appPreferences.setLyricsVisualizer(safeOrdinal) }
+    }
+
+    /** Null restores "follow the mode" rather than pinning the current background. */
+    fun onLyricsBackgroundChange(ordinal: Int?) {
+        val safeOrdinal = ordinal
+            ?.let { LyricsVisualizerBackground.fromOrdinal(it).ordinal }
+        mutableUiState.update { it.copy(lyricsBackgroundOrdinal = safeOrdinal) }
+        viewModelScope.launch { appPreferences.setLyricsBackground(safeOrdinal) }
     }
 
     fun onLyricsWordGlowModeChange(ordinal: Int) {
         val safeOrdinal = LyricsWordGlowMode.fromOrdinal(ordinal).ordinal
         mutableUiState.update { it.copy(lyricsWordGlowModeOrdinal = safeOrdinal) }
         viewModelScope.launch { appPreferences.setLyricsWordGlowMode(safeOrdinal) }
+    }
+
+    /**
+     * A mode's parameters arrive together, already at the value the gesture ended on.
+     *
+     * The sheet previews a drag locally and only calls this on release, so every call
+     * here is a commit and every commit is persisted; a drag frame never reaches
+     * storage.
+     */
+    fun onLuminousTuningChange(tuning: LuminousTuning) {
+        val safe = tuning.clamped()
+        mutableUiState.update { it.copy(luminousTuning = safe) }
+        viewModelScope.launch { appPreferences.setLuminousTuning(safe) }
+    }
+
+    fun onPendoloTuningChange(tuning: PendoloTuning) {
+        val safe = tuning.clamped()
+        mutableUiState.update { it.copy(pendoloTuning = safe) }
+        viewModelScope.launch { appPreferences.setPendoloTuning(safe) }
+    }
+
+    fun onTemperaTuningChange(tuning: TemperaTuning) {
+        val safe = tuning.clamped()
+        mutableUiState.update { it.copy(temperaTuning = safe) }
+        viewModelScope.launch { appPreferences.setTemperaTuning(safe) }
     }
 
     fun onUiStylePresetChange(ordinal: Int) {
@@ -605,10 +666,17 @@ private fun LibraryUiState.withAppSettings(
     uiStylePresetOrdinal = settings.uiStylePresetOrdinal,
     uiAccentPaletteOrdinal = settings.uiAccentPaletteOrdinal,
     uiScalePercent = settings.uiScalePercent,
+    globalVinylXPerMille = settings.globalVinylXPerMille,
+    globalVinylYPerMille = settings.globalVinylYPerMille,
     lyricsVisualizerOrdinal = LyricsVisualizerMode
         .fromOrdinal(settings.lyricsVisualizerOrdinal)
-        .ordinal,
+        .storedValue,
+    lyricsBackgroundOrdinal = settings.lyricsBackgroundOrdinal
+        ?.let { LyricsVisualizerBackground.fromOrdinal(it).ordinal },
     lyricsWordGlowModeOrdinal = LyricsWordGlowMode
         .fromOrdinal(settings.lyricsWordGlowModeOrdinal)
         .ordinal,
+    luminousTuning = settings.luminousTuning,
+    pendoloTuning = settings.pendoloTuning,
+    temperaTuning = settings.temperaTuning,
 )

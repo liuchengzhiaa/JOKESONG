@@ -2,9 +2,12 @@ package com.example.asmrplayer.ui
 
 import android.content.res.Configuration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,7 +18,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -34,8 +40,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Subtitles
-import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
@@ -44,8 +48,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,13 +57,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -76,6 +83,7 @@ import com.example.asmrplayer.feature.player.PlayerTimeline
 import com.example.asmrplayer.feature.player.formatPlaybackTime
 import com.example.asmrplayer.feature.player.parseDurationLabel
 import com.example.asmrplayer.ui.theme.artworkBrush
+import com.example.asmrplayer.ui.theme.artworkAccent
 import java.util.Locale
 
 private const val SkipSeconds = 10
@@ -110,7 +118,7 @@ fun PlayerDetail(
     onSeekTo: (Long) -> Unit,
     onSeekBy: (Long) -> Unit,
     onQueueItemSelected: (LibraryItem) -> Unit,
-    onArtworkClick: () -> Unit,
+    onArtworkSwipeLeft: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -119,7 +127,6 @@ fun PlayerDetail(
         mutableStateOf(LocalAudioMetadata(durationMs = parseDurationLabel(item.durationLabel)))
     }
     var bookmarks by remember(item.id) { mutableStateOf(emptyList<Long>()) }
-    var scrubFraction by remember(item.id) { mutableStateOf<Float?>(null) }
     var panel by remember(item.id) { mutableStateOf<PlayerPanel?>(null) }
 
     LaunchedEffect(item.id, item.documentUri) {
@@ -164,116 +171,160 @@ fun PlayerDetail(
     }
 
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    if (landscape) {
-        Row(
-            modifier = modifier
-                .fillMaxSize()
-                .background(PlayerBackground)
-                .padding(horizontal = 18.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
+    val controls: @Composable (Modifier) -> Unit = { controlModifier ->
+        PlayerControls(
+            item = item,
+            metadata = metadata,
+            timeline = timeline,
+            playbackState = playbackState,
+            queueItems = queueItems,
+            isCurrent = isCurrent,
+            isPlaying = isPlaying,
+            onPlayPause = onTogglePlayPause,
+            onPrevious = onPrevious,
+            onNext = onNext,
+            onSeekTo = onSeekTo,
+            onSeekBy = onSeekBy,
+            onPanelSelected = { panel = it },
+            modifier = controlModifier,
+        )
+    }
+
+    Box(modifier = modifier.fillMaxSize().background(PlayerBackground)) {
+        PlayerBackdrop(item)
+        if (landscape) {
+            Row(
                 modifier = Modifier
-                    .weight(1.08f)
-                    .fillMaxHeight(),
-                contentAlignment = Alignment.Center,
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                PowerampArtwork(
-                    item = item,
-                    onClick = onArtworkClick,
+                BoxWithConstraints(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 650.dp)
-                        .aspectRatio(1f),
+                        .weight(1.15f)
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    val artworkSize = minOf(maxWidth * 0.86f, maxHeight * 0.82f, 380.dp)
+                    PlayerArtwork(
+                        item = item,
+                        onSwipeLeft = onArtworkSwipeLeft,
+                        modifier = Modifier.size(artworkSize),
+                    )
+                }
+                controls(
+                    Modifier
+                        .weight(0.85f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(Color(0xB80D0F14))
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 18.dp),
                 )
             }
-            PlayerControls(
-                item = item,
-                metadata = metadata,
-                timeline = timeline,
-                playbackState = playbackState,
-                queueItems = queueItems,
-                isCurrent = isCurrent,
-                isPlaying = isPlaying,
-                scrubFraction = scrubFraction,
-                onScrub = { scrubFraction = it },
-                onScrubFinished = {
-                    scrubFraction?.let { fraction ->
-                        onSeekTo(timeline.seekToProgress(fraction).positionMs)
-                    }
-                    scrubFraction = null
-                },
-                onPlayPause = onTogglePlayPause,
-                onPrevious = onPrevious,
-                onNext = onNext,
-                onSeekBy = onSeekBy,
-                onPanelSelected = { panel = it },
+        } else {
+            Column(
                 modifier = Modifier
-                    .weight(0.92f)
-                    .fillMaxHeight()
-                    .verticalScroll(rememberScrollState())
-                    .padding(vertical = 8.dp),
-            )
-        }
-    } else {
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .background(PlayerBackground)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            PowerampArtwork(
-                item = item,
-                onClick = onArtworkClick,
-                modifier = Modifier
-                    .widthIn(max = 600.dp)
-                    .fillMaxWidth()
-                    .aspectRatio(1f),
-            )
-            PlayerControls(
-                item = item,
-                metadata = metadata,
-                timeline = timeline,
-                playbackState = playbackState,
-                queueItems = queueItems,
-                isCurrent = isCurrent,
-                isPlaying = isPlaying,
-                scrubFraction = scrubFraction,
-                onScrub = { scrubFraction = it },
-                onScrubFinished = {
-                    scrubFraction?.let { fraction ->
-                        onSeekTo(timeline.seekToProgress(fraction).positionMs)
-                    }
-                    scrubFraction = null
-                },
-                onPlayPause = onTogglePlayPause,
-                onPrevious = onPrevious,
-                onNext = onNext,
-                onSeekBy = onSeekBy,
-                onPanelSelected = { panel = it },
-                modifier = Modifier
-                    .widthIn(max = 620.dp)
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 16.dp),
-            )
-            Spacer(Modifier.height(20.dp))
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    val artworkSize = minOf(maxWidth * 0.76f, maxHeight * 0.86f, 350.dp)
+                    PlayerArtwork(
+                        item = item,
+                        onSwipeLeft = onArtworkSwipeLeft,
+                        modifier = Modifier.size(artworkSize),
+                    )
+                }
+                controls(
+                    Modifier
+                        .widthIn(max = 640.dp)
+                        .fillMaxWidth()
+                        .heightIn(max = 370.dp)
+                        .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                        .background(Color(0xD20D0F14))
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun PowerampArtwork(
+private fun PlayerBackdrop(item: LibraryItem) {
+    Box(Modifier.fillMaxSize().background(PlayerBackground)) {
+        if (item.artworkUri != null) {
+            AsyncImage(
+                model = item.artworkUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = 1.18f
+                        scaleY = 1.18f
+                        alpha = 0.34f
+                    }
+                    .blur(46.dp),
+            )
+        }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0x26050609),
+                            Color(0xC9090A0D),
+                            PlayerBackground,
+                        ),
+                    ),
+                ),
+        )
+    }
+}
+
+@Composable
+private fun PlayerArtwork(
     item: LibraryItem,
-    onClick: () -> Unit,
+    onSwipeLeft: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var horizontalDrag by remember(item.id) { mutableStateOf(0f) }
+    val swipeDescription = stringResource(R.string.swipe_left_for_subtitles)
+    val posterShape = RoundedCornerShape(2.dp)
+    val accent = artworkAccent(item.paletteSeed)
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
+            .border(1.1.dp, accent.copy(alpha = 0.76f), posterShape)
+            .clip(posterShape)
             .background(artworkBrush(item.paletteSeed))
-            .clickable(onClick = onClick),
+            .semantics { contentDescription = swipeDescription }
+            .pointerInput(item.id, onSwipeLeft) {
+                detectHorizontalDragGestures(
+                    onDragStart = { horizontalDrag = 0f },
+                    onHorizontalDrag = { change, amount ->
+                        horizontalDrag += amount
+                        change.consume()
+                    },
+                    onDragCancel = { horizontalDrag = 0f },
+                    onDragEnd = {
+                        if (horizontalDrag < -size.width * 0.16f) onSwipeLeft()
+                        horizontalDrag = 0f
+                    },
+                )
+            },
     ) {
         if (item.artworkUri != null) {
             AsyncImage(
@@ -288,26 +339,20 @@ private fun PowerampArtwork(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color.Transparent, Color.Transparent, Color(0xA6000000)),
+                        0f to Color(0x42000000),
+                        0.38f to Color(0x30000000),
+                        0.72f to Color(0x62000000),
+                        1f to Color(0xD605070B),
+                    ),
+                )
+                .background(
+                    Brush.horizontalGradient(
+                        0f to Color.Black.copy(alpha = 0.36f),
+                        0.54f to Color.Black.copy(alpha = 0.14f),
+                        1f to Color.Transparent,
                     ),
                 ),
         )
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(12.dp)
-                .background(Color(0xB8000000), CircleShape)
-                .padding(horizontal = 11.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Icon(Icons.Default.Subtitles, null, tint = Color.White, modifier = Modifier.size(17.dp))
-            Text(
-                stringResource(R.string.tap_artwork_for_subtitles),
-                color = Color.White,
-                style = MaterialTheme.typography.labelSmall,
-            )
-        }
     }
 }
 
@@ -320,12 +365,10 @@ private fun PlayerControls(
     queueItems: List<LibraryItem>,
     isCurrent: Boolean,
     isPlaying: Boolean,
-    scrubFraction: Float?,
-    onScrub: (Float) -> Unit,
-    onScrubFinished: () -> Unit,
     onPlayPause: () -> Unit,
     onPrevious: (() -> Unit)?,
     onNext: (() -> Unit)?,
+    onSeekTo: (Long) -> Unit,
     onSeekBy: (Long) -> Unit,
     onPanelSelected: (PlayerPanel) -> Unit,
     modifier: Modifier = Modifier,
@@ -377,22 +420,14 @@ private fun PlayerControls(
             }
         }
 
-        val shownProgress = scrubFraction ?: timeline.progress
-        Slider(
-            value = shownProgress,
-            onValueChange = { if (isCurrent) onScrub(it) },
-            onValueChangeFinished = onScrubFinished,
-            enabled = timeline.durationMs > 0L && isCurrent,
-            colors = SliderDefaults.colors(
-                thumbColor = MaterialTheme.colorScheme.primary,
-                activeTrackColor = MaterialTheme.colorScheme.primary,
-                inactiveTrackColor = Color(0xFF3C3D43),
-            ),
+        FoliaSeekBar(
+            playbackState = playbackState,
+            onSeekTo = onSeekTo,
             modifier = Modifier.fillMaxWidth(),
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
-                formatPlaybackTime(timeline.seekToProgress(shownProgress).positionMs),
+                formatPlaybackTime(if (isCurrent) playbackState.positionMs else timeline.positionMs),
                 color = PlayerSecondaryText,
             )
             Text(
@@ -475,7 +510,7 @@ private fun PlayerControls(
                 onClick = { onPanelSelected(PlayerPanel.Bookmarks) },
             )
             PlayerTool(
-                icon = { Icon(Icons.Default.ViewList, null) },
+                icon = { Icon(Icons.AutoMirrored.Filled.ViewList, null) },
                 label = stringResource(R.string.chapters),
                 detail = stringResource(R.string.not_available_short),
                 onClick = { onPanelSelected(PlayerPanel.Chapters) },

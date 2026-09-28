@@ -151,6 +151,7 @@ import com.example.asmrplayer.feature.subtitles.coverLyricsGlowTimeline
 import com.example.asmrplayer.feature.subtitles.coverLyricsShadeAlpha
 import com.example.asmrplayer.ui.CrestLevelIcon
 import com.example.asmrplayer.ui.GlowingLyricText
+import com.example.asmrplayer.ui.FoliaSeekBar
 import com.example.asmrplayer.ui.theme.artworkBrush
 import com.example.asmrplayer.ui.theme.artworkAccent
 import kotlin.math.abs
@@ -2198,7 +2199,7 @@ private fun FoliaFocusedPosterChrome(
                     shadow = Shadow(Color.Black.copy(alpha = 0.9f), Offset(0f, 1f), 4f),
                 ),
             )
-            FoliaPosterSeekBar(
+            FoliaSeekBar(
                 playbackState = playbackState,
                 onSeekTo = onSeekTo,
                 modifier = Modifier
@@ -2377,72 +2378,6 @@ private fun FoliaPosterControl(
             modifier = Modifier.size(iconSize),
             tint = Color.White.copy(alpha = if (enabled) 0.92f else 0.30f),
         )
-    }
-}
-
-/** Thin Folia-style progress line with a larger invisible drag band. */
-@Composable
-private fun FoliaPosterSeekBar(
-    playbackState: PlaybackState,
-    onSeekTo: (Long) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var scrubFraction by remember(playbackState.mediaId) { mutableStateOf<Float?>(null) }
-    val shownFraction = scrubFraction ?: playbackState.progress
-    val enabled = playbackState.hasDuration
-    Canvas(
-        modifier = modifier
-            .semantics {
-                progressBarRangeInfo = ProgressBarRangeInfo(shownFraction, 0f..1f)
-                if (enabled) {
-                    setProgress { requested ->
-                        onSeekTo(playbackState.positionForFraction(requested))
-                        true
-                    }
-                }
-            }
-            .pointerInput(playbackState.mediaId, playbackState.durationMs, enabled) {
-                if (!enabled) return@pointerInput
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    down.consume()
-                    fun fractionAt(x: Float): Float = (x / size.width).coerceIn(0f, 1f)
-                    var latest = fractionAt(down.position.x)
-                    scrubFraction = latest
-                    do {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull() ?: break
-                        latest = fractionAt(change.position.x)
-                        scrubFraction = latest
-                        change.consume()
-                    } while (change.pressed)
-                    onSeekTo(playbackState.positionForFraction(latest))
-                    scrubFraction = null
-                }
-            },
-    ) {
-        val centerY = size.height / 2f
-        val stroke = 1.dp.toPx()
-        drawLine(
-            color = Color.White.copy(alpha = if (enabled) 0.34f else 0.16f),
-            start = Offset(0f, centerY),
-            end = Offset(size.width, centerY),
-            strokeWidth = stroke,
-        )
-        val activeX = size.width * shownFraction.coerceIn(0f, 1f)
-        drawLine(
-            color = Color.White.copy(alpha = if (enabled) 0.92f else 0.34f),
-            start = Offset(0f, centerY),
-            end = Offset(activeX, centerY),
-            strokeWidth = stroke,
-        )
-        if (enabled) {
-            drawCircle(
-                color = Color.White.copy(alpha = 0.96f),
-                radius = 1.7.dp.toPx(),
-                center = Offset(activeX, centerY),
-            )
-        }
     }
 }
 

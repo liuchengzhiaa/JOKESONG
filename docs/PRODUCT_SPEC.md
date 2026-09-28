@@ -65,7 +65,13 @@ Bottom-level destinations:
 4. 设置
 
 The library opens to folders and can switch among folders, all audio, recently
-played and favorites. A mini player remains available above bottom navigation.
+played and favorites. A circular global record replaces the conventional mini
+player: it floats above bottom navigation, shows the current presentation artwork,
+turns slowly only while playback is moving, and opens the full player. It is shown
+on ordinary app destinations and hidden inside the full player and immersive lyric
+scene. The listener may drag it inside the safe content viewport; release snaps it
+to the nearest horizontal edge, and its normalized edge/height survive rotation and
+process restart. Privacy presentation is applied before its artwork is chosen.
 
 ## Settings
 
@@ -78,9 +84,21 @@ than presenting one group's contents as if they were the whole of it.
   colour, the global motion strength and the global UI scale, plus a reset. It
   applies to the whole app -- the top bar's title and icons, the bottom navigation,
   the wall tools and later global controls -- and changes no library data.
-- 歌词与可视化 holds lyric-presentation choices, beginning with a persisted
-  Off / Smart / Exact-only word-glow policy. The scene's own mode selector persists the selected full-screen
-  visualizer; neither choice changes files or subtitle matching.
+- 歌词与可视化 uses one scene-header entry and a Folia-shaped four-tab overlay:
+  **通用 / 背景 / 歌词动画 / 字幕**. It owns the persisted visualizer, background,
+  global motion and Off / Smart / Exact-only word-glow choices. The background may
+  be set to 跟随模式, which is the default and follows whichever treatment the
+  chosen visualizer was designed around. None of these choices changes files or
+  subtitle matching.
+- A visualizer may expose **parameters of its own** inside 歌词动画 and persist them
+  per mode: three for 流光 (breathing float, word spacing, word rotation), ten for
+  时计 (draggable horizontal/vertical wheel position, radius, arc, tick snappiness, active scale, gear decor,
+  centre gradient, cover on the dial, line glow), and 凝彩's artwork source, SAF
+  image library and stage aspect. The production animation list is deliberately only
+  流光 / 时计 / 回环 / 凝彩 while those four are taken to reference quality. Every
+  parameter has a declared range and a reset to the mode's defaults. The global
+  **motion** setting stays the master switch and is not one of them: it decides
+  whether the scene moves at all, and a parameter decides the shape it moves in.
 - 资料库 holds the library root selection and a manual refresh of the current
   folder.
 
@@ -254,8 +272,14 @@ user requests another batch. The current audio remains in the replacement sample
 
 ## Player and subtitles
 
-- The full player uses a dense, configurable layout. Artwork occupies the upper
-  region; seek and primary controls remain visible.
+- The full player has one immersive layout rather than selectable visual shells.
+  Artwork is a bounded centred near-square poster with the focused Folia cover's
+  2 dp edge, translucent accent border and directional shade; it does not fill the
+  whole upper region. A rounded lower control
+  surface owns title, artist/album, queue position, the thin seek line, previous/next,
+  configurable backward/forward jumps and queue/bookmark/chapter entry points.
+  Opening from the global record expands from the lower-left visual origin; Back
+  reverses the transition. Zero global motion reduces it to an immediate fade.
 - Chapters, bookmarks and queue open as bottom panels. Users can choose two to four
   auxiliary controls to keep visible.
 - Match LRC, SRT and VTT files in the same folder by base filename, including an
@@ -265,7 +289,8 @@ user requests another batch. The current audio remains in the replacement sample
   matches nothing rather than being guessed at. An untagged file is preferred over a
   translated one, Simplified Chinese over another language, and LRC over a same-named
   SRT.
-- Tapping artwork opens a full-screen subtitle detail view while keeping playback
+- Swiping the full-player artwork to the left opens a full-screen subtitle detail
+  view while keeping playback
   controls available. A timed file for the current Media3 item opens the immersive
   lyric scene: artwork and its bounded palette form the background, up to two lines
   on either side provide context, the current line is covered left to right by one
@@ -276,14 +301,22 @@ user requests another batch. The current audio remains in the replacement sample
   owns no player or timer. Other states use the diagnostic reader, which names the
   file it matched and states plainly when no matching file was found, when the file
   could not be read, and when the file parsed to nothing.
-- The immersive reader offers a small persisted visualizer registry. Initial modes
-  are centred flow, Folia-style left-aligned poster and a minimal spotlight scene;
-  switching modes never changes playback or subtitle selection. Settings provides a
+- The immersive reader offers two persisted registries, configured through one
+  four-tab scene-settings panel and independent of each other. The current production
+  modes are 流光, 时计, 回环 and 凝彩. Backgrounds are blurred cover, sharp poster,
+  dark spotlight, colour field, lattice and drift, plus 跟随模式 -- the default, which
+  uses whichever background the selected mode was designed around. Switching either
+  one never changes playback or subtitle selection. Settings provides a
   persisted word-glow policy: Smart prefers real word timestamps and estimates from
   line timing otherwise; Exact only refuses estimates; Off removes the moving wipe.
   The policy applies consistently to the immersive current line and the current line
   on a focused/current wall cover. Estimates affect presentation only and are never
   written into parsed or media data.
+- 凝彩 may use the current audio cover or a user-selected SAF image library. Read
+  permission is persisted and the bounded URI list is presentation data only. Its
+  authored canvas may follow the entire phone, fit a 4:4 square, or fit a 4:3
+  landscape stage; a constrained stage is centred and clipped without resizing the
+  full-screen controls or changing playback.
 - Current timed text stays visible and highlighted. Manual scrolling pauses following
   and exposes a return-to-current control. Tapping a timed line seeks. Following only
   applies while playback is on the item being viewed; otherwise the lines are shown
@@ -307,7 +340,7 @@ user requests another batch. The current audio remains in the replacement sample
 - **A file with no time tags is shown as text, not as a timeline.** Its lines are
   listed in order with a notice that they cannot follow playback, rather than being
   spread across the track's duration.
-- Without subtitles, artwork tap opens an immersive artwork view and states that no
+- Without subtitles, the same left swipe opens an immersive artwork view and states that no
   matching subtitle was found.
 - Manual subtitle rebinding, offset repair and editing are deferred.
 
@@ -361,7 +394,7 @@ Every write is transactional:
 
 - Configuration contains one replacement artwork image and one fixed replacement
   title.
-- When enabled, the current media uses those values on the player, mini player,
+- When enabled, the current media uses those values on the player, global record,
   notifications, lock screen, external media surfaces and its library card.
 - History is visually obscured while the mode is active.
 - Mode state persists across process death and is applied before reconstructing
@@ -402,10 +435,23 @@ Every write is transactional:
   auto-focus is active only while the Folia layout is visible. Ambient strength
   remains an independent control. The queue shortcut waits for a durable queue
   destination rather than exposing a dead action.
-- Future animated lyrics and visualizer modes follow the staged contract in
-  `FOLIA_PRESENTATION_PLAN.md`. Privacy mode must substitute its
+- Animated lyrics and visualizer modes follow the staged contract in
+  `FOLIA_PRESENTATION_PLAN.md`. The two reference-grade modes run a frame loop, but
+  only while the full-screen scene is on screen, playing, and above 0% motion; the
+  wall, ordinary cards and the cover lyric layer never run one. Privacy mode must substitute its
   alias artwork before any palette or lyric presentation layer sees the current
   media.
+- The timed full-screen lyric route is a physical edge-to-edge stage, not a player
+  page inside a top and bottom bar. System bars are hidden only while the stage is
+  present and remain transiently reachable; title/actions and transport are
+  palette-derived overlays that never resize the renderer, auto-hide during
+  playback, and retain at least 48dp touch targets. A tap on a hidden stage reveals
+  controls before it can seek.
+- Reference-named lyric modes must implement that mode's distinct spatial and timing
+  contract. In particular, 回环 is a depth-sorted tilted lyric orbit, and 凝彩 is a
+  deterministic multi-layer shot/transition program with a stable readable subtitle,
+  not a common lyric stack with a different entrance animation. Expensive post
+  effects and 3D require capability-gated fallbacks and reduced-motion paths.
 - Ship Simplified Chinese first; all strings remain resource-based.
 
 ## Explicitly deferred

@@ -287,19 +287,118 @@ order because each layer consumes the stable model built by the one before it:
       phone review accepts contrast, long-line layout, word colouring, scrub accuracy
       and portrait/landscape spacing. The owner accepted V1 on 2026-09-27 and moved
       the roadmap to phase 6.
-- [ ] **6. Visualizer registry and advanced backgrounds.** The first slice is
-      implemented and verified (211/211 tests, lint 0 errors): Flow, Folia Poster and
-      Spotlight share one bounded lyric frame and Media3 clock; mode selection is
-      available in the lyric scene and persists. Settings now has persisted Off,
-      Smart and Exact-only word glow; Smart prefers source word timing and otherwise
-      builds a presentation-only grapheme timeline from real line timing. The same
-      policy and renderer now drive the one focused/current cover in both wall styles,
-      and that renderer paints one continuous left-to-right wipe instead of lighting
-      graphemes one at a time (see the wipe review item above).
+- [x] **6. Visualizer registry and advanced backgrounds.** *(Rejected on looks by the
+      owner on 2026-09-27, then kept rather than reverted: phase 7 below shows the
+      framework was sound and the content was shallow. Its phone checklist was replaced
+      by phase 7's, which covers the same ground plus the two rewritten modes. The
+      framework is still uncommitted, inside phase 7's slice.)*
+      The framework slice is
+      implemented and verified (243/243 tests, lint 0 errors / 16 warnings / 1 hint):
+      the 913-line `ui/ImmersiveLyricsScene.kt` is now a host
+      (`ui/lyrics/LyricsSceneHost.kt`) over two append-only registries --
+      `LyricsVisualizer` (lines and line-change transition) and `LyricsBackground`
+      (artwork treatment and shade) -- each dispatched by an exhaustive `when`, so a
+      new entry cannot compile until it is implemented. Six modes (Flow, Poster,
+      Spotlight, Luminous, Diorama, Pendolo) and six backgrounds (blurred cover,
+      sharp poster, dark spotlight, colour field, lattice, drift) ship, chosen by two
+      selectors in the scene's own top bar. A background stores `Int?`, where `null`
+      means *follow the mode*; each mode declares a default, and the three original
+      modes' defaults are exactly the treatments they had before backgrounds existed,
+      so a pre-existing install is unchanged. Backgrounds receive a deliberately
+      smaller input that excludes the lyric text, which is what keeps the two
+      dimensions orthogonal. The newer modes move on line boundaries only -- no new
+      frame loop -- and 0% motion is asserted motionless by unit test.
+      Kept open for phone acceptance: the three newer modes, the six backgrounds, the
+      orthogonality check, persistence across restart, and above all that the three
+      original modes are visually unchanged under their default background.
+      Settings keeps persisted Off, Smart and Exact-only word glow; Smart prefers
+      source word timing and otherwise builds a presentation-only grapheme timeline
+      from real line timing, and one renderer paints one continuous left-to-right wipe
+      for the immersive scene and the focused/current cover.
       The wall tool button/panels use a translucent
       glass treatment and scale/fade from the bottom-right origin, honouring 0% global
-      motion. Keep open for phone acceptance and for later profiled GPU/audio-reactive
-      backgrounds; live backdrop capture/blur is not on the wall gesture path.
+      motion. Later profiled GPU/audio-reactive backgrounds remain open; live backdrop
+      capture/blur is not on the wall gesture path.
+
+- [ ] **7. 流光 and 时计 taken to reference grade.** *(Implemented, verified and
+      consolidated 2026-09-28; awaiting the owner's phone check.)*
+      The owner's answer to phase 6 was to make two or three modes reference-grade
+      rather than more modes, keeping the names because the pictures would earn them.
+      `Luminous` now draws the reference's `classic` -- one line, its words thrown into
+      a deterministic cloud seeded by the line's start time, three word states, a
+      per-word wipe, an entry blur and a 7-second breathing float -- and `Pendolo` now
+      draws the reference's `pendolo` -- nine lines on an arc whose hub sits on the left
+      edge, spacing measured from neighbouring line heights, an escapement drawn on a
+      Compose `Canvas`, and one animated line number driving both the lyric wheel and
+      the gear so they ratchet together. Both gained their own parameters (three and
+      nine), persisted per mode and edited from a third header icon; the global motion
+      setting remains the master switch above them. New framework pieces: a second
+      registry shape (`WindowedLyricsVisualizer`) for a mode that lays out a whole
+      window of lines itself, and a frame clock that runs only while the full-screen
+      scene is composed, playing and above 0% motion -- the wall, ordinary cards and the
+      cover lyric layer still never run one. `ARCHITECTURE.md`'s no-frame-loop rule was
+      rewritten for that, and `DECISIONS.md` D-017 records the change.
+      Automated verification is 316/316 with lint at 0 errors / 16 warnings; rendering
+      still has no automated coverage, so acceptance is the phone checklist in
+      `docs/HANDOFF.md`. Deliberate degradations there too: no audio-reactive dial, no
+      exit blur, paused is still, waiting words are not individually blurred.
+      `Diorama` deliberately keeps its 2D picture -- the reference's 镜台 is a 3D
+      particle corridor and Compose does not attempt an equivalent (D-018). The other
+      eleven reference modes and the audio-reactive backgrounds remain unimplemented.
+
+- [ ] **8. Four reference visualizers, one real renderer at a time.** *(Active,
+      2026-09-27; unified settings, four-mode registry and the first 凝彩 runtime
+      implemented; phone acceptance open.)*
+      The owner explicitly superseded the earlier two-mode stopping point after
+      reviewing the 时计, 回环 and 凝彩 PVs and the official registry. The timed
+      scene now clears Scaffold's system-bar insets, hides/restores system bars only
+      for this route, gives every renderer the physical full-screen bounds, and uses
+      palette-tinted overlay chrome that auto-hides after 3.2 seconds while playing.
+      Its visible controls are smaller but keep 48dp targets; appearing controls do
+      not relayout the scene. The tuning sliders also now commit on release after
+      their lifted preview is fed back, fixing a restart-persistence failure.
+      The owner narrowed the production selector to 流光 / 时计 / 回环 / 凝彩.
+      The Flow, Poster, Spotlight and 2D Diorama prototype implementations and labels
+      are removed. Surviving modes retain legacy persisted values 3/5/6/7, so an old
+      时计/回环/凝彩 choice survives while a removed or unknown choice becomes 流光.
+      `Claddagh` (回环) uses a
+      bounded lyric rail advances around one tilted ellipse, old/current/future lines
+      coexist during the spring hand-off, depth drives scale/alpha/blur, and the
+      focal line uses the shared timed wipe. Pure orbit tests and registry tests pass.
+      `Tempera` (凝彩) retains stored value 7. Its new pure compiler deterministically
+      selects among eight initial shot families, bounds each shot to twelve expressive
+      slices and assigns absolute-time entrances. Its renderer separates artwork,
+      geometry, expressive type and a stable readable subtitle. It is intentionally
+      the first runtime foundation rather than a false 121-shot parity claim. Next is
+      paragraph/shot continuity and low-cost capability-tiered post processing, after
+      The scene header now has one settings entry. Its right-side/near-full-width
+      overlay mirrors Folia's 通用 / 背景 / 歌词动画 / 字幕 hierarchy. 凝彩 can use
+      the cover or a bounded persistable-SAF image library and can render into a
+      full-screen, 4:4 or 4:3 fitted canvas. Next is phone acceptance, then paragraph/
+      shot continuity and low-cost capability-tiered post processing. Automated
+      verification is 327/327 tests with lint at 0 errors / 17 warnings / 1 hint
+      after obsolete lyric resources are removed.
+
+- [ ] **9. Unified player surface and global record.** *(Implemented, verified and
+      consolidated 2026-09-28; phone visual acceptance open.)*
+      The ordinary mini-player concept is replaced by one lower-left circular record
+      on library/search/playlists/settings surfaces. It uses current Media3 metadata,
+      survives leaving the queue's source folder, rotates only while playing, and
+      opens the full player with a reduced-motion-aware lower-left expansion. The
+      full player now has one adaptive immersive layout: no top bar over the artwork,
+      and one lower surface for metadata, the shared thin timeline, five transport
+      actions and queue/bookmark/chapter entry points. Lyrics open only through a left
+      artwork swipe. The lyric scene header is reduced to an unbacked settings icon,
+      an open settings panel suspends chrome auto-hide, and the lyric transport uses
+      the same seek primitive as the focus wall and full player. Remaining work is
+      real-phone visual tuning in portrait/landscape, especially compact-height
+      overflow and the exact record-to-artwork spatial handoff.
+      The global record is now directly draggable, snaps to the nearest horizontal
+      edge and persists normalized placement. 时计's complete lyric/clockwork wheel
+      is also directly draggable in two axes and commits its centre on release. The
+      player artwork is reduced to a centred bounded poster and shares the focused
+      Folia card's edge, tint-border and directional shade language. Phone gesture
+      and visual acceptance remains open.
 
 ## Next
 
@@ -311,6 +410,20 @@ order because each layer consumes the stable model built by the one before it:
 - [ ] Extend the bounded direct-folder scanner into a full-library scanner with partial progress.
 - [ ] Complete artwork resolution (embedded art and recursive fallback); direct image covers and bounded Coil thumbnails are working.
 - [ ] Persist the Media3 queue and playback positions in Room.
+- [x] **Historical decision, superseded by phase 8: two modes to reference grade
+      before expanding the catalogue.**
+      The earlier version of this item said the remaining modes were "one registry
+      entry plus one file each". That was wrong and is withdrawn. Reading the
+      reference's source on 2026-09-27 (see `docs/HANDOFF.md`, "Claude investigation")
+      showed each of its thirteen modes is a distinct visual language thousands of
+      lines deep -- Tempera alone has 121 shot kinds in thirteen families, Sonnet and
+      Tempera are compile-time storyboard systems, Diorama is a 3D particle scene --
+      and each carries its own parameter set on the lyric-animation settings page.
+      The owner first chose to take `流光` and `时计` to reference grade. After the
+      later source/video audit the owner explicitly reopened the remaining catalogue;
+      phase 8 and D-019 are now authoritative. The useful part of this decision still
+      holds: no shallow preset may use a reference name, and existing mode ordinals
+      must never be renumbered.
 - [ ] Restore queue insertion on the focused card, on top of the durable queue.
 - [x] Request `POST_NOTIFICATIONS` on the first explicit Play action on API 33+;
       playback remains available if the user denies it.
