@@ -4790,3 +4790,32 @@ Owner then checks focused/unfocused long press, picker cancel/initial directory,
 replace/reset, refresh/restart, same-name folders, all layouts and focus/viewport.
 Do not label the APK published before the receipt. Previous crash/native-license/
 recursive-library follow-ups remain open; no private references are part of Git.
+
+
+### v0.1.4 delivery receipt — verified (2026-10-18)
+
+Publisher completed from reviewed clean code commit
+`6e54b8db8f9450143fa147b08a7a249169afd0bc`. Full verification passed again in
+**15s** with up-to-date outputs (540 JVM tests, lint 0/28, app/test APKs).
+Source branch and tag v0.1.4 were independently read back at that exact SHA.
+Release https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.4 was published
+at **2026-10-18 18:05:54 Asia/Shanghai** (`2026-10-18T10:05:54Z`), is latest, and
+keeps the public repository and all previous tags/assets unchanged.
+
+Separate anonymous API verification matched every remote asset size/SHA256 with
+the local ignored `build/jokesong-release/v0.1.4/` files:
+- `JOKESONG.apk`: 88,131,876 bytes,
+  `911ec7e569a61522f6194e6cc2fc7d3e455dd7138a7c1b5770a4d4ae7d6bd8c4`.
+- `JOKESONG-build.json`: 665 bytes,
+  `aa9ffcb2a4742874a6cc1e7386e1893bdb885a2dd6af5276df387c9dc8c8e21b`.
+- `SHA256SUMS.txt`: 79 bytes,
+  `6cc42aeb9cd1402653d02db60368db5f7835259191543ddba5db1458666a1d75`.
+
+Unauthenticated latest-download HEAD returned HTTP **200** and length 88,131,876.
+Source/APK/implementation records are delivered; phone installation, long-press /
+SAF-copy and restart acceptance remain pending, not claimed verified. The receipt
+commit also removes two identical repeated CHANGELOG sections introduced by a
+patch retry; published release notes already contain exactly one correct section.
+Only documentation changes follow the tested source commit, so no identical APK
+republish or tag rewrite is needed. Next owner action is download/cover-install
+and the acceptance list above; Claude can continue from this receipt and D-045.

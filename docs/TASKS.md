@@ -722,7 +722,8 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Explicit automatic reset, raw snapshots preserved, no-rescan cover projection and URI isolation.
 - [x] Narrow 19 tests; final 73 suites / 540 JVM tests passed, lint 0 errors / 28 warnings.
       App/test APKs built, package/version and unchanged signer independently verified (0.1.4 / code 5).
-- [ ] Reviewed source/docs push, v0.1.4 Release publication and anonymous remote asset verification.
+- [x] Reviewed source/docs pushed; v0.1.4 published, exact tag/source SHA and all three
+      attachment digests verified; anonymous latest APK HTTP 200. Receipt in HANDOFF.
 - [ ] Owner phone checks long press (focused/unfocused), cancelled picker, save/replace/reset,
       same-name folders, refresh/restart, all five layouts and retained focus/viewport.
       Android repository tests compiled only; SAF image decode/copy not device-executed.
