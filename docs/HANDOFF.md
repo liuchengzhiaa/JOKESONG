@@ -4557,3 +4557,63 @@ installation/data retention. Keep secrets, signing keys and private media exclud
 even though the repo is public. Native third-party corresponding-source/relinking
 licence review is **still open**, not certified by visibility conversion; do not
 mark it complete or treat this development APK as formally distribution-audited.
+
+## More cover-wall space — implementation/verification (2026-10-18)
+
+Owner's two screenshots request moving the header's layout control into the
+bottom-right tools, removing the gesture hint, moving wall content up and scaling
+the folder header's height/type to 2/5. Implemented as JOKESONG **0.1.2 / code 3**,
+same application ID and signer. D-043 and PRODUCT_SPEC record the scope.
+
+- `ui/AsmrPlayerApp.kt`: remove the entire layout/now-playing presentation row.
+  Canvas/list/grid share the remaining weighted content area. Library-only
+  `LibraryHeaderScale = 2f / 5f` scales the Material expanded height (64 → 25.6 dp)
+  and title font/line height (22 → 8.8 sp; 28 → 11.2 sp at default metrics).
+  Global theme/density and system-bar insets remain applied. Refresh/root/up actions
+  retain independent 48 dp horizontal hit areas with compact visible glyphs.
+  Settings/search/playlist titles, player/lyrics chrome and bottom navigation are
+  unchanged. Actual scan progress/errors/truncation still show when relevant.
+- `feature/focuswall/FocusCoverWall.kt`: remove the gesture hint and its space;
+  add Layout at the top of the existing corner tools. Both walls use the same
+  named choices/selected check as lists and grid, through the existing durable
+  layout callback. Existing layout ordinals, wall geometry, pan/zoom/focus state,
+  ambient controls, Media3 and storage are unchanged. No layout-triggered rescan.
+- `feature/library/LibraryLayouts.kt`: shared `LibraryLayoutOptionsPanel`; non-wall
+  modes retain a matching bottom-right GlassToolCluster so switching out of a wall
+  never strands the user. Choices close the menu; selecting the current mode does
+  not redundantly write preferences. Folder/mode changes reset its expansion.
+  System Back dismisses menus/subpages before clearing wall focus or navigating up.
+- `ui/components/GlassToolCluster.kt`: weight/scroll only the expanded panel,
+  reserving the trigger's space first, so longer tools fit short/landscape windows.
+  Shared glass styles, animation durations and collapsed hit behavior are retained.
+- `.codex-remote-attachments/` is ignored; owner reference photos stay local and
+  were not staged/uploaded. `focus_wall_hint` resource removed; `layout_selected`
+  retained because global Appearance still uses it.
+
+Verification:
+- Narrow command: `testDebugUnitTest --tests
+  com.example.asmrplayer.feature.library.LibraryLayoutModeTest --tests
+  com.example.asmrplayer.feature.focuswall.FocusWallInteractionTest`: **17 passed**
+  (6 layout / 11 interaction). New mode classification test covers both walls and
+  all three non-wall presentations; all prior enum ordinals/defaults stay unchanged.
+- Final `./gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest
+  lintDebug assembleDebug assembleDebugAndroidTest`: **BUILD SUCCESSFUL in 2m48s**,
+  **69 suites / 523 tests**, 0 failures/errors/skipped; lint **0 errors / 28 warnings**.
+  Environment remains `TEMP=TMP=C:\jtmp`,
+  `GRADLE_USER_HOME=C:\Users\LiuDeZhou\.gradle`. Two intermediate narrow compilation
+  failures from removed shared imports/resources were repaired (CircleShape and
+  layout_selected); final whole-project verification is after those repairs and
+  the bounded-menu change, not an earlier partial test.
+- Fresh app APK at `../.asmrplayer-build/app/outputs/apk/debug/app-debug.apk`,
+  88,014,016 bytes, built 2026-10-18 15:41:01 host time. `aapt2` confirms JOKESONG,
+  `com.example.asmrplayer`, version 0.1.2 / code 3; apksigner verifies the unchanged
+  pinned certificate. Pre-publication SHA256:
+  `0a8da3a8b264858c0dc16ca3d744da3ae7fa4badc646fdbb6ad1dcb28fe880d5`.
+  Instrumentation APK compiled, **not installed or device-executed**. No phone/ADB
+  operation or private-media mutation. Phone screenshot/gesture acceptance is pending.
+
+Safest next action: commit reviewed source/docs and run `tools/publish-release.ps1`
+for v0.1.2, then record exact remote commit/asset verification below. Do not label the
+new APK published until that succeeds. Owner then downloads the latest APK without
+login and checks tiny header readability/actions, all five layout choices, menu
+Back/scrolling, portrait/landscape wall gestures and focus/viewport return retention.

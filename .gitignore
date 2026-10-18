@@ -12,6 +12,7 @@ local.properties
 *.log
 *.stackdump
 .tools/
+.codex-remote-attachments/
 local-test-media/
 
 # Private authentication/signing/machine files: never publish to GitHub.

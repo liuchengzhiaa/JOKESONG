@@ -691,3 +691,13 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Publisher visibility guard: four combinations pass; PowerShell 7/5 PlanOnly passes.
       Standard JVM/lint command succeeds (cached 522 tests; lint 0 errors / 29 warnings).
 - [ ] Owner phone download/install acceptance. Native licence/source/relinking review remains open.
+
+## Current slice — more cover-wall space (2026-10-18)
+- [x] Move five layout choices into the wall's corner tools; matching list/grid chooser.
+- [x] Remove the standalone layout/playing row and gesture hint; canvas takes freed space.
+- [x] Library header content height/title/line-height at 2/5; keep insets and separate action targets.
+- [x] Existing focus/viewport/settings callbacks retained; reference attachments excluded from Git.
+- [x] Final layout/interaction: 17 targeted tests; full 69 suites / 523 tests passed,
+      lint 0 errors / 28 warnings, app/test APKs built and app signer/version verified.
+- [ ] Source/docs push and verified v0.1.2 Release (versionCode 3).
+- [ ] Owner phone acceptance: header readability/actions, five-way switching, wall gestures/return retention.

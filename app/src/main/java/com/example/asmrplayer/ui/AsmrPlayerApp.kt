@@ -12,11 +12,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
@@ -55,6 +57,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.asmrplayer.R
 import com.example.asmrplayer.core.media.PlaybackState
@@ -85,6 +88,9 @@ private data class Destination(
     val label: Int,
     val icon: @Composable () -> Unit,
 )
+
+/** The library header's visual height/type are two fifths of the original app bar. */
+private const val LibraryHeaderScale = 2f / 5f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -155,6 +161,14 @@ fun AsmrPlayerApp(
     // could not otherwise see.
     var cardRevision by remember { mutableIntStateOf(0) }
     val layoutMode = LibraryLayoutMode.fromOrdinal(libraryState.libraryLayoutOrdinal)
+    val libraryHeaderHeight = TopAppBarDefaults.TopAppBarExpandedHeight * LibraryHeaderScale
+    val headerActionModifier = if (selectedDestination == 0) {
+        // Keep independent 48 dp wide hit targets; only the visible row is shorter.
+        Modifier.width(48.dp).height(libraryHeaderHeight)
+    } else {
+        Modifier
+    }
+    val headerIconModifier = if (selectedDestination == 0) Modifier.size(16.dp) else Modifier
 
     val itemById = remember(libraryState.items) { libraryState.items.associateBy(LibraryItem::id) }
     val nowPlayingItem = playbackState.mediaId?.let(itemById::get)
@@ -252,6 +266,11 @@ fun AsmrPlayerApp(
             // the app bar here would make it a player page with a visualizer below,
             // rather than the full-screen scene promised by phase 5.
             if (!showSubtitleDetail && !showCardStudio && fullPlayerItem == null) CenterAlignedTopAppBar(
+                expandedHeight = if (selectedDestination == 0) {
+                    libraryHeaderHeight
+                } else {
+                    TopAppBarDefaults.TopAppBarExpandedHeight
+                },
                 title = {
                     Text(
                         text = if (selectedDestination == 0) {
@@ -260,15 +279,25 @@ fun AsmrPlayerApp(
                             stringResource(destinations[selectedDestination].label)
                         },
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.titleLarge.let { titleStyle ->
+                            if (selectedDestination == 0) {
+                                titleStyle.copy(
+                                    fontSize = titleStyle.fontSize * LibraryHeaderScale,
+                                    lineHeight = titleStyle.lineHeight * LibraryHeaderScale,
+                                )
+                            } else titleStyle
+                        },
                     )
                 },
                 navigationIcon = {
                     when {
                         selectedDestination == 0 && libraryState.canNavigateUp -> {
-                            IconButton(onClick = onNavigateUp) {
+                            IconButton(onClick = onNavigateUp, modifier = headerActionModifier) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack,
                                     stringResource(R.string.navigate_up),
+                                    modifier = headerIconModifier,
                                 )
                             }
                         }
@@ -276,13 +305,25 @@ fun AsmrPlayerApp(
                 },
                 actions = {
                     if (selectedDestination == 0 && libraryState.hasRoot) {
-                        IconButton(onClick = onRefresh, enabled = !libraryState.isScanning) {
-                            Icon(Icons.Default.Refresh, stringResource(R.string.refresh_current_folder))
+                        IconButton(
+                            onClick = onRefresh,
+                            enabled = !libraryState.isScanning,
+                            modifier = headerActionModifier,
+                        ) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                stringResource(R.string.refresh_current_folder),
+                                modifier = headerIconModifier,
+                            )
                         }
                     }
                     if (selectedDestination == 0) {
-                        IconButton(onClick = onChooseRoot) {
-                            Icon(Icons.Default.FolderOpen, stringResource(R.string.choose_library_root))
+                        IconButton(onClick = onChooseRoot, modifier = headerActionModifier) {
+                            Icon(
+                                Icons.Default.FolderOpen,
+                                stringResource(R.string.choose_library_root),
+                                modifier = headerIconModifier,
+                            )
                         }
                     }
                 },
@@ -669,22 +710,6 @@ private fun LibraryContent(
         state.hasError && state.items.isEmpty() -> ErrorState(onRefresh, onChooseRoot)
         state.items.isEmpty() -> EmptyFolderState(onRefresh)
         else -> Column(Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                LibraryLayoutSwitcher(selected = layoutMode, onSelect = onLayoutModeChange)
-                Spacer(Modifier.weight(1f))
-                if (playbackState.isPlaying) {
-                    Text(
-                        text = stringResource(R.string.now_playing),
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelMedium,
-                    )
-                }
-            }
             if (state.isScanning) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
@@ -705,7 +730,8 @@ private fun LibraryContent(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            when (layoutMode) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+              when (layoutMode) {
                 LibraryLayoutMode.FocusWall -> FocusCoverWall(
                     modifier = Modifier.fillMaxSize(),
                     items = state.items,
@@ -725,6 +751,8 @@ private fun LibraryContent(
                     onPrevious = onPrevious,
                     onNext = onNext,
                     onOpenLyrics = onOpenLyrics,
+                    layoutMode = layoutMode,
+                    onLayoutModeChange = onLayoutModeChange,
                     onDensityChange = onWallDensityChange,
                     onFocusShapeChange = onWallFocusShapeChange,
                     onFocusSizeChange = onWallFocusSizeChange,
@@ -768,6 +796,8 @@ private fun LibraryContent(
                     onPrevious = onPrevious,
                     onNext = onNext,
                     onOpenLyrics = onOpenLyrics,
+                    layoutMode = layoutMode,
+                    onLayoutModeChange = onLayoutModeChange,
                     onDensityChange = onWallDensityChange,
                     onFocusShapeChange = onWallFocusShapeChange,
                     onFocusSizeChange = onWallFocusSizeChange,
@@ -816,6 +846,16 @@ private fun LibraryContent(
                     onPlay = onPlayItem,
                     onTogglePlayPause = onTogglePlayPause,
                 )
+              }
+              if (!layoutMode.isWall) {
+                  LibraryLayoutSwitcher(
+                      selected = layoutMode,
+                      onSelect = onLayoutModeChange,
+                      style = ToolClusterStyle.fromOrdinal(state.toolClusterStyleOrdinal),
+                      motionPercent = state.motionPercent,
+                      contentKey = state.folderKey,
+                  )
+              }
             }
         }
     }

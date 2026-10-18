@@ -1,6 +1,7 @@
 package com.example.asmrplayer.feature.focuswall
 
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -139,6 +140,9 @@ import com.example.asmrplayer.core.settings.ToolClusterStyle
 import com.example.asmrplayer.core.settings.levelFraction
 import com.example.asmrplayer.core.subtitles.TimedTextDocument
 import com.example.asmrplayer.feature.folderSummaryLine
+import com.example.asmrplayer.feature.library.LibraryLayoutMode
+import com.example.asmrplayer.feature.library.LibraryLayoutOptionsPanel
+import com.example.asmrplayer.feature.library.icon
 import com.example.asmrplayer.feature.player.formatPlaybackTime
 import com.example.asmrplayer.feature.subtitles.CoverLyricsFrame
 import com.example.asmrplayer.feature.subtitles.LyricsWordGlowMode
@@ -206,6 +210,8 @@ fun FocusCoverWall(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onOpenLyrics: (LibraryItem) -> Unit,
+    layoutMode: LibraryLayoutMode,
+    onLayoutModeChange: (LibraryLayoutMode) -> Unit,
     onDensityChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
     style: FocusWallStyle = FocusWallStyle.Bento,
@@ -242,15 +248,6 @@ fun FocusCoverWall(
     val playbackStateProvider = rememberUpdatedState(playbackState)
     val currentMediaId = playbackState.mediaId
     Column(modifier = modifier) {
-        Text(
-            text = stringResource(R.string.focus_wall_hint),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-
         Box(modifier = Modifier.fillMaxSize()) {
             FocusWallCanvas(
                 items = items,
@@ -304,6 +301,8 @@ fun FocusCoverWall(
             )
             WallToolsOverlay(
                 contentKey = contentKey,
+                layoutMode = layoutMode,
+                onLayoutModeChange = onLayoutModeChange,
                 style = style,
                 viewportState = viewportState,
                 onRevealPlayingItem = onRevealPlayingItem,
@@ -335,6 +334,7 @@ private val MotionPercentRange = 0..100
 /** Which page of the tools panel is showing. */
 private sealed interface WallPanelPage {
     data object Root : WallPanelPage
+    data object Layout : WallPanelPage
     data object Density : WallPanelPage
     data object Zoom : WallPanelPage
     data object AmbientStrength : WallPanelPage
@@ -364,6 +364,8 @@ private sealed interface WallPanelPage {
 @Composable
 private fun WallToolsOverlay(
     contentKey: String,
+    layoutMode: LibraryLayoutMode,
+    onLayoutModeChange: (LibraryLayoutMode) -> Unit,
     style: FocusWallStyle,
     viewportState: FocusWallViewportState,
     onRevealPlayingItem: (() -> Unit)?,
@@ -386,6 +388,9 @@ private fun WallToolsOverlay(
     // returns it to its first page.
     var expanded by remember(contentKey) { mutableStateOf(false) }
     var page by remember(contentKey) { mutableStateOf<WallPanelPage>(WallPanelPage.Root) }
+    BackHandler(enabled = expanded) {
+        if (page != WallPanelPage.Root) page = WallPanelPage.Root else expanded = false
+    }
 
     // The canvas zoom is stored as a fraction but read as a percentage, like the two
     // settings either side of it in the root panel, so every crest level is drawn
@@ -413,6 +418,12 @@ private fun WallToolsOverlay(
             WallPanelPage.Root -> GlassToolsPanel(
                 style = toolClusterStyle,
                 tools = listOf(
+                    GlassTool(
+                        icon = layoutMode.icon(),
+                        labelRes = R.string.layout,
+                        valueRes = layoutMode.labelRes,
+                        onClick = { page = WallPanelPage.Layout },
+                    ),
                     GlassTool(
                         icon = Icons.Default.MyLocation,
                         labelRes = R.string.focus_playing_item,
@@ -483,6 +494,16 @@ private fun WallToolsOverlay(
                 } else {
                     emptyList()
                 },
+            )
+            WallPanelPage.Layout -> LibraryLayoutOptionsPanel(
+                selected = layoutMode,
+                onSelect = {
+                    expanded = false
+                    page = WallPanelPage.Root
+                    if (it != layoutMode) onLayoutModeChange(it)
+                },
+                onBack = { page = WallPanelPage.Root },
+                style = toolClusterStyle,
             )
             WallPanelPage.Density -> WallPercentPanel(
                 titleRes = R.string.wall_density,

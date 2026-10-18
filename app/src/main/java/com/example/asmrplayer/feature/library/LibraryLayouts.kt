@@ -1,5 +1,6 @@
 package com.example.asmrplayer.feature.library
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,7 +29,6 @@ import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.SpaceDashboard
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Pause
@@ -37,10 +37,7 @@ import androidx.compose.material.icons.filled.ViewComfy
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -64,7 +61,12 @@ import com.example.asmrplayer.R
 import com.example.asmrplayer.core.media.PlaybackState
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
+import com.example.asmrplayer.core.settings.ToolClusterStyle
+import com.example.asmrplayer.feature.focuswall.wallMotionDuration
 import com.example.asmrplayer.feature.folderSummaryLine
+import com.example.asmrplayer.ui.components.GlassOptionsPanel
+import com.example.asmrplayer.ui.components.GlassTool
+import com.example.asmrplayer.ui.components.GlassToolCluster
 import com.example.asmrplayer.ui.theme.artworkBrush
 
 /**
@@ -150,71 +152,60 @@ fun LibraryGrid(
     }
 }
 
-/** Switching affordance shared by all library presentation modes. */
+/** Bottom-end layout access for lists/grid, so choosing one never strands the user. */
 @Composable
 fun LibraryLayoutSwitcher(
     selected: LibraryLayoutMode,
     onSelect: (LibraryLayoutMode) -> Unit,
+    style: ToolClusterStyle,
+    motionPercent: Int,
+    contentKey: String,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember(contentKey, selected) { mutableStateOf(false) }
+    BackHandler(enabled = expanded) { expanded = false }
 
-    Box(modifier = modifier) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceVariant,
-        ) {
-            IconButton(
-                onClick = { expanded = true },
-                modifier = Modifier.size(24.dp),
-            ) {
-                Icon(
-                    imageVector = selected.icon(),
-                    contentDescription = stringResource(
-                        R.string.layout_current,
-                        stringResource(selected.labelRes),
-                    ),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            LibraryLayoutMode.entries.forEach { mode ->
-                DropdownMenuItem(
-                    text = { Text(stringResource(mode.labelRes)) },
-                    onClick = {
-                        expanded = false
-                        if (mode != selected) onSelect(mode)
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = mode.icon(),
-                            contentDescription = null,
-                            tint = if (mode == selected) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    },
-                    trailingIcon = if (mode == selected) {
-                        {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = stringResource(R.string.layout_selected),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    } else {
-                        null
-                    },
-                )
-            }
-        }
+    GlassToolCluster(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        panelMotionMillis = wallMotionDuration(190, motionPercent),
+        contentDescription = stringResource(R.string.layout_current, stringResource(selected.labelRes)),
+        style = style,
+        modifier = modifier,
+    ) {
+        LibraryLayoutOptionsPanel(
+            selected = selected,
+            onSelect = {
+                expanded = false
+                if (it != selected) onSelect(it)
+            },
+            onBack = { expanded = false },
+            style = style,
+        )
     }
+}
+
+/** Identical named choices in the wall's tools and the non-wall floating menu. */
+@Composable
+fun LibraryLayoutOptionsPanel(
+    selected: LibraryLayoutMode,
+    onSelect: (LibraryLayoutMode) -> Unit,
+    onBack: () -> Unit,
+    style: ToolClusterStyle,
+) {
+    GlassOptionsPanel(
+        titleRes = R.string.layout,
+        onBack = onBack,
+        style = style,
+        options = LibraryLayoutMode.entries.map { mode ->
+            GlassTool(
+                icon = mode.icon(),
+                labelRes = mode.labelRes,
+                selected = mode == selected,
+                onClick = { onSelect(mode) },
+            )
+        },
+    )
 }
 
 @Composable
@@ -529,7 +520,7 @@ private fun LibraryItemType.icon(): ImageVector = when (this) {
     LibraryItemType.Audio -> Icons.Default.LibraryMusic
 }
 
-private fun LibraryLayoutMode.icon(): ImageVector = when (this) {
+internal fun LibraryLayoutMode.icon(): ImageVector = when (this) {
     LibraryLayoutMode.DetailedList -> Icons.AutoMirrored.Filled.ViewList
     LibraryLayoutMode.CompactList -> Icons.AutoMirrored.Filled.List
     LibraryLayoutMode.Grid -> Icons.Default.GridView

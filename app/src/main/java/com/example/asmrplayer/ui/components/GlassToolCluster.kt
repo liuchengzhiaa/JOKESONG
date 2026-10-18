@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -130,6 +132,9 @@ fun GlassToolCluster(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             AnimatedVisibility(
+                // Reserve the trigger first. A longer wall menu must scroll in a
+                // short/landscape viewport rather than push its own close button off-screen.
+                modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
                 visible = expanded,
                 enter = fadeIn(tween(panelMotionMillis)) + scaleIn(
                     animationSpec = tween(panelMotionMillis),

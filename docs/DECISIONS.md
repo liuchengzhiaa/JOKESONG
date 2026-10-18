@@ -1005,3 +1005,19 @@ the visibility operation. Anonymous HTTP access must be verified, not inferred f
 an authenticated CLI response. Third-party licence review remains a separate open
 task; changing visibility does not certify that review complete or grant a new
 licence to the project's own source.
+
+## D-043 — Give the cover wall the library's header space (2026-10-18)
+
+Owner requests moving the header layout-switch affordance into the existing
+bottom-right tools cluster and removing the gesture hint. Both walls offer a Layout
+subpage with the existing five choices; list/grid get a matching bottom-right
+chooser, so selecting them does not remove the way back. Use the existing durable
+layout callback and hoisted viewport/focus states; no folder rescan, density/zoom
+reset or gesture/layout-engine change is part of this slice. Back dismisses the
+chooser/subpage before navigating the library.
+
+Only the library folder bar's content height and title type are scaled to **2/5**
+of the former Material top bar. Preserve system-bar insets, global accent/theme
+scaling, separate 48 dp wide action targets, and refresh/root/back actions. Do not
+shrink unrelated destinations, player chrome or bottom navigation. Keep real
+scanning/error/truncation status; remove the permanently reserved presentation row.

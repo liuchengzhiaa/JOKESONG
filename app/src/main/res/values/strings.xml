@@ -75,7 +75,6 @@
     <string name="favorites">收藏</string>
     <string name="focus_wall">聚焦封面墙</string>
     <string name="folia_wall">Folia 封面墙</string>
-    <string name="focus_wall_hint">拖动浏览 · 双指缩放 · 单击聚焦 · 再单击已聚焦封面执行操作</string>
     <string name="wall_tools">墙面功能</string>
     <string name="player_tools">播放器功能</string>
     <string name="player_lyrics">歌词</string>

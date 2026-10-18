@@ -5,6 +5,18 @@ import org.junit.Test
 
 class LibraryLayoutModeTest {
     @Test
+    fun `only wall modes supply their own corner tools`() {
+        assertEquals(
+            listOf(LibraryLayoutMode.FocusWall, LibraryLayoutMode.FoliaWall),
+            LibraryLayoutMode.entries.filter { it.isWall },
+        )
+        assertEquals(
+            listOf(LibraryLayoutMode.DetailedList, LibraryLayoutMode.CompactList, LibraryLayoutMode.Grid),
+            LibraryLayoutMode.entries.filterNot { it.isWall },
+        )
+    }
+
+    @Test
     fun `next cycles through every layout and returns to the first`() {
         var mode = LibraryLayoutMode.DetailedList
 

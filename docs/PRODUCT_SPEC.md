@@ -150,9 +150,15 @@ Supported layouts:
 - Focus-cover wall
 - Folia-style focus wall
 
-The five layouts are collected under one layout button. The button displays the
-current layout's icon; opening it shows all five named choices and marks the active
-one, instead of keeping five icon buttons across the library header. The app
+The five layouts are collected under the bottom-right tools button's Layout page;
+it shows all five named choices and marks the active one. Lists and grid retain a
+matching bottom-right chooser so users can always switch back to either wall.
+No separate layout-switch row or gesture-instruction text reserves space above the
+wall. The library folder header's content height and title size are two fifths of
+the original app bar (25.6 dp / 8.8 sp with default Material metrics); system status
+bar insets remain intact, action targets retain independent 48 dp widths, and other
+destinations/player headers are unchanged. Scanning/error/truncation indicators
+still appear when relevant, rather than silently hiding real problems. The app
 remembers a global layout and permits per-folder overrides. Lists default
 to folders-first grouping with an optional mixed-sort mode. Supported deterministic
 sorts include natural name, track number, modified time and date added. Custom drag

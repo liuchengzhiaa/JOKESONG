@@ -14,6 +14,8 @@ enum class LibraryLayoutMode(@StringRes val labelRes: Int) {
     FocusWall(R.string.focus_wall),
     FoliaWall(R.string.folia_wall);
 
+    val isWall: Boolean get() = this == FocusWall || this == FoliaWall
+
     fun next(): LibraryLayoutMode = entries[(ordinal + 1) % entries.size]
 
     companion object {
