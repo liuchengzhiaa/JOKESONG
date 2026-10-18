@@ -679,5 +679,6 @@ order because each layer consumes the stable model built by the one before it:
       commit/asset digest verification; local parser/PlanOnly passed; fingerprint pinned.
 - [x] Focused common-secret/private-file/large-blob screening of source and 19 old commits.
 - [x] New version: 522 tests passed; lint 0 errors / 29 warnings; app/test APKs built.
-- [ ] Initial source push and APK Release; verify actual remote commit and asset digests.
+- [x] Initial source/history pushed; v0.1.1 Release published and independently verified:
+      private repo, exact source/tag SHA, all three attachment sizes/SHA256 digests.
 - [ ] Owner phone private-Release download/cover-install acceptance without USB.

@@ -4474,3 +4474,43 @@ Verification before commit/publication:
   by that failed preflight.
 - No phone install/adb mutation, real media edit, Claude invocation, or incoming work
   removal. Owner phone download/install verification remains pending.
+
+### First delivery receipt — verified, 2026-10-18
+
+- Private source repository: https://github.com/liuchengzhiaa/JOKESONG . Existing
+  history and reviewed incoming work were pushed normally, without force or history
+  rewriting. Baseline commit `4249b170f1fe9484a85de605e6b0c64b8973e875` is followed
+  by the PowerShell argument-forwarding fix/release commit
+  `5de8c7c8acefa2360d5ee30470d89b8a837cb615`.
+- `tools/publish-release.ps1` completed end-to-end from that clean release commit.
+  Full Gradle verification/build **BUILD SUCCESSFUL in 2m32s**: 69 suites / **522 JVM
+  tests**, 0 failures/errors/skipped; lint **0 errors / 29 warnings**. App and native
+  instrumentation APKs compiled; instrumentation was **not device-executed**.
+- Release: https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.1 , published
+  at 2026-10-18 14:56:36 Asia/Shanghai, non-draft and marked latest. Tag `v0.1.1` and
+  remote `master` were independently read back at the release commit above. The
+  documentation-only receipt commit follows it; it is not a different APK build.
+- APK: **JOKESONG 0.1.1 / versionCode 2**, `com.example.asmrplayer`, 88,014,488 bytes,
+  built 2026-10-18 14:52:19 Asia/Shanghai. Signature verified against the unchanged
+  pinned certificate. Final SHA256 (supersedes the earlier pre-commit build hash):
+  `1b181c808226ccc26782eb057320f3657a0d652e29ec4e0fb058272f5e908753`.
+- All three assets are `uploaded`; publisher compared their remote sizes and SHA256
+  digests with local files, and an independent API read confirmed them:
+  - `JOKESONG.apk`: 88,014,488 bytes, SHA256 above.
+  - `JOKESONG-build.json`: 665 bytes,
+    `77d4241e864ce8f9f52c1fa30f60dc165528b2e58fb02d3c09b4de217903b8b6`.
+  - `SHA256SUMS.txt`: 79 bytes,
+    `cd24e43bc87b8a81494c2d2d2840bbea59cd58b6d4f9480852062b6a2da3ac3d`.
+  Local artifacts are ignored under `build/jokesong-release/v0.1.1/`; APKs, signing
+  private keys, auth/tool caches and private media are not committed to source.
+- Stable phone bookmark:
+  https://github.com/liuchengzhiaa/JOKESONG/releases/latest/download/JOKESONG.apk .
+  The phone must sign into GitHub as an account allowed to read this private repo,
+  download and confirm Android's update installation itself. No USB is required.
+  No phone/ADB install or user-media mutation occurred in this delivery.
+
+Safest next action: owner verifies phone download and cover-install with existing
+data retained. That device acceptance remains open. For the next code update, read
+AGENTS/CLAUDE and `docs/RELEASING.md`, increase both versionCode and release version,
+update CHANGELOG/HANDOFF/TASKS, commit reviewed source and run the publisher. Do not
+republish/overwrite v0.1.1, and do not create another APK solely for this receipt.
