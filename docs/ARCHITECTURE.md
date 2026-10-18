@@ -628,11 +628,30 @@ tests; a compiled instrumentation APK is not evidence that device writes passed.
 - Macrobenchmarks for cold library launch, scrolling, thumbnail loading and focus
   wall gestures at representative scale.
 
-### Player tonal field (2026-10-11)
-CoverFacts now retains rawPaletteArgbs alongside the unchanged balanced wall palette.
-The single bounded decode produces both; no full-size background decode or per-frame
-colour extraction. PlayerBackdrop uses the raw dominant family as a vertical tonal
-field. Intrinsic dimensions use the same cached facts, never file metadata guesses.
+### Player source-proportion cover and spatial field (2026-10-18)
+CoverFacts retains rawPaletteArgbs alongside the unchanged balanced wall palette.
+The same bounded thumbnail decode adds PlayerColourField: nine region colours plus
+nine regional/global dark fractions, at most 4096 sampled pixels. Prefer chromatic
+midtones to pale highlights; fall back to bright colour, neutral region average or
+source-derived global colour. No original pixel/image array is retained in the LRU.
+
+PlayerBackdrop receives the player's already loaded facts rather than initiating a
+second read. A pure renderer spreads these anchors with smooth Gaussian weights,
+retains dark coverage, maps brightness for white-text contrast and adds fixed tiny
+dither. Generate one 96x144 opaque texture (~54 KiB) on Dispatchers.Default; display
+with bilinear filtering and a motion-aware crossfade. No full-screen artwork blur,
+per-frame sample, permanent ticker or wall-palette change. Hold the preceding field
+while new facts load, but replace it with an explicit fallback after missing/failed
+artwork rather than retaining another song's colours indefinitely.
+
+PlayerArtwork's successful Coil decode publishes its displayed width/height ratio,
+including orientation, to URI-keyed player state. Ignore <0.002 ratio jitter to avoid
+resizing feedback. The sampled facts ratio is only a fallback, then 1:1 while no
+valid dimensions exist. Keep ContentScale.Fit, existing adaptive size/percentage
+bounds and the card branch's independent geometry. No implicit trimming of square
+source images with baked-in padding. Phone reports of a square cover are not a
+proven single root cause: this removes the code's palette-read dependency, with
+actual failing media/device reproduction still pending.
 
 ### Lazy audio artwork (2026-10-11 follow-up)
 SafDirectoryScanner previously assigned currentFolderArtwork to every audio. It now

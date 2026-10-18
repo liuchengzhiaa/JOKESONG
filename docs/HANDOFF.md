@@ -4898,3 +4898,66 @@ no duplicate APK; phone installation/native/SAF/gesture verification remains pen
 Next: owner cover-installs v0.1.5 and checks the audio/folder long-press paths and
 cancel/save/removal on disposable backed-up/generated media. Do not claim this new
 entry point was device-tested or that unrelated crash/licensing work is finished.
+
+
+## Intrinsic player covers and multicolour field (2026-10-18)
+
+Owner supplies two Salt screenshots and asks for source-shaped covers and a richer,
+whole-cover-derived background. Implementation **0.1.6 / code 7**, same ID/signer;
+D-047 supersedes D-037's single dominant-family background, not wall illumination.
+
+- Source inspection found intrinsic Fit sizing already existed, but relied entirely
+  on CoverAccentLoader facts; failed colour/bounds reads fall back to 1:1. No failing
+  media/device capture exists, so this is a dependency correction, not a proven root
+  cause for every reported square image. PlayerArtwork now reports actual Coil image
+  dimensions to URI-keyed state; decoder ratio wins, then sampled aspect, then 1:1.
+  Ignore ratio jitter <0.002. Existing fit bounds, 70–115% sizing and independent
+  card geometry stay. Baked-in square padding is not guessed/cropped away.
+- The same small CoverAccentLoader thumbnail supplies PlayerColourField: nine source
+  regions, at most 4096 samples, actual mid-tone chromatic colours preferred over
+  pale highlights, neutral fallback, global and regional dark fractions. Balanced
+  wall palette and its lighting policy stay unchanged; no source bitmap is cached.
+- Pure renderer spreads anchors with smooth Gaussian weights, preserves source hue
+  with bounded chroma enhancement, maps brightness for white-text readability, and
+  applies fixed tiny dither. On Default generate a 96x144 ARGB texture (~54 KiB),
+  bilinearly upscale and crossfade with global motion control. No frame ticker,
+  full-screen poster blur, full-size decode or image-data persistence. PlayerBackdrop
+  shares loaded facts, holds preceding colours during a new load and falls back
+  explicitly after failure/missing artwork, not indefinitely to another song.
+- Original playback/three-stage page flow, control typography, lyrics, artwork writes,
+  tool clusters and wall geometry are untouched. `.kotlin/` compiler cache is now
+  ignored. No dependency, permission, application ID or signing change.
+
+Verification:
+- Relevant narrow tests passed **25 cases** (region field, backdrop selection,
+  geometry/decoder priority and existing player tone). Final full command
+  `./gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest lintDebug
+  assembleDebug assembleDebugAndroidTest`: **BUILD SUCCESSFUL in 2m38s**.
+  XML independently reports **75 suites / 557 tests**, no failures/errors/skips;
+  lint **0 errors / 28 warnings**. TEMP=TMP=C:\jtmp and the established GRADLE_USER_HOME.
+- Field tests cover deterministic size/opaque output, source-region ordering, local
+  shadows, neutral/transparent/black/highlight fixtures, invalid/extreme dimensions,
+  >100 output shades, and white foreground contrast >=4.5. Three new aspect tests
+  cover palette failure, decoder priority/orientation proxy and percentage bounds.
+- Synthetic preview from the actual JVM production renderer is generated under
+  ignored `app/build/reports/player-field/`. A local ignored Java adapter under
+  `build/visual-review/` sampled only the reference covers in memory and generated
+  abstract colour-field-only previews. Reviewed the final production output. Images,
+  previews, paths/adapters and sampled values are not part of the upload set. This
+  is not a device screenshot or inspection of Salt's internals. Initial preview used
+  the wrong (sources) runtime jar; corrected to the binary Kotlin stdlib and reran.
+- Generated PNG Android test checks shared Coil Fit decode and facts dimensions for
+  portrait/wide/square images. It **compiles only, not device-executed**. No phone
+  operation, user-media write, actual phone frame profile or Salt pixel-match claim.
+- Final APK `../.asmrplayer-build/app/outputs/apk/debug/app-debug.apk`: 88,259,483 bytes,
+  built `2026-10-18T11:10:54.3359343Z`, SHA256
+  `98c994ec47c40e225b1fe2b769cd66e2b222a913042c67abc8bf293b3efd9e46`.
+  aapt2/apksigner confirm com.example.asmrplayer / 0.1.6 / code 7, pinned signer.
+
+Safest next action: review/stage only source/tests/docs, publish and independently
+verify source/tag/assets and anonymous download, then append receipt. Owner checks
+actual same media's tall/wide/square art, cold/missing facts, percentages/rotation,
+black vs colourful covers, rapid cuts and lyric paging. If still square, compare
+actual source bitmap dimensions/padding and displayed artwork URI before assuming
+layout failure. Device validation and existing crash/native-license/library indexing
+follow-ups remain open. This is reference-driven reconstruction, not Salt source port.

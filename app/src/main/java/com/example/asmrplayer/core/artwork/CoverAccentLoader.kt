@@ -37,6 +37,7 @@ internal data class CoverFacts(
     val height: Int,
     val rawPaletteArgbs: List<Int> = paletteArgbs,
     val playerToneArgb: Int? = rawPaletteArgbs.firstOrNull(),
+    val playerField: PlayerColourField? = null,
 ) {
     /** The artwork's own proportions, which is what a card has to take the shape of. */
     val aspect: Float get() = width.toFloat() / height
@@ -87,8 +88,11 @@ internal object CoverAccentLoader {
                 // The size comes from the bounds, not from the bitmap: the bitmap is a
                 // downsampled copy, and a card cut to its proportions would be cut to
                 // the proportions of whatever sample size happened to be chosen.
-                val (rawPalette, playerTone) = bitmap.usePixels { pixels ->
-                    representativeCoverArgbs(pixels, MaximumPaletteColors, balance = false) to playerCoverArgb(pixels)
+                val sampleWidth = bitmap.width
+                val sampleHeight = bitmap.height
+                val (rawPalette, playerTone, playerField) = bitmap.usePixels { pixels ->
+                    Triple(representativeCoverArgbs(pixels, MaximumPaletteColors, balance = false),
+                        playerCoverArgb(pixels), playerColourField(pixels, sampleWidth, sampleHeight))
                 }
                 val palette = rawPalette.map(::balanceCoverColor)
                 CoverFacts(
@@ -98,6 +102,7 @@ internal object CoverAccentLoader {
                     height = bounds.outHeight,
                     rawPaletteArgbs = rawPalette,
                     playerToneArgb = playerTone ?: rawPalette.firstOrNull(),
+                    playerField = playerField,
                 )
             }
         } catch (_: IOException) {

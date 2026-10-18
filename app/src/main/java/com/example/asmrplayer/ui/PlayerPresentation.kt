@@ -29,6 +29,11 @@ import com.example.asmrplayer.feature.subtitles.lyricsView
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+/** Decoder dimensions (including orientation) win; colour extraction must not gate shape. */
+internal fun playerArtworkAspect(decoded: Float?, sampled: Float?): Float =
+    decoded?.takeIf { it.isFinite() && it > 0f }
+        ?: sampled?.takeIf { it.isFinite() && it > 0f } ?: 1f
+
 /** Full artwork fit. Neither the source proportions nor the viewport may be violated. */
 internal fun fitPlayerArtwork(width: Float, height: Float, preferredWidth: Float, aspect: Float, percent: Int): Pair<Float, Float> {
     val ratio = aspect.takeIf { it.isFinite() && it > 0f } ?: 1f

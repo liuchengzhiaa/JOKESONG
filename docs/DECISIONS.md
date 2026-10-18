@@ -1065,3 +1065,20 @@ the real file. Hide text fields, submit no text edits, skip text-tag rewrite and
 verify original properties unchanged. All supported-provider/format, recovery,
 current-track pause and cache/session refresh rules remain in force. Unsupported
 or unsafe writes stay refused, not replaced with a silent database-only cover.
+
+
+## D-047 — Decoder-shaped covers and a multicolour player field (2026-10-18)
+
+Owner's two Salt Player references request true portrait/landscape artwork and a
+rich background reflecting the whole cover, not only a main hue. Supersede D-037's
+single dominant-family backdrop with nine source regions and local/global darkness,
+softly blended into a bounded static field. No invented complementary hue rotation,
+recognisable blurred image, extra player or per-frame decoder. Wall illumination and
+ordinary/immersive lyric navigation stay independent and unchanged.
+
+Shape follows the displayed decoder first, sampled bounds second, square only while
+unknown. Retain Fit, sizing preferences and native padding rather than automatically
+cropping to a guessed subject. Existing code already attempted intrinsic sizing;
+without the actual failing media/device we cannot establish why that phone appeared
+square. Salt's internal algorithm has not been inspected; this is reference-driven
+visual reconstruction, not a claimed identical-source/pixel-perfect port.

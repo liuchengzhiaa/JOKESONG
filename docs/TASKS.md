@@ -741,3 +741,16 @@ order because each layer consumes the stable model built by the one before it:
 - [ ] Owner phone checks audio long press, cancel/replace/remove/save, target stability during
       queue changes/rotation, current/other-track pause behavior and refreshed covers in all layouts.
       Native/SAF checks are compiled only; use disposable copied/generated media for acceptance.
+
+
+## Current slice — intrinsic player art and multicolour field (2026-10-18)
+- [x] Display decoder aspect first, sampled bounds fallback, Fit and size settings retained.
+- [x] Shared bounded nine-region/mid-tone colour extraction with regional/global dark coverage.
+- [x] Pure Gaussian field renderer, small cached texture and motion-aware track crossfade.
+- [x] Narrow 25 tests; final 75 suites / 557 tests pass, lint 0 errors / 28 warnings;
+      app/test APKs built, package/signer and 0.1.6 / code 7 independently verified.
+- [x] Synthetic and reference-colour-only local previews inspected; private screenshots not staged.
+- [ ] Reviewed source/docs push, v0.1.6 Release and anonymous asset/source verification.
+- [ ] Owner phone checks identical portrait/wide/square source art, cold/failing palette load,
+      percentages/rotation, dark vs colourful covers, rapid cuts and ordinary-lyrics paging.
+      Android generated-image decoder test compiled only; no phone FPS or exact Salt match claimed.

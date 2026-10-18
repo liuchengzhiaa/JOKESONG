@@ -215,7 +215,13 @@ fun PlayerDetail(
     var editTargetArtwork by rememberSaveable { mutableStateOf<String?>(null) }
     val artworkItem = item.copy(artworkUri = editedArtwork ?: item.artworkUri)
     var coverFacts by remember(artworkItem.artworkUri) { mutableStateOf<CoverFacts?>(null) }
-    LaunchedEffect(artworkItem.artworkUri) { coverFacts = CoverAccentLoader.resolve(context, artworkItem.artworkUri) }
+    var coverFactsLoading by remember(artworkItem.artworkUri) { mutableStateOf(artworkItem.artworkUri != null) }
+    var decodedArtworkAspect by remember(artworkItem.artworkUri) { mutableFloatStateOf(0f) }
+    val artworkAspect = playerArtworkAspect(decodedArtworkAspect, coverFacts?.aspect)
+    LaunchedEffect(artworkItem.artworkUri) {
+        try { coverFacts = CoverAccentLoader.resolve(context, artworkItem.artworkUri) }
+        finally { coverFactsLoading = false }
+    }
     val pager = rememberPagerState(initialPage = initialPage.coerceIn(0, 1), pageCount = { 3 })
     LaunchedEffect(pager.settledPage) {
         if (pager.settledPage == 2) {
@@ -471,7 +477,7 @@ fun PlayerDetail(
     }
 
     Box(modifier = modifier.fillMaxSize().background(PlayerBackground)) {
-        PlayerBackdrop(artworkItem)
+        PlayerBackdrop(artworkItem, coverFacts, coverFactsLoading, motionPercent)
         // The inset box, and the reason the collect button lives in this one rather
         // than around everything: it has to be pinned to the same edge the tool row
         // sits against, or the two would drift apart by the gesture bar's height.
@@ -495,12 +501,13 @@ fun PlayerDetail(
                                 val artworkSize = minOf(maxWidth * 0.86f, maxHeight * 0.82f, 380.dp)
                                 PlayerArtwork(
                                     item = artworkItem,
+                                    onDecodedAspect = { if (kotlin.math.abs(decodedArtworkAspect - it) > 0.002f) decodedArtworkAspect = it },
                                     card = card,
                                     showCard = showingCard,
                                     modifier = Modifier.artworkSized(
                                         showingCard = showingCard,
                                         squareSize = artworkSize,
-                                        artworkAspect = coverFacts?.aspect ?: 1f,
+                                        artworkAspect = artworkAspect,
                                         coverPercent = sizing.playerCoverPercent,
                                         maxWidth = maxWidth,
                                         maxHeight = maxHeight,
@@ -543,10 +550,11 @@ fun PlayerDetail(
                                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                                     PlayerArtwork(
                                         item = artworkItem, card = card, showCard = showingCard,
+                                        onDecodedAspect = { if (kotlin.math.abs(decodedArtworkAspect - it) > 0.002f) decodedArtworkAspect = it },
                                         modifier = Modifier.artworkSized(
                                             showingCard = showingCard,
                                             squareSize = maxWidth * 0.85f,
-                                            artworkAspect = coverFacts?.aspect ?: 1f,
+                                            artworkAspect = artworkAspect,
                                             coverPercent = sizing.playerCoverPercent,
                                             maxWidth = maxWidth, maxHeight = maxHeight,
                                         ),
@@ -927,6 +935,7 @@ private fun PlayerArtwork(
     item: LibraryItem,
     card: CardSummary?,
     showCard: Boolean,
+    onDecodedAspect: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val swipeDescription = stringResource(R.string.player_swipe_pages)
@@ -952,6 +961,12 @@ private fun PlayerArtwork(
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Fit,
+                onSuccess = { state ->
+                    val image = state.result.image
+                    if (image.width > 0 && image.height > 0) {
+                        onDecodedAspect(image.width.toFloat() / image.height)
+                    }
+                },
             )
         } else {
             Box(Modifier.fillMaxSize().background(artworkBrush(item.paletteSeed)))

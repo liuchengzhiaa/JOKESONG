@@ -331,10 +331,15 @@ user requests another batch. The current audio remains in the replacement sample
   `Fit` (never crop), defaults to 85% screen width with a height safety bound, and has
   small rounded corners. Cover size (70–115%), title size (75–140%) and lyric size
   (75–150%) persist globally, available in Appearance and the player's tools.
-- The backdrop is a broad vertical tonal gradient from the cover's **raw dominant**
-  colour family selected from mid-tone chromatic samples (not pale highlights), with a
-  dark saturated top, softer lower field and subtle side glow, no blurred artwork overlay. Wall lighting
-  continues using its separate brightness-balanced presentation of the same extraction.
+- Displayed image decoder dimensions are the first authority for the cover's shape;
+  palette extraction is an independent fallback, never a prerequisite. Retain native
+  proportions, including baked-in borders/padding; do not guess and crop the subject.
+- The backdrop samples nine cover regions, preserving distinct actual colours and
+  global/regional dark coverage. Mid-tone colour is preferred over pale highlights;
+  truly neutral art stays neutral. Blend broad, soft colour clouds into a cached small
+  texture, not a single dominant-colour gradient or a recognisable blurred poster.
+  Keep white current text readable; blend between covers and honor reduced motion.
+  Wall lighting continues using its original independent brightness-balanced palette.
 - The cover page reserves a stable three-slot lyric window: previous / current / next.
   Current is bright, neighbours are subdued; no green banner.
   The normal lyric page uses left-aligned paragraphs, subdued inactive lines, edge fades,

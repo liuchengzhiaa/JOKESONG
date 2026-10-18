@@ -34,3 +34,6 @@ github-recovery-codes*.txt
 .codex/
 .aws/
 .ssh/
+
+# Kotlin local compiler/session cache.
+.kotlin/
