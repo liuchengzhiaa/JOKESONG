@@ -784,3 +784,14 @@ order because each layer consumes the stable model built by the one before it:
       independently verified; anonymous latest APK HTTP 200. Receipt in HANDOFF.
 - [ ] Phone: compare first wall load; run batch with covered parent/uncovered descendants, stop/rerun,
       read-only errors and all five layouts' audio actions. Keep app open while processing.
+
+
+## Current slice — batch metadata enumeration speed (2026-10-19)
+- [x] One SAF traversal snapshot per folder, natural ordered scratch catalog pages; bounded memory/disk.
+- [x] Reuse positive document URIs and source digest; keep live conflict/safe-write checks.
+- [x] Early progress and skip irrelevant legacy queries; no display-policy or permissions change.
+- [x] assembleDebug compiled v0.1.9 / code 10, same package/signer; no tests/Lint per owner.
+- [ ] Publish explicitly untested phone-acceptance APK, source/docs and integrity receipt.
+- [ ] Owner phone speed/stop/rerun/large-folder acceptance; no FPS/throughput claim from desktop tests.
+- [ ] JVM/Lint/instrumentation verification explicitly skipped for this release at owner's request;
+      run normal full verification next time, including new catalog tests, before claiming them passed.

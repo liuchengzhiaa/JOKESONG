@@ -95,3 +95,12 @@ The owner authorized official CLI access and the active account is `liuchengzhia
 Credentials are verified stored in the system keyring, not plaintext. The private
 JOKESONG repository was created and verified empty before the initial source push.
 See the latest HANDOFF for actual source/Release verification, not just creation.
+
+
+## One-time v0.1.9 phone acceptance exception (2026-10-19)
+Owner explicitly requested compile-only delivery, skipping automated/device checks.
+Only this release uses an ignored derived build/quick-release.ps1: assembleDebug,
+normal signer/package/source/asset checks, null/skipped JVM and Lint fields and honest
+notes. The checked-in publisher and future default verification policy are unchanged.
+Do not cite older test XML or declare this build tested. Device speed acceptance is
+with the owner; restore standard full verification for the next normal development slice.

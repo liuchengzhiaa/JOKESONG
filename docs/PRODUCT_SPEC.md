@@ -73,8 +73,11 @@ counted separately from missing artwork, not reported as successful persistence.
 Show visited/generated/existing/missing/failed counts and a stop action. The task
 survives settings navigation and rotation through LibraryViewModel, not process
 death. Keep the app open; after interruption rerun safely, skipping saved covers.
-Work is off-main, with 32-candidate pages and bounded identity tracking, not a tree
-or bitmap list. No 15-second / 256-folder / 256-audio per-display limits apply to
+Work is off-main, with 32-candidate pages from a one-enumeration-per-folder temporary
+metadata index, plus bounded identity tracking, not a tree or bitmap list. Private
+scratch indexing is limited to 256 MiB on disk; sorting one folder is limited to
+50k supported entries / estimated 16 MiB. Oversized inputs report failure rather
+than silently indexing only part of a directory. No 15-second / 256-folder / 256-audio per-display limits apply to
 this explicit operation. A 50k-folder / 128-depth / 250k-audio / 100M-metadata-row
 safety ceiling aborts an exceptional run as incomplete rather than claiming success.
 Native/provider calls and a short rename transaction are cooperatively cancellable.

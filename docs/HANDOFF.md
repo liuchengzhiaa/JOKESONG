@@ -5225,3 +5225,59 @@ Settings → Library → 递归处理文件夹封面 on a disposable granted tre
 app open. Verify descendants under an already-covered parent, stop/rerun and error
 counts, then both audio long-press actions. No claimed phone FPS, persistent process-
 death background job or unconditional cover generation on unreadable/no-art media.
+
+
+## Fast batch metadata indexing — v0.1.9 phone-acceptance build (2026-10-19)
+
+Owner has phone-only media and explicitly asks for a quick change, NO verification,
+and a new APK for phone acceptance. This one-time request supersedes the earlier
+user-provided test requirement for this release; do not claim old test output is
+current. Build and package/signer checks only; no JVM/Lint/device execution.
+
+- Added per-run CoverDirectoryCatalog in private cache. Its prepare loader builds
+  one natural-sorted folder metadata snapshot once, then all 32-item pages use SQL
+  index seeks rather than re-enumerating the entire SAF cursor. Root with 10,000
+  children no longer needs 313 full root enumerations merely to page its children.
+  Fresh image-writer conflict scans remain and are not counted as traversal paging.
+- CoverDirectoryRows bounds one folder's in-memory metadata to 50k entries / estimated
+  16 MiB. Ancestor snapshots live on disk, not recursive in-memory lists. Scratch DB
+  maximum 256 MiB, journal MEMORY / synchronous OFF (only disposable cache, never user
+  media). Catalog creation/queries execute on existing IO dispatcher; close/delete
+  in use/finally after success/cancel. Process death may leave an owned cache file.
+- Positive transaction URI cache avoids repeat child enumeration for hash/read/rename;
+  update it after rename. Missing-name conflict checks are NEVER cached. Source hash
+  reused once; original commit-stage/read-back verification, fsync and recovery stay.
+- No old private cover directory: skip legacy Room query. Publish visited progress
+  on entry before slow work. Daily browsing remains direct cover only, no batch lock.
+  Existing source priority, cover preservation, audio long-press and same signer/ID.
+- Added pure rows tests and Android scratch-catalog loader-count/pagination fixture;
+  deliberately NOT RUN (nor compiled as test APK), per owner. Android fixture uses
+  generated metadata/private cache only. No phone or user-media access performed.
+
+Version 0.1.9 / code 10. First assembleDebug succeeded in 1m3s, then corrected scratch
+PRAGMA journal_mode to execute through rawQuery and disabled WAL. Final assembleDebug
+succeeded in 29s. This is NOT a benchmark, proof of speedup, SQLite device execution or source
+reproduction of every phone delay. Native embeddedPicture still allocates before its
+inherited cap; native/provider calls remain only cooperatively cancellable.
+
+Delivery: normal checked-in tools/publish-release.ps1 stays unchanged and still runs
+full checks. This owner's one-off skip uses ignored build/quick-release.ps1, derived
+from publisher with assembleDebug only and no stale JVM/Lint XML reads. Manifest and
+notes explicitly set JVM/Lint results null/skipped, not 589 passed / zero lint errors.
+Keep source clean for publishing, same package/cert, unique v0.1.9 tag and new APK;
+verify only package/signature and uploaded source/asset integrity, then record receipt.
+Safest next: owner installs phone build and runs explicit cover task, checks visited
+counts/speed/cancel/rerun/cover preservation. Follow-up agent must run standard full
+checks plus new catalog tests before claiming validation. No parallel/Claude invocation.
+
+
+Final compile-only artifact: `assembleDebug` **BUILD SUCCESSFUL in 29s**, TEMP=TMP=
+C:\jtmp, established GRADLE_USER_HOME. APK 88,469,839 bytes, built
+`2026-10-18T16:14:22.9369455Z` (2026-10-19 local), SHA256
+`02a732a992f87fc9682a07350bd2ff61abccc7bdcd684b105a69fae4301e2895`.
+aapt2/apksigner confirm com.example.asmrplayer / 0.1.9 / code 10, unchanged pinned
+certificate. No unit/Lint/instrumentation tasks executed; no new passing test count.
+Source/upload set reviewed: code, unexecuted test fixtures, docs only. Private images,
+media, scratch DB, derived quick publisher, machine settings/keys/caches excluded.
+Next: commit and compile-only one-off release, then upload integrity receipt. Device
+runtime/SQLite behavior, actual speed and SAF side effects are pending owner testing.

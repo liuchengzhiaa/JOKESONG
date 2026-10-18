@@ -63,14 +63,16 @@ internal class FolderCoverRepository(context: Context) {
             val coroutine = currentCoroutineContext()
             val checkpoint = { coroutine.ensureActive() }
             val budget = CoverLookupBudget(checkpoint, maxFolders = 50_000, maxAudio = 250_000, maxRows = 100_000_000)
-            val raw = SafFolderCoverStore(context, tree, budget)
-            val store = object : FolderCoverStore by raw {
-                override fun existing(folder: String): String? = FolderCoverFiles.locked(checkpoint) { raw.existing(folder) }
-                override fun install(folder: String, source: String): String = FolderCoverFiles.locked(checkpoint) { raw.install(folder, source) }
-            }
             try {
-                FolderCoverBatch(store, checkpoint, onProgress).run(
-                    DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree)).toString())
+                CoverDirectoryCatalog(context.cacheDir, checkpoint).use { catalog ->
+                    val raw = SafFolderCoverStore(context, tree, budget, catalog)
+                    val store = object : FolderCoverStore by raw {
+                        override fun existing(folder: String): String? = FolderCoverFiles.locked(checkpoint) { raw.existing(folder) }
+                        override fun install(folder: String, source: String): String = FolderCoverFiles.locked(checkpoint) { raw.install(folder, source) }
+                    }
+                    FolderCoverBatch(store, checkpoint, onProgress).run(
+                        DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree)).toString())
+                }
             } finally { revision.incrementAndGet() }
         }
 }

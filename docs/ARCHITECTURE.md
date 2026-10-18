@@ -105,7 +105,8 @@ Never mutate canonical metadata to implement privacy presentation.
   Room/private migration, embedded extraction, recursion, journal recovery or the
   FolderCoverFiles lock. This removes v0.1.7's write-before-display/head-of-line wait.
 - `FolderCoverBatch` is the pure, explicitly triggered root processor. It visits
-  every descendant even under covered parents, pages 32 natural-order candidates,
+  every descendant even under covered parents, pages 32 natural-order candidates
+  from a per-run `CoverDirectoryCatalog` rather than rescanning SAF for each page,
   prefers direct embedded art, then successful child cover, and processes all
   siblings. Old private manual images migrate ONLY in this operation, after disk
   cover. No old per-display recursive resolver remains; common types/budgets are
@@ -715,3 +716,16 @@ playerToneArgb derived from mid-tone chromatic coarse buckets; wall palette stay
   ApplicationExitInfo facts (API30+), library count/layout/zoom/density and build ID.
   No descriptions, process names, media paths/names, trace streams or automatic upload.
   This is a diagnosis aid, not an independent crash reproduction or a profiling result.
+
+
+### Batch cover metadata catalog (D-050)
+`CoverDirectoryRows` builds/sorts one folder's supported audio/folder/cover metadata,
+with 50k-entry / estimated 16 MiB limits. `CoverDirectoryCatalog` atomically inserts
+its snapshot and completion marker into a private temporary SQLite file. Pages use
+indexed owner/kind/position and URI-to-position lookup, never re-enumerate SAF for
+traversal. DB maximum 256 MiB; memory journal and synchronous OFF only for disposable
+metadata. The image writer's durable journal/fsync are unchanged. Completion/cancel
+closes/deletes only this owned scratch DB; process death may leave a private cache file.
+Fresh cover conflict scans remain live; transaction caches store only positive URIs
+and update on rename. No negative conflict cache. Empty legacy directory absence
+skips unnecessary Room queries. Progress publishes entry before expensive extraction.

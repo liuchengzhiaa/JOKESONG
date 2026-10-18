@@ -38,6 +38,7 @@ internal class SafFolderCoverStore(
     private val context: Context,
     private val tree: Uri,
     private val budget: CoverLookupBudget,
+    private val catalog: CoverDirectoryCatalog? = null,
 ) : FolderCoverStore {
     private val resolver = context.contentResolver
     private val root = Docs.getTreeDocumentId(tree)
@@ -69,7 +70,26 @@ internal class SafFolderCoverStore(
     }
     override fun existing(folder: String): String? {
         recover(folder)
+        if (catalog != null) {
+            prepareCatalog(folder)
+            return catalog.cover(folder)
+        }
         return covers(folder).firstOrNull()?.uri
+    }
+    private fun prepareCatalog(folder: String) {
+        catalog!!.prepare(folder) {
+            val entries = CoverDirectoryRows()
+            rows(folder) { doc, mime ->
+                val kind = when {
+                    mime == Docs.Document.MIME_TYPE_DIR -> CoverDirectoryRow.Folder
+                    isNamedFolderCover(doc.name) && SupportedArtwork.isSupported(doc.name, mime) -> CoverDirectoryRow.Cover
+                    SupportedAudio.isSupported(doc.name, mime) -> CoverDirectoryRow.Audio
+                    else -> null
+                }
+                if (kind != null) entries.add(doc, kind)
+            }
+            entries.sorted()
+        }
     }
     // Two entries suffice to refuse ambiguous manual replacement; no unbounded image list.
     private fun covers(folder: String): List<CoverDocument> {
@@ -83,6 +103,10 @@ internal class SafFolderCoverStore(
         return best.sortedWith(CoverDocumentOrder)
     }
     override fun page(folder: String, kind: CoverChildKind, after: CoverDocument?, limit: Int): List<CoverDocument> {
+        if (catalog != null) {
+            prepareCatalog(folder)
+            return catalog.page(folder, kind, after, limit)
+        }
         val best = PriorityQueue(limit, CoverDocumentOrder.reversed())
         rows(folder) { doc, mime ->
             val eligible = if (kind == CoverChildKind.Folder) mime == Docs.Document.MIME_TYPE_DIR
@@ -95,6 +119,7 @@ internal class SafFolderCoverStore(
         return best.sortedWith(CoverDocumentOrder)
     }
     override fun legacy(folder: String): String? {
+        if (!File(context.filesDir, "folder-covers").isDirectory) return null
         val row = runBlocking { AsmrDatabase.get(context).libraryDao().folderCoverOverrides(listOf(folder)).singleOrNull() }
         val file = ownedLegacyCover(context, row?.sourceUri)
         return file?.takeIf { it.isFile }?.toUri()?.toString()
@@ -161,13 +186,14 @@ internal class SafFolderCoverStore(
                     check(info(it.uri.toUri()).second and Docs.Document.FLAG_SUPPORTS_RENAME != 0) { "COVER_RENAME_UNSUPPORTED" }
                 }
                 val txStore = TransactionStore(parent)
-                check(txStore.hash(stageName) == sha256(local.inputStream())) { "COVER_STAGE_VERIFY_FAILED" }
+                val sourceHash = sha256(local.inputStream())
+                check(txStore.hash(stageName) == sourceHash) { "COVER_STAGE_VERIFY_FAILED" }
                 // Detect an intervening external cover edit before moving anything.
                 check(covers(folder) == old) { "COVER_ORIGINAL_CHANGED" }
                 budget.check() // No cancellation point inside the rename/recovery transaction.
                 val j = CoverInstallJournal(stageName, "cover.$extension", old.singleOrNull()?.name,
                     ".jokesong-cover-$token-backup.${old.singleOrNull()?.name?.substringAfterLast('.') ?: extension}",
-                    txStore.hash(stageName))
+                    sourceHash)
                 CoverInstallTransaction(txStore).commit(j)
                 return txStore.find(j.target)!!.toString()
             } catch (error: Exception) {
@@ -211,7 +237,9 @@ internal class SafFolderCoverStore(
         // Stable across granting a different ancestor tree for the same physical document.
         private val identity = "${parent.authority}:${Docs.getDocumentId(parent)}"
         private val journal = AtomicFile(File(context.noBackupFilesDir, "folder-cover-${artworkCacheKey(identity)}.json"))
+        private val known = mutableMapOf<String, Uri>()
         fun find(name: String): Uri? {
+            known[name]?.let { return it } // Reuse positive IDs, NEVER negative conflict checks.
             val children = Docs.buildChildDocumentsUriUsingTree(tree, Docs.getDocumentId(parent))
             var found: Uri? = null
             resolver.query(children, columns, null, null, null)?.use { c ->
@@ -224,7 +252,7 @@ internal class SafFolderCoverStore(
                     }
                 }
             } ?: error("COVER_DIRECTORY_UNREADABLE")
-            return found
+            return found?.also { known[name] = it }
         }
         override fun exists(name: String) = find(name) != null
         override fun hash(name: String): String = sha256(resolver.openInputStream(find(name) ?: error("COVER_DOCUMENT_MISSING"))!!)
@@ -233,6 +261,8 @@ internal class SafFolderCoverStore(
             val uri = find(from) ?: error("COVER_DOCUMENT_MISSING")
             check(info(uri).second and Docs.Document.FLAG_SUPPORTS_RENAME != 0) { "COVER_RENAME_UNSUPPORTED" }
             val moved = Docs.renameDocument(resolver, uri, to) ?: error("COVER_RENAME_FAILED")
+            known.remove(from)
+            known[to] = moved
             check(info(moved).first == to) { "COVER_PROVIDER_CHANGED_NAME" }
         }
         override fun record(journal: CoverInstallJournal) {

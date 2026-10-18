@@ -1139,3 +1139,26 @@ before releasing old permissions. Use 32-entry natural pages, 50k visited identi
 128-depth, 250k audio and 100M row safety limits, not v0.1.7's 15s/256 request limits.
 Budget exits must show incomplete, not all-initialised. Daily browsing remains
 strictly read-only even if a manual-write recovery journal is pending.
+
+
+## D-050 — Single-enumeration batch metadata index (2026-10-19)
+
+Owner requests a quick phone-only fix for slow recursive cover processing and explicitly
+waives JVM/Lint/device verification for THIS APK. Compile/package/signature checks and
+honest untested-release labelling remain; normal future verification rules are unchanged.
+Do not reuse v0.1.8's test results as evidence for this release.
+
+The 32-item top-N implementation re-enumerated the complete SAF directory per page.
+Replace traversal pagination with a per-run private scratch SQLite catalog. Build each
+folder's natural-order metadata snapshot once; subsequent audio/folder pages read that
+catalog. Hold only one bounded folder metadata sort (50k entries / estimated 16 MiB),
+store ancestors on private disk, and limit scratch DB to 256 MiB. No image bytes in the
+index. Scratch durability is unnecessary: memory journal, synchronous OFF; media-file
+writer still uses fsync/read-back/journal safeguards. Normal completion/cancellation
+closes/deletes scratch DB; process death may leave an app-cache file for OS cleanup.
+
+Do not treat that snapshot as a safe overwrite decision. Existing-cover conflict scans
+before writes remain live. Cache only positive transaction document URIs, update on
+rename, never cache absent target names. Reuse computed source digest rather than an
+extra stage read. Display-only cover policy, scope, source order, no-overwrite and
+manual/audio semantics remain D-049. Limits/errors must not return partial success.

@@ -34,6 +34,7 @@ internal class FolderCoverBatch(
         check(visited.size < maxFolders && depth <= maxDepth) { "COVER_BATCH_LIMIT" }
         visited += folder
         counts = counts.copy(visited = counts.visited + 1)
+        onProgress(counts)
         var failed = false
         fun <T> attempt(block: () -> T): T? = try { checkpoint(); block() }
             catch (cancelled: CancellationException) { throw cancelled }
