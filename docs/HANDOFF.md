@@ -4710,3 +4710,31 @@ pan/focus large walls in both orientations. If an exit recurs, copy runtime diag
 Native embeddedPicture allocates before its 8 MiB check: this slice does not remove
 that known API limitation or prove all crashes fixed. Native licence review and
 recursive/paged-library work remain open. Reference photos stay ignored/local.
+
+### v0.1.3 delivery receipt — verified (2026-10-18)
+
+Publisher completed from reviewed clean source commit
+`6a357a76677e6a6e6f99e1021b5599afc663e4e5`. Its complete verification command passed
+again in **15s**, reusing the final verified outputs: 536 JVM tests, lint 0 errors /
+28 warnings, app and instrumentation APK builds. Instrumentation was not executed.
+Source branch and tag `v0.1.3` were independently read back at that exact SHA.
+Release https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.3 was published
+at **2026-10-18 17:40:15 Asia/Shanghai** (`2026-10-18T09:40:15Z`) and is latest.
+Previous tags/assets were not overwritten; repository remains public.
+
+Publisher and separate anonymous API checks matched all three attachments against
+local ignored `build/jokesong-release/v0.1.3/` files:
+- `JOKESONG.apk`: 89,385,739 bytes,
+  `ac81e6b0b375e60e26cf562ca844b799edc3786b337c34d175501ccb27e2df80`.
+- `JOKESONG-build.json`: 665 bytes,
+  `077e21c074973e4ae8f7d96d7e71a2397535087a990af27b20d607dcc11c041b`.
+- `SHA256SUMS.txt`: 79 bytes,
+  `7ed604e65a838df279ee58fefbacc3e017258bcebf8a742e909bba3f6ad6fdda`.
+
+Unauthenticated HEAD of the stable latest APK URL followed to HTTP **200**, with
+Content-Length 89,385,739. Source, APK and implementation records are delivered;
+this receipt-only follow-up does not need another identical APK. Phone installation,
+visual acceptance and crash reproduction are still pending. Next: owner downloads /
+cover-installs v0.1.3, refreshes the folder and checks the fallback/header/wall cases
+above. If an exit recurs, use Settings → 资料库 → 复制运行诊断（不含文件信息）.
+Do not describe this as device-profiled, crash-free or a completed paged-library rewrite.

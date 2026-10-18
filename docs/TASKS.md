@@ -711,6 +711,7 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Owner-initiated numeric exit diagnostics in Settings → Library, no file information/uploads.
 - [x] Final verification: 72 suites / 536 tests, lint 0 errors / 28 warnings;
       app/test APKs built and app package/version/signer verified. No phone connected for reproduction.
-- [ ] Review/push source and documentation, publish/verify v0.1.3 / versionCode 4.
+- [x] Reviewed/pushed source and documentation; v0.1.3 / versionCode 4 published.
+      Exact source/tag SHA and three asset digests verified; anonymous latest APK HTTP 200.
 - [ ] Owner checks fallback after refreshing directory and stresses large-wall pan/focus.
       If exit recurs, copy runtime diagnostics. Actual native allocation/exit cause remains unproven.
