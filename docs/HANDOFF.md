@@ -4514,3 +4514,46 @@ data retained. That device acceptance remains open. For the next code update, re
 AGENTS/CLAUDE and `docs/RELEASING.md`, increase both versionCode and release version,
 update CHANGELOG/HANDOFF/TASKS, commit reviewed source and run the publisher. Do not
 republish/overwrite v0.1.1, and do not create another APK solely for this receipt.
+
+## Public downloads requested by owner (2026-10-18)
+
+Owner cannot log into GitHub on the phone and explicitly requests changing JOKESONG
+to public. D-042 supersedes only the private-only part of D-041. Source/history and
+existing release assets are now public, not a binary-only public mirror. Re-screened
+all 22 existing commits for common token/private-key patterns and sensitive/media
+paths: zero matches. This is a focused screen, not a comprehensive security audit.
+
+Changed only `liuchengzhiaa/JOKESONG` using the official CLI; authenticated read-back
+confirms `isPrivate=false`. Independently used HTTP requests with **no Authorization
+header/cookies/token**: repository and latest-release JSON are accessible; latest
+tag remains v0.1.1; the stable APK URL follows redirects to **HTTP 200** with length
+**88,014,488**. The remote APK SHA256 remains
+`1b181c808226ccc26782eb057320f3657a0d652e29ec4e0fb058272f5e908753`.
+Phone bookmark (no GitHub login required):
+https://github.com/liuchengzhiaa/JOKESONG/releases/latest/download/JOKESONG.apk
+
+Updated README, CHANGELOG, AGENTS/CLAUDE, RELEASING and TASKS for public delivery.
+Publisher now checks `-ExpectedVisibility Public` by default, can explicitly expect
+Private for a separately approved destination, and **never changes visibility**.
+Origin, clean commit, tag/version, signature and asset-verification guards remain.
+No app code/version/signature or existing release/tag/assets changed; no duplicate
+APK build/publication is needed for delivery-tooling/documentation changes.
+
+Verification:
+- Publisher parser succeeds; evaluated the actual AST visibility guard for all four
+  private/public × expected-private/public combinations: matches pass, mismatches stop.
+- PlanOnly passes in PowerShell 7 (Public and Private expectations) and Windows
+  PowerShell 5 (default Public); no network/publish side effects from these checks.
+- `TEMP=TMP=C:\jtmp`, `GRADLE_USER_HOME=C:\Users\LiuDeZhou\.gradle`;
+  `./gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest lintDebug`
+  **BUILD SUCCESSFUL in 22s**. Android source unchanged: test/analysis tasks reuse
+  up-to-date outputs. XML totals checked: 69 suites / 522 tests, 0 failures/errors/
+  skipped; lint 0 errors / 29 warnings. No new device test/installation occurred.
+- `git diff --check` passes with normal CRLF handling. Follow-up is an ordinary
+  source/docs commit/push, not a changed v0.1.1 release commit.
+
+Safest next action: owner retries the direct APK link and confirms Android update
+installation/data retention. Keep secrets, signing keys and private media excluded
+even though the repo is public. Native third-party corresponding-source/relinking
+licence review is **still open**, not certified by visibility conversion; do not
+mark it complete or treat this development APK as formally distribution-audited.

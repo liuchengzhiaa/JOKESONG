@@ -11,7 +11,8 @@ state instead of assuming a clean checkout.
 
 Product/repository branding is **JOKESONG**. The owner has standing instructions to
 sync each completed code update, its tested APK and its changelog to the configured
-private GitHub repository. Follow AGENTS' delivery rules and `docs/RELEASING.md`;
+GitHub repository (now public at the owner's explicit request for login-free phone
+downloads). Follow AGENTS' delivery rules and `docs/RELEASING.md`;
 update CHANGELOG/HANDOFF/TASKS, never upload secrets/private media, and report failed
 or pending delivery honestly. Browser sign-in is not CLI authentication.
 

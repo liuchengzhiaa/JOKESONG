@@ -43,7 +43,8 @@ set of files before changing code:
 - The owner explicitly requests source, APK and documentation synchronization after
   each completed material code update. Update `CHANGELOG.md`, `docs/HANDOFF.md` and
   `docs/TASKS.md`, verify the change, review the upload set, commit and push to the
-  configured private JOKESONG repository, then publish the tested APK as a Release
+  configured JOKESONG repository (public by explicit owner request on 2026-10-18),
+  then publish the tested APK as a Release
   attachment. This rule also applies when the owner resumes with Claude manually.
 - Publish completed slices, not each keystroke. Documentation-only updates need a
   Git commit/push but do not require another identical APK. Never claim upload or

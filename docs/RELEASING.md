@@ -3,9 +3,14 @@
 ## Standing owner requirement
 
 For each completed material code change: update source + CHANGELOG + HANDOFF + TASKS,
-verify, commit/push to the owner's **private JOKESONG** repository, and publish the
+verify, commit/push to the owner's **JOKESONG** repository, and publish the
 tested APK as a GitHub Release attachment. Documentation-only changes need syncing,
 not another identical APK. Never claim success from a local build alone.
+
+Current visibility is **public**, explicitly requested by the owner on 2026-10-18
+because the phone cannot sign into GitHub. Source, Git history and Release assets
+are public. This supersedes the earlier private-only destination policy (D-042).
+The publisher checks the expected visibility; it never changes it itself.
 
 The source upload is now authorized; the earlier binary-only proposal is superseded.
 Do not publish private media, exported cards, machine settings, auth caches or signing
@@ -25,7 +30,8 @@ pass `--insecure-storage` or upload this directory. Inspect only masked auth sta
 If secure storage fails, stop and resolve it rather than intentionally keeping a token
 in plaintext. No project-specific password or token is needed in source code.
 
-Create the private repository under the confirmed authenticated owner. Prefer an empty
+Create any new repository only under the confirmed authenticated owner with separately
+approved visibility. Prefer an empty
 repository for the first push of this existing Git history. If a JOKESONG repo already
 exists, inspect it rather than overwriting it. Keep history and avoid force pushes.
 
@@ -35,15 +41,18 @@ Normal entry point after source/docs review and commit:
 
 ```powershell
 .\tools\publish-release.ps1 -PlanOnly  # local inspection only; no network/writes
-.\tools\publish-release.ps1            # tests/build/source push/tag/private Release
+.\tools\publish-release.ps1            # tests/build/source push/tag/Release
 ```
 
-The script rejects dirty source, wrong/public destination, duplicate tags, unchanged
+The script rejects dirty source, wrong destination/unexpected visibility, duplicate tags, unchanged
 versionCode relative to local release tags, changed signer/package/version, failed
 checks and unexpected source changes during build. The public certificate fingerprint
 in `tools/release-signing-certificate.sha256` is **not a private key**; it pins update
 compatibility. Keep it unchanged unless explicitly planning a signing migration.
-Current destination is https://github.com/liuchengzhiaa/JOKESONG (verified private).
+Current destination is https://github.com/liuchengzhiaa/JOKESONG (verified public).
+`-ExpectedVisibility Public` is the default; `Private` is available only for a
+separately approved private destination. A mismatch stops publication; do not change
+visibility merely to bypass a failed check.
 Read back the branch SHA and all uploaded asset sizes/SHA256 before calling it done.
 Interrupted publication is not silently retried with overwrite: inspect the remote
 branch/tag/release and finish only the missing step while preserving existing assets.
@@ -70,8 +79,8 @@ branch/tag/release and finish only the missing step while preserving existing as
    Android package and manifest; a constant asset name keeps the latest-download URL
    valid across updates. Verify the asset
    name/size/digest remotely. Do not replace another release/asset silently.
-6. Give the owner the repository/release/latest-download links. The phone signs into
-   GitHub for private assets, downloads the APK and confirms the Android install.
+6. Give the owner the repository/release/latest-download links. Public Release assets
+   need no GitHub login; the phone downloads the APK and confirms the Android install.
    No USB, remote ADB or automatic device install is needed.
 7. Record the actual delivery receipt or exact blocker in HANDOFF/TASKS. A follow-up
    documentation-only commit can record the release URL; distinguish its SHA from

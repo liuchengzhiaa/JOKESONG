@@ -681,4 +681,13 @@ order because each layer consumes the stable model built by the one before it:
 - [x] New version: 522 tests passed; lint 0 errors / 29 warnings; app/test APKs built.
 - [x] Initial source/history pushed; v0.1.1 Release published and independently verified:
       private repo, exact source/tag SHA, all three attachment sizes/SHA256 digests.
-- [ ] Owner phone private-Release download/cover-install acceptance without USB.
+- [ ] Owner phone Release download/cover-install acceptance without USB.
+
+## Current follow-up — public downloads (2026-10-18)
+- [x] Owner explicitly authorizes public source/history/APKs; D-042 supersedes private-only delivery.
+- [x] Re-screen all 22 existing commits for common secrets/sensitive-media paths: no matches.
+- [x] Repository switched to public; anonymous repo/latest-release reads and APK HEAD succeed (200).
+- [x] Publisher expected-visibility guard and shared delivery docs updated; APK v0.1.1 retained.
+- [x] Publisher visibility guard: four combinations pass; PowerShell 7/5 PlanOnly passes.
+      Standard JVM/lint command succeeds (cached 522 tests; lint 0 errors / 29 warnings).
+- [ ] Owner phone download/install acceptance. Native licence/source/relinking review remains open.

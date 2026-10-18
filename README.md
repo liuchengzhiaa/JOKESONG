@@ -44,15 +44,18 @@ Keep the existing application ID/signing key so owner-installed updates retain d
 ## Updates and releases
 
 - [`CHANGELOG.md`](CHANGELOG.md): user-facing changes and known limits.
-- [`docs/RELEASING.md`](docs/RELEASING.md): tested source + private Release APK delivery.
+- [`docs/RELEASING.md`](docs/RELEASING.md): tested source + Release APK delivery.
 - [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md): shared agent rules.
 
 Each completed code update must sync code, documentation and a tested APK. Signing
 secrets, private media, local settings and tool/auth caches never belong in Git.
 
-Private source: https://github.com/liuchengzhiaa/JOKESONG
+Public source: https://github.com/liuchengzhiaa/JOKESONG
 
 Phone downloads: https://github.com/liuchengzhiaa/JOKESONG/releases/latest
+
+Direct latest APK (no GitHub login):
+https://github.com/liuchengzhiaa/JOKESONG/releases/latest/download/JOKESONG.apk
 
 After reviewing/committing a completed slice, `./tools/publish-release.ps1` verifies,
 builds, pushes and publishes a new version without overwriting existing releases.

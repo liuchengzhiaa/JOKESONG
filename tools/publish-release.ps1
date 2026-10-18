@@ -2,6 +2,8 @@
 param(
     [ValidatePattern('^[A-Za-z0-9_.-]+/JOKESONG$')]
     [string]$Repo = 'liuchengzhiaa/JOKESONG',
+    [ValidateSet('Public', 'Private')]
+    [string]$ExpectedVisibility = 'Public',
     [switch]$PlanOnly
 )
 $ErrorActionPreference = 'Stop'
@@ -29,7 +31,7 @@ try {
     $build = Join-Path (Split-Path -Parent $root) '.asmrplayer-build/app'
     $apk = Join-Path $build 'outputs/apk/debug/app-debug.apk'
     if ($PlanOnly) {
-        [pscustomobject]@{ Repo = $Repo; Version = $version; VersionCode = $versionCode; Tag = $tag; Apk = $apk } | ConvertTo-Json
+        [pscustomobject]@{ Repo = $Repo; ExpectedVisibility = $ExpectedVisibility; Version = $version; VersionCode = $versionCode; Tag = $tag; Apk = $apk } | ConvertTo-Json
         return
     }
     $ghCommand = Get-Command gh -CommandType Application -ErrorAction SilentlyContinue
@@ -37,7 +39,9 @@ try {
     if (-not (Test-Path -LiteralPath $script:gh)) { throw 'Install/authenticate the official GitHub CLI first' }
     if (Test-Path -LiteralPath '.tools/gh-config') { $env:GH_CONFIG_DIR = Join-Path $root '.tools/gh-config' }
     $info = (Invoke-Gh repo view $Repo --json 'nameWithOwner,isPrivate,url') | ConvertFrom-Json
-    if (-not $info.isPrivate) { throw 'Refusing to publish this development project to a public repository' }
+    if ([bool]$info.isPrivate -ne ($ExpectedVisibility -eq 'Private')) {
+        throw "Repository visibility does not match ExpectedVisibility=$ExpectedVisibility; inspect the destination. This script never changes visibility."
+    }
     $origin = Invoke-Git remote get-url origin
     if ($origin -notin @("https://github.com/$Repo", "https://github.com/$Repo.git", "git@github.com:$Repo.git")) {
         throw 'origin does not match the explicitly selected repository'

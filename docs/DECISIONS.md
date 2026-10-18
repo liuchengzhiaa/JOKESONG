@@ -992,3 +992,16 @@ AGENTS/CLAUDE carry this standing rule across manual agent switches. Native test
 not run on a device stay marked unverified. Repository creation, source push and APK
 publication are separate verifiable stages; a blocked stage is reported honestly.
 CI/cloud signing and automatic app installation are not authorized by this decision.
+
+## D-042 — Public JOKESONG for login-free phone downloads (2026-10-18)
+
+Owner explicitly requests changing the existing repository to public because phone
+GitHub login is unavailable. This supersedes D-041's private-only destination, not
+its source/APK/documentation sync, secret exclusions, signing compatibility or
+no-overwrite rules. Source, history and existing Release assets become public.
+Future publisher runs check the explicitly expected visibility (Public by default)
+and never change it. No application behavior/version or existing APK is changed by
+the visibility operation. Anonymous HTTP access must be verified, not inferred from
+an authenticated CLI response. Third-party licence review remains a separate open
+task; changing visibility does not certify that review complete or grant a new
+licence to the project's own source.
