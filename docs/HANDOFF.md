@@ -4871,3 +4871,30 @@ then checks long press in each layout, selection/cancel/save/remove, rotation/qu
 retarget prevention, current-vs-other-track pause, refreshed covers and restart on
 copied/generated disposable media. Existing native licence, crash and paged-library
 follow-ups remain open; none are claimed resolved by this entry-point change.
+
+
+### v0.1.5 delivery receipt — verified (2026-10-18)
+
+Publisher completed from reviewed clean commit
+`c6e219ff7b28e3c4f440d20c3a633e5c2d6958a6`; full verification passed again in
+**15s** using the verified outputs (543 JVM tests, lint 0/28, app/test APK builds).
+Source branch and tag v0.1.5 were independently read back at that exact SHA.
+Release https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.5 was published
+at **2026-10-18 18:18:09 Asia/Shanghai** (`2026-10-18T10:18:09Z`) and is latest.
+Public visibility and previous tags/assets were retained, without overwrites.
+
+Publisher plus a separate anonymous API comparison verified all local/remote
+asset sizes/SHA256 digests under ignored `build/jokesong-release/v0.1.5/`:
+- `JOKESONG.apk`: 88,149,304 bytes,
+  `814944692cacc72015c4e5cbfbe1afddf02510eaa0dd4c9bc583bf50e4e3a74d`.
+- `JOKESONG-build.json`: 665 bytes,
+  `299410a045cad532f28c9062c522d82090c017c693e13253bfa484d5098f414c`.
+- `SHA256SUMS.txt`: 79 bytes,
+  `75f51fb5787ff3763248f3b47d5199a5bea34038dc99e51c6efab89abab3488a`.
+
+Anonymous latest APK HEAD follows to HTTP **200**, length 88,149,304. Source,
+implementation records and APK are delivered. This receipt-only follow-up needs
+no duplicate APK; phone installation/native/SAF/gesture verification remains pending.
+Next: owner cover-installs v0.1.5 and checks the audio/folder long-press paths and
+cancel/save/removal on disposable backed-up/generated media. Do not claim this new
+entry point was device-tested or that unrelated crash/licensing work is finished.

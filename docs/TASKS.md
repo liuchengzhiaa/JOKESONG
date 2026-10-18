@@ -736,7 +736,8 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Captured target across rotation/queue changes; existing snapshot/queue/artwork refresh without rescan.
 - [x] Narrow 31 tests; full 74 suites / 543 JVM tests pass, lint 0 errors / 28 warnings;
       app/test APK built; unchanged package/signer and 0.1.5 / code 6 verified.
-- [ ] Source/docs push, v0.1.5 Release publication and anonymous asset/source verification.
+- [x] Source/docs pushed; v0.1.5 published, exact source/tag and three asset digests verified.
+      Anonymous latest APK returns HTTP 200; actual delivery receipt is in HANDOFF.
 - [ ] Owner phone checks audio long press, cancel/replace/remove/save, target stability during
       queue changes/rotation, current/other-track pause behavior and refreshed covers in all layouts.
       Native/SAF checks are compiled only; use disposable copied/generated media for acceptance.
