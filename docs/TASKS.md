@@ -766,6 +766,7 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Bounded natural paging/traversal, independent folder/audio locks and hidden artifact exclusion.
 - [x] Final 77 suites / 587 JVM tests pass, lint 0 errors / 28 warnings; app/test APKs
       built, unchanged package/signer and v0.1.7 / code 8 independently verified.
-- [ ] Review/upload source/docs and publish v0.1.7 / code 8; verify remote SHA/assets/anonymous download.
+- [x] Source/docs pushed; v0.1.7 / code 8 published, exact source/tag and all three
+      attachment digests verified; anonymous latest APK HTTP 200. Receipt in HANDOFF.
 - [ ] Owner phone disposable-tree checks: actual cover files, later-track artwork, nested backfill,
       manual replace/recovery, read-only/regranted roots, update/restart/phone-copy and wall responsiveness.

@@ -4992,7 +4992,7 @@ pixel-perfect Salt reproduction nor the original phone's square-cover root cause
 is certified; use that runtime evidence before another algorithm change.
 
 
-## Portable recursive folder covers — verified, delivery pending (2026-10-18)
+## Portable recursive folder covers — verified and published (2026-10-18)
 
 Owner confirms exact cover -> first direct audio WITH artwork -> recursive child
 cover, copying into each ancestor and making manual choice a real cover file.
@@ -5083,3 +5083,32 @@ asset digests and anonymous APK availability, then append receipt. No publicatio
 claim yet. Owner should grant directory read/write access and test a disposable tree
 first (empty first track, later embedded art, nested child cover, manual replacements,
 restart and read-only failure); copy completed actual directories for phone migration.
+
+
+### v0.1.7 delivery receipt — verified (2026-10-18)
+
+Publisher ran from reviewed clean source commit
+`8e10703a90e0b5d6f2e6c85c6733688391280012`, rerunning the full verification command
+in **20s** with up-to-date final outputs (587 JVM tests, lint 0/28, app/test APKs).
+Source master and lightweight v0.1.7 tag independently read back at that exact SHA.
+Release https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.7 was published
+at **2026-10-18 21:52:31 Asia/Shanghai** (`2026-10-18T13:52:31Z`), marked latest.
+Public visibility and earlier releases/tags/assets/signing compatibility unchanged.
+
+Publisher plus a separate anonymous API check compared size/digests with local
+ignored `build/jokesong-release/v0.1.7/` outputs:
+- `JOKESONG.apk`: 88,348,479 bytes,
+  `8c5651752f409ce4d8dabd2a024e499ef910fc6b2ac898d8be997b3641e8e302`.
+- `JOKESONG-build.json`: 665 bytes,
+  `636e85740d6bd52e74717dc7c95b1b94cbcda361c6cedb00164e1d4cd5835e13`.
+- `SHA256SUMS.txt`: 79 bytes,
+  `0723250eff797ba8e67cc71bfae3a35afb8caeafa3c94c72a4aa9335847bb63b`.
+
+Anonymous latest APK HEAD returned **200**, content length 88,348,479. Source,
+implementation/continuity records and APK delivered. This receipt-only commit does
+not require another identical APK. No private media/screenshots/exports/cache/keys
+were uploaded. Actual phone installation, SAF folder copying/rename recovery and
+fluidity acceptance remain untested. Next: owner cover-installs v0.1.7, checks a
+disposable read/write-granted media tree and verifies real `cover.*` files appear,
+then confirms refresh/restart/whole-directory phone migration. Do not equate a
+read-only source display or budget-limited lookup with completed disk persistence.
