@@ -780,6 +780,7 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Keep stage/hash/backup/journal writer, explicit-only recovery and no audio writes/new permissions.
 - [x] Final 77 suites / 589 JVM tests pass, lint 0 errors / 28 warnings; app/test APKs
       built, version 0.1.8 / code 9 and pinned package/signer verified.
-- [ ] Review/upload source/docs, publish and verify source/tag/assets/anonymous latest APK.
+- [x] Source/docs pushed; v0.1.8 published, exact source/tag plus all three asset digests
+      independently verified; anonymous latest APK HTTP 200. Receipt in HANDOFF.
 - [ ] Phone: compare first wall load; run batch with covered parent/uncovered descendants, stop/rerun,
       read-only errors and all five layouts' audio actions. Keep app open while processing.

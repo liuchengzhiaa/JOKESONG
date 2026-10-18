@@ -5114,7 +5114,7 @@ then confirms refresh/restart/whole-directory phone migration. Do not equate a
 read-only source display or budget-limited lookup with completed disk persistence.
 
 
-## Direct-only folder display + explicit batch — verified, delivery pending (2026-10-18)
+## Direct-only folder display + explicit batch — verified and published (2026-10-18)
 
 Owner reports first cover loading too slow and explicitly replaces on-demand
 recursive generation with direct-cover-only display. D-049 overrides D-048's
@@ -5194,3 +5194,34 @@ asset digests and anonymous latest APK, then record receipt. Safest device actio
 cover-install new APK, observe direct-only browsing, run Settings → Library batch
 on a disposable granted tree while keeping app open, inspect counts/real cover files,
 stop/rerun and test both long-press actions before using the large original library.
+
+
+### v0.1.8 delivery receipt — verified (2026-10-18)
+
+Publisher completed from reviewed clean source
+`80488b6a29961c3ae6c7b94755ed181e4620292c`; full verification reran in **12s** with
+up-to-date final outputs (589 tests, lint 0/28, app/test APKs). Independent remote
+master and v0.1.8 tag read back at this exact SHA. Release
+https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.8 published at
+**2026-10-18 23:02:50 Asia/Shanghai** (`2026-10-18T15:02:50Z`), marked latest.
+Public visibility and old tags/releases/assets retained; same app ID and signer.
+
+Publisher plus separate anonymous API checked all three assets against local ignored
+`build/jokesong-release/v0.1.8/` outputs:
+- `JOKESONG.apk`: 88,303,032 bytes,
+  `cab886402e572eb30e2efae9b6cdec0c59e304fb5a7cdd4264050bd66cc53b78`.
+- `JOKESONG-build.json`: 665 bytes,
+  `efdd28f72675185ec05ea733b5828f72df76246985176d978ca31dbee5177412`.
+- `SHA256SUMS.txt`: 79 bytes,
+  `b9056cee808cc901d484975b313754d152dbc95f238fae5391e66330a69cfea6`.
+
+Anonymous latest APK HEAD returned HTTP **200**, length 88,303,032. Source/docs/APK
+are delivered; this receipt-only commit needs no duplicate APK. No private media,
+images/attachments/exports, host config, auth caches, signing keys or build outputs
+entered Git. Phone installation/first-load latency, settings flow, real recursive SAF
+writes/cancellation, all-layout audio actions and lifecycle acceptance remain pending.
+Safest next action: owner installs 0.1.8 and checks direct-only browsing, then runs
+Settings → Library → 递归处理文件夹封面 on a disposable granted tree while keeping
+app open. Verify descendants under an already-covered parent, stop/rerun and error
+counts, then both audio long-press actions. No claimed phone FPS, persistent process-
+death background job or unconditional cover generation on unreadable/no-art media.
