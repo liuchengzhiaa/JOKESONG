@@ -4468,5 +4468,9 @@ Verification before commit/publication:
   verbatim upstream font licence. Added two exact `.gitattributes -whitespace`
   exceptions instead of rewriting those assets; no functional lint is suppressed.
   Removed one extra EOF blank line in PlayerPresentation; publisher reruns verification.
+- First real publisher preflight caught PowerShell function argument array expansion
+  of the comma-separated `--json` fields. Quoted the field list, preserved the existing
+  baseline commit, and retry from a new correction commit. No source/asset was pushed
+  by that failed preflight.
 - No phone install/adb mutation, real media edit, Claude invocation, or incoming work
   removal. Owner phone download/install verification remains pending.

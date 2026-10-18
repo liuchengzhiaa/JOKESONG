@@ -36,7 +36,7 @@ try {
     $script:gh = if ($ghCommand) { $ghCommand.Source } else { Join-Path $root '.tools/github-cli/v2.102.0/bin/gh.exe' }
     if (-not (Test-Path -LiteralPath $script:gh)) { throw 'Install/authenticate the official GitHub CLI first' }
     if (Test-Path -LiteralPath '.tools/gh-config') { $env:GH_CONFIG_DIR = Join-Path $root '.tools/gh-config' }
-    $info = (Invoke-Gh repo view $Repo --json nameWithOwner,isPrivate,url) | ConvertFrom-Json
+    $info = (Invoke-Gh repo view $Repo --json 'nameWithOwner,isPrivate,url') | ConvertFrom-Json
     if (-not $info.isPrivate) { throw 'Refusing to publish this development project to a public repository' }
     $origin = Invoke-Git remote get-url origin
     if ($origin -notin @("https://github.com/$Repo", "https://github.com/$Repo.git", "git@github.com:$Repo.git")) {
