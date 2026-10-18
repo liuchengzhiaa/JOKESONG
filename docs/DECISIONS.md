@@ -1041,3 +1041,14 @@ construction off-main, use two-axis culling and layer-only continuous appearance
 and bound shared image-cache/in-flight work. No FPS or crash-free guarantee follows
 from JVM tests. Add an owner-initiated, local-only numeric exit diagnostic to obtain
 evidence without USB; no automatic report, media metadata or new permissions.
+
+## D-045 — Explicit folder-cover presentation overrides (2026-10-18)
+
+Owner requests a long-press folder action for choosing artwork from the song cover
+picker's initial directory. An app-private manual cover takes precedence over
+D-044's automatic direct-image/first-audio selection; 恢复自动封面 restores D-044.
+The image is copied at bounded resolution, keyed to the exact folder document URI
+in existing Room artwork metadata. It does not write tags, create cover files in
+the library, change per-track covers or act as a privacy alias. All five library
+layouts expose the same long-press dialog; tap/focus, pan and playback are unchanged.
+Shared picker initial URI remains a provider hint, not guaranteed navigation.

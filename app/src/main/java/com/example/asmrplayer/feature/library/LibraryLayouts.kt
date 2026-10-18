@@ -2,7 +2,7 @@ package com.example.asmrplayer.feature.library
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,6 +79,7 @@ fun DetailedLibraryList(
     items: List<LibraryItem>,
     playbackState: PlaybackState,
     onOpen: (LibraryItem) -> Unit,
+    onFolderLongClick: (LibraryItem) -> Unit,
     onPlay: (LibraryItem) -> Unit,
     onTogglePlayPause: () -> Unit,
     modifier: Modifier = Modifier,
@@ -89,6 +90,7 @@ fun DetailedLibraryList(
                 item = item,
                 playbackState = playbackState,
                 onOpen = { onOpen(item) },
+                onLongClick = if (item.type == LibraryItemType.Folder) { { onFolderLongClick(item) } } else null,
                 onPlay = { onPlay(item) },
                 onTogglePlayPause = onTogglePlayPause,
             )
@@ -103,6 +105,7 @@ fun CompactLibraryList(
     items: List<LibraryItem>,
     playbackState: PlaybackState,
     onOpen: (LibraryItem) -> Unit,
+    onFolderLongClick: (LibraryItem) -> Unit,
     onPlay: (LibraryItem) -> Unit,
     onTogglePlayPause: () -> Unit,
     modifier: Modifier = Modifier,
@@ -116,6 +119,7 @@ fun CompactLibraryList(
                 item = item,
                 playbackState = playbackState,
                 onOpen = { onOpen(item) },
+                onLongClick = if (item.type == LibraryItemType.Folder) { { onFolderLongClick(item) } } else null,
                 onPlay = { onPlay(item) },
                 onTogglePlayPause = onTogglePlayPause,
             )
@@ -129,6 +133,7 @@ fun LibraryGrid(
     items: List<LibraryItem>,
     playbackState: PlaybackState,
     onOpen: (LibraryItem) -> Unit,
+    onFolderLongClick: (LibraryItem) -> Unit,
     onPlay: (LibraryItem) -> Unit,
     onTogglePlayPause: () -> Unit,
     modifier: Modifier = Modifier,
@@ -145,6 +150,7 @@ fun LibraryGrid(
                 item = item,
                 playbackState = playbackState,
                 onOpen = { onOpen(item) },
+                onLongClick = if (item.type == LibraryItemType.Folder) { { onFolderLongClick(item) } } else null,
                 onPlay = { onPlay(item) },
                 onTogglePlayPause = onTogglePlayPause,
             )
@@ -213,6 +219,7 @@ private fun DetailedRow(
     item: LibraryItem,
     playbackState: PlaybackState,
     onOpen: () -> Unit,
+    onLongClick: (() -> Unit)?,
     onPlay: () -> Unit,
     onTogglePlayPause: () -> Unit,
 ) {
@@ -220,7 +227,8 @@ private fun DetailedRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpen)
+            .combinedClickable(onClick = onOpen, onLongClick = onLongClick,
+                onLongClickLabel = if (onLongClick != null) stringResource(R.string.folder_cover_set) else null)
             .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -269,6 +277,7 @@ private fun CompactRow(
     item: LibraryItem,
     playbackState: PlaybackState,
     onOpen: () -> Unit,
+    onLongClick: (() -> Unit)?,
     onPlay: () -> Unit,
     onTogglePlayPause: () -> Unit,
 ) {
@@ -276,7 +285,8 @@ private fun CompactRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpen)
+            .combinedClickable(onClick = onOpen, onLongClick = onLongClick,
+                onLongClickLabel = if (onLongClick != null) stringResource(R.string.folder_cover_set) else null)
             .padding(start = 12.dp, end = 4.dp, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -328,11 +338,13 @@ private fun GridCell(
     item: LibraryItem,
     playbackState: PlaybackState,
     onOpen: () -> Unit,
+    onLongClick: (() -> Unit)?,
     onPlay: () -> Unit,
     onTogglePlayPause: () -> Unit,
 ) {
     val isCurrent = playbackState.isCurrent(item.id)
-    Column(modifier = Modifier.clickable(onClick = onOpen)) {
+    Column(modifier = Modifier.combinedClickable(onClick = onOpen, onLongClick = onLongClick,
+                onLongClickLabel = if (onLongClick != null) stringResource(R.string.folder_cover_set) else null)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()

@@ -715,3 +715,14 @@ order because each layer consumes the stable model built by the one before it:
       Exact source/tag SHA and three asset digests verified; anonymous latest APK HTTP 200.
 - [ ] Owner checks fallback after refreshing directory and stresses large-wall pan/focus.
       If exit recurs, copy runtime diagnostics. Actual native allocation/exit cause remains unproven.
+
+## Current slice — manual folder covers (2026-10-18)
+- [x] Long-press folder actions in both walls, lists and grid; shared song-cover SAF picker hint.
+- [x] Private bounded PNG copy + existing Room artwork metadata, no media writes/new permissions.
+- [x] Explicit automatic reset, raw snapshots preserved, no-rescan cover projection and URI isolation.
+- [x] Narrow 19 tests; final 73 suites / 540 JVM tests passed, lint 0 errors / 28 warnings.
+      App/test APKs built, package/version and unchanged signer independently verified (0.1.4 / code 5).
+- [ ] Reviewed source/docs push, v0.1.4 Release publication and anonymous remote asset verification.
+- [ ] Owner phone checks long press (focused/unfocused), cancelled picker, save/replace/reset,
+      same-name folders, refresh/restart, all five layouts and retained focus/viewport.
+      Android repository tests compiled only; SAF image decode/copy not device-executed.

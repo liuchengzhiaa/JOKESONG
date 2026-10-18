@@ -17,6 +17,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -212,6 +213,7 @@ fun FocusCoverWall(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onOpenLyrics: (LibraryItem) -> Unit,
+    onFolderLongClick: (LibraryItem) -> Unit,
     layoutMode: LibraryLayoutMode,
     onLayoutModeChange: (LibraryLayoutMode) -> Unit,
     onDensityChange: (Int) -> Unit,
@@ -272,6 +274,7 @@ fun FocusCoverWall(
                 onPrevious = onPrevious,
                 onNext = onNext,
                 onOpenLyrics = onOpenLyrics,
+                onFolderLongClick = onFolderLongClick,
                 onCardClick = { item ->
                     when (resolveCardTap(focusedItemId, item.id)) {
                         // A tap on any other card moves focus to it. Nothing else
@@ -834,6 +837,7 @@ private fun FocusWallCanvas(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onOpenLyrics: (LibraryItem) -> Unit,
+    onFolderLongClick: (LibraryItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val configuration = LocalConfiguration.current
@@ -1182,6 +1186,9 @@ private fun FocusWallCanvas(
                         },
                         motionPercent = motionPercent,
                         onClick = { onCardClick(item) },
+                        onLongClick = if (item.type == LibraryItemType.Folder) {
+                            { onFolderLongClick(item) }
+                        } else null,
                         onPlayPause = { onPlayPause(item) },
                         onSeekTo = onSeekTo,
                         onPrevious = onPrevious.takeIf {
@@ -1411,6 +1418,7 @@ private fun FocusCoverCard(
     posterTint: Color,
     motionPercent: Int,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
     onPlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onPrevious: (() -> Unit)?,
@@ -1472,11 +1480,16 @@ private fun FocusCoverCard(
         modifier = modifier
             .border(borderWidth.dp, borderColor, shape)
             .clip(shape)
-            // Plain clickable, deliberately: binding onDoubleClick as well would
+            // No double-click handler: a normal tap still focuses immediately.
+            // Folder long press exposes artwork actions without activating navigation.
+            // Binding onDoubleClick as well would
             // make Compose hold every single tap back for the double-tap timeout
             // before delivering it, which is felt as lag on the wall's main
             // gesture. "Double tap to open" still works -- see resolveCardTap.
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick, onLongClick = onLongClick,
+                onLongClickLabel = if (onLongClick != null) stringResource(R.string.folder_cover_set) else null,
+            ),
     ) {
         BoxWithConstraints(
             modifier = Modifier

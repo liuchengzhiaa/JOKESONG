@@ -4738,3 +4738,55 @@ visual acceptance and crash reproduction are still pending. Next: owner download
 cover-installs v0.1.3, refreshes the folder and checks the fallback/header/wall cases
 above. If an exit recurs, use Settings → 资料库 → 复制运行诊断（不含文件信息）.
 Do not describe this as device-profiled, crash-free or a completed paged-library rewrite.
+
+## Manual folder covers (2026-10-18)
+
+Owner asks to long press a folder poster and choose a cover from the song editor's
+same initial local directory. Implementation is **0.1.4 / code 5**, package/signer
+unchanged; D-045 records the presentation-only contract.
+
+- All five library layouts use folder-only combinedClickable long press; no double
+  click binding/delay was added. Ordinary taps still use the existing focus/activate
+  logic; audio items do not get folder-cover actions. FolderCoverDialog captures URI
+  and title in saveable state, offers 设置封面 / 恢复自动封面 / 关闭, disables repeat
+  actions while saving and keeps the prior cover after cancellation/read failure.
+- `coverImagePickerIntent` is shared with MetadataEditorDialog. ACTION_OPEN_DOCUMENT,
+  image/*, temporary read grant, same `primary:Download/mihon/local` initial hint.
+  The provider can ignore it; no broad-storage or persistent extra image grants.
+- `FolderCoverRepository` decodes on IO with a 1024px longest-edge target, preserving
+  aspect/alpha, writes/fsyncs a UUID private PNG, then commits a `manual_folder` row
+  in the existing Room artwork table. No schema/migration change. Old private copy
+  cleanup is best effort after commit. Precommit failure/cancellation cleans its
+  candidate; DB commit/cleanup cannot be interrupted into deleting the new cover.
+  Canonical-path containment prevents reading/deleting foreign paths. Hard kill
+  before DB commit may leave an unreferenced private copy; orphan sweeping deferred.
+- Queries are per-current-listing, chunked at 400 owners, not an app-wide override
+  map. Raw folder snapshots keep automatic covers; scan/restore projects overrides.
+  Save/reset reprojects the current snapshot with no SAF rescan. Missing copies
+  fall back to automatic covers. Folder identity is exact SAF document URI, not title.
+  No audio tags, user images, per-track covers, geometry or playback policy changed.
+
+Verification:
+- Narrow command (FolderCoverProjectionTest, FolderArtworkSelectionTest,
+  FocusWallInteractionTest) passed **19 tests**. Four new pure projection cases:
+  priority/raw immutability, automatic reset, same-name isolation, audio/null refusal.
+- Full `./gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest lintDebug
+  assembleDebug assembleDebugAndroidTest` succeeded in **3m21s**. XML independently
+  totals **73 suites / 540 tests**, no failures/errors/skips; lint **0 errors / 28 warnings**.
+  Environment: TEMP=TMP=C:\jtmp; GRADLE_USER_HOME=C:\Users\LiuDeZhou\.gradle.
+- Android FolderCoverRepositoryTest (2 cases) compiles: seeded Room mapping survives
+  repository recreation, reset restores automatic art, file:// selection is refused,
+  foreign private fixture references are neither opened nor deleted. These are
+  **not device-executed**, and do not verify successful SAF decoding/copying or UI gestures.
+- APK `../.asmrplayer-build/app/outputs/apk/debug/app-debug.apk`: 88,131,876 bytes,
+  built `2026-10-18T09:59:58Z`; SHA256
+  `911ec7e569a61522f6194e6cc2fc7d3e455dd7138a7c1b5770a4d4ae7d6bd8c4`.
+  SDK build-tools 36.0.0 aapt2/apksigner confirm com.example.asmrplayer / 0.1.4 / code 5
+  and pinned certificate. No phone install/launch or user-media mutation.
+
+Safest next action: review/stage source and documentation, publish via the release
+script, verify exact source/tag and anonymous attachment digests, then append receipt.
+Owner then checks focused/unfocused long press, picker cancel/initial directory,
+replace/reset, refresh/restart, same-name folders, all layouts and focus/viewport.
+Do not label the APK published before the receipt. Previous crash/native-license/
+recursive-library follow-ups remain open; no private references are part of Git.

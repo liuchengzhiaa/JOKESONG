@@ -100,6 +100,7 @@ fun AsmrPlayerApp(
     onChooseRoot: () -> Unit,
     onRefresh: () -> Unit,
     onOpenFolder: (LibraryItem) -> Unit,
+    onSetFolderCover: suspend (String, android.net.Uri?) -> Boolean,
     onNavigateUp: () -> Unit,
     onFocusedItemChange: (String?) -> Unit,
     onViewportChange: (Float, Float, Float) -> Unit,
@@ -460,6 +461,7 @@ fun AsmrPlayerApp(
                     onChooseRoot = onChooseRoot,
                     onRefresh = onRefresh,
                     onOpenFolder = onOpenFolder,
+                    onSetFolderCover = onSetFolderCover,
                     onOpenPlayer = {
                         showSubtitleDetail = false
                         fullPlayerItemId = it.id
@@ -577,6 +579,7 @@ private fun LibraryContent(
     onChooseRoot: () -> Unit,
     onRefresh: () -> Unit,
     onOpenFolder: (LibraryItem) -> Unit,
+    onSetFolderCover: suspend (String, android.net.Uri?) -> Boolean,
     onOpenPlayer: (LibraryItem) -> Unit,
     onOpenLyrics: (LibraryItem) -> Unit,
     onFocusedItemChange: (String?) -> Unit,
@@ -596,6 +599,20 @@ private fun LibraryContent(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
 ) {
+    var coverFolderUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var coverFolderTitle by rememberSaveable { mutableStateOf("") }
+    val editFolderCover: (LibraryItem) -> Unit = { item ->
+        if (item.type == LibraryItemType.Folder && item.documentUri != null) {
+            coverFolderTitle = item.title
+            coverFolderUri = item.documentUri
+        }
+    }
+    coverFolderUri?.let { folder ->
+        FolderCoverDialog(
+            folderUri = folder, title = coverFolderTitle,
+            onSave = onSetFolderCover, onDismiss = { coverFolderUri = null },
+        )
+    }
     val focusedItemId = state.focusedItemId
     BackHandler(enabled = focusedItemId != null) { onFocusedItemChange(null) }
 
@@ -737,6 +754,7 @@ private fun LibraryContent(
                     onPrevious = onPrevious,
                     onNext = onNext,
                     onOpenLyrics = onOpenLyrics,
+                    onFolderLongClick = editFolderCover,
                     layoutMode = layoutMode,
                     onLayoutModeChange = onLayoutModeChange,
                     onDensityChange = onWallDensityChange,
@@ -782,6 +800,7 @@ private fun LibraryContent(
                     onPrevious = onPrevious,
                     onNext = onNext,
                     onOpenLyrics = onOpenLyrics,
+                    onFolderLongClick = editFolderCover,
                     layoutMode = layoutMode,
                     onLayoutModeChange = onLayoutModeChange,
                     onDensityChange = onWallDensityChange,
@@ -813,6 +832,7 @@ private fun LibraryContent(
                     items = state.items,
                     playbackState = playbackState,
                     onOpen = openItem,
+                    onFolderLongClick = editFolderCover,
                     onPlay = onPlayItem,
                     onTogglePlayPause = onTogglePlayPause,
                 )
@@ -821,6 +841,7 @@ private fun LibraryContent(
                     items = state.items,
                     playbackState = playbackState,
                     onOpen = openItem,
+                    onFolderLongClick = editFolderCover,
                     onPlay = onPlayItem,
                     onTogglePlayPause = onTogglePlayPause,
                 )
@@ -829,6 +850,7 @@ private fun LibraryContent(
                     items = state.items,
                     playbackState = playbackState,
                     onOpen = openItem,
+                    onFolderLongClick = editFolderCover,
                     onPlay = onPlayItem,
                     onTogglePlayPause = onTogglePlayPause,
                 )

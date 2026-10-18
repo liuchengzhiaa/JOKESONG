@@ -59,6 +59,7 @@ class MainActivity : ComponentActivity() {
                         libraryViewModel.refreshAfterMetadataEdit(id, saved)
                     },
                     onOpenFolder = libraryViewModel::openFolder,
+                    onSetFolderCover = libraryViewModel::setFolderCover,
                     onNavigateUp = { libraryViewModel.navigateUp() },
                     onFocusedItemChange = libraryViewModel::onFocusedItemChange,
                     onViewportChange = libraryViewModel::onViewportChange,

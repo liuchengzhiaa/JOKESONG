@@ -57,6 +57,16 @@ subtitle support, direct metadata editing and a distinctive focus-cover wall.
 
 For a folder, inspect direct children in natural filename order:
 
+An explicit manual folder cover takes priority over this automatic selection. Long
+press a folder in either wall, grid or list, choose 设置封面, then pick an image with
+the same SAF picker/start hint as the song metadata editor (`Download/mihon/local`).
+The provider may choose a different initial directory. Store a bounded private copy
+and persist its assignment to that exact folder document URI; never change audio
+tags or write/delete images in the media directory. 恢复自动封面 removes only the
+app's override. Cancelling or failing selection retains the prior cover. Overrides
+survive refresh/restart, remain separate for same-named folders, and do not replace
+individual songs' own artwork. Clearing app data/uninstalling removes these copies.
+
 1. Use the first supported direct image file.
 2. With no direct image, use the embedded artwork of the first direct audio file
    in natural filename order. Do not eagerly open every audio looking for a cover.

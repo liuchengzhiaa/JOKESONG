@@ -100,6 +100,25 @@ Never mutate canonical metadata to implement privacy presentation.
 
 ### Artwork-driven presentation
 
+- `FolderCoverRepository` stores manual folder covers as bounded (1024px longest
+  edge) private PNG copies, with UUID filenames and Room `artwork_entries` metadata
+  (`manual_folder` source kind). Existing schema is unchanged. It queries only the
+  current listing's folder URIs in chunks of at most 400, never loads all overrides.
+  Writes/decode run on IO; fully write/fsync the new private image before atomically
+  changing the DB reference. Failed/cancelled precommit work removes its candidate;
+  postcommit old-copy cleanup is best effort and cannot report a false save failure.
+  Cancellation is deferred through DB commit/cleanup, not through image decoding.
+  A hard process kill may leave an unreferenced private copy; no media recovery is
+  needed, and automatic orphan sweeping is deferred. Only owned canonical paths
+  may be opened/deleted. Unavailable copies fall back to automatic artwork.
+- Folder snapshots retain automatic artwork. Scan and memory-restore publication
+  project manual folder covers separately; saving/restoring projects the current
+  snapshot without SAF rescan or discarding focus/viewport. Audio metadata, song
+  artwork and provider fallbacks remain independent. Picker target folder URI/title
+  is captured with saveable UI state; decode errors are recoverable in its dialog.
+  `coverImagePickerIntent` is shared with the song editor, with temporary read grant
+  only: successful copying needs no retained image grant or new storage permission.
+
 - The focus wall's selected item is the authority for the ambient palette. Media3
   playback identity stays independent and does not recolour the wall by itself.
 - `core/artwork` may decode one small focused-cover bitmap and return immutable

@@ -6,6 +6,12 @@ import androidx.room.Upsert
 
 @Dao
 interface LibraryDao {
+    @Query("SELECT * FROM artwork_entries WHERE sourceKind = 'manual_folder' AND ownerDocumentUri IN (:owners)")
+    suspend fun folderCoverOverrides(owners: List<String>): List<ArtworkEntity>
+
+    @Query("DELETE FROM artwork_entries WHERE artworkKey = :key AND sourceKind = 'manual_folder'")
+    suspend fun deleteFolderCoverOverride(key: String)
+
     @Upsert
     suspend fun upsertFolders(folders: List<FolderEntity>)
 

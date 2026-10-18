@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.asmrplayer.core.artwork.FolderCoverRepository
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
 import com.example.asmrplayer.core.settings.ToolClusterStyle
@@ -120,6 +121,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private val contentResolver = application.contentResolver
     private val rootPreferences = RootPreferences(application)
     private val appPreferences = AppPreferences(application)
+    private val folderCovers = FolderCoverRepository(application)
     private val scanner = SafDirectoryScanner(contentResolver)
     private val folderSnapshots = FolderSnapshotCache()
     private val timedTextReader = TimedTextReader(contentResolver)
@@ -225,6 +227,19 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
         folderSnapshots.updateAll { it.copy(items = project(it.items)) }
         mutableUiState.update { it.copy(items = project(it.items)) } // Preserve focus/viewport, no re-scan spinner.
+    }
+
+    /** The picker captures the folder identity; navigation during selection never retargets it. */
+    suspend fun setFolderCover(folderUri: String, image: Uri?): Boolean {
+        return try {
+            folderCovers.set(folderUri, image)
+            folderStack.peekLast()?.let(::loadFolder) // Raw snapshot + new projection; no rescan.
+            true
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /** Explicit refresh: drop the snapshot and scan the folder again. */
@@ -533,12 +548,21 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         if (restored != null) {
             // Jumping to a track is not back navigation: the restored viewport would
             // otherwise swallow the one animation that brings the camera to it.
-            mutableUiState.value = restored.toUiState(
-                canNavigateUp = folderStack.size > 1,
-                restored = pendingFocusItemId == null,
-                hasPlaybackOrigin = playbackOrigin.isNotEmpty(),
-            ).withAppSettings(appSettings, applyWallDefaults = false)
-            applyPendingFocus()
+            scanJob = viewModelScope.launch {
+                try {
+                    val presented = folderCovers.project(restored.items)
+                    mutableUiState.value = restored.toUiState(
+                        canNavigateUp = folderStack.size > 1,
+                        restored = pendingFocusItemId == null,
+                        hasPlaybackOrigin = playbackOrigin.isNotEmpty(),
+                    ).copy(items = presented).withAppSettings(appSettings, applyWallDefaults = false)
+                    applyPendingFocus()
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    mutableUiState.update { it.copy(isScanning = false, hasError = true) }
+                }
+            }
             return
         }
 
@@ -559,6 +583,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         scanJob = viewModelScope.launch {
             try {
                 val listing = scanner.scan(activeTreeUri, folderUri)
+                val presented = folderCovers.project(listing.items)
                 folderSnapshots.put(
                     FolderSnapshot(
                         folderKey = folderKey,
@@ -573,7 +598,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     hasRoot = true,
                     folderKey = folderKey,
                     folderTitle = listing.folderName,
-                    items = listing.items,
+                    items = presented,
                     supportedItemCount = listing.supportedItemCount,
                     isTruncated = listing.isTruncated,
                     isScanning = false,

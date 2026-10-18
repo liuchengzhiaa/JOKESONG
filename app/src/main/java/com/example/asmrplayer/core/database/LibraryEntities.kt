@@ -72,7 +72,7 @@ data class AudioEntity(
 data class ArtworkEntity(
     @PrimaryKey val artworkKey: String,
     val ownerDocumentUri: String,
-    /** embedded, sibling_image, or descendant_fallback. */
+    /** embedded, sibling_image, descendant_fallback, or manual_folder (private presentation). */
     val sourceKind: String,
     val sourceUri: String?,
     val mimeType: String?,

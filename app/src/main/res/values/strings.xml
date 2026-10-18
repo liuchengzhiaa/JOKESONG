@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="folder_cover_title">文件夹封面</string>
+    <string name="folder_cover_set">设置封面</string>
+    <string name="folder_cover_reset">恢复自动封面</string>
+    <string name="folder_cover_notice">仅在本应用中使用，不修改文件夹图片或音频文件。选择的图片会保存为应用内副本。</string>
+    <string name="folder_cover_failed">封面保存失败，请重新选择可读取的图片。原有封面未更改。</string>
     <string name="metadata_edit">编辑歌曲信息</string>
     <string name="metadata_close">完成／关闭</string>
     <string name="metadata_save_file">直接保存到音频文件</string>
