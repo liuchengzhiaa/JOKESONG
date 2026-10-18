@@ -4617,3 +4617,28 @@ for v0.1.2, then record exact remote commit/asset verification below. Do not lab
 new APK published until that succeeds. Owner then downloads the latest APK without
 login and checks tiny header readability/actions, all five layout choices, menu
 Back/scrolling, portrait/landscape wall gestures and focus/viewport return retention.
+
+### v0.1.2 delivery receipt — verified (2026-10-18)
+
+`tools/publish-release.ps1` completed successfully from the reviewed clean commit
+`3841ab04e3f0837c7b1ee6ee2322db0e03a2d1e3`; its full verification command passed
+again in **14s** using up-to-date build/test/analysis outputs (523 tests, lint 0/28).
+Source and tag `v0.1.2` were independently read back at that exact SHA. Release:
+https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.2 , published
+2026-10-18 **15:46:58 Asia/Shanghai**, marked latest. Existing v0.1.1 is unchanged.
+
+Publisher and a separate anonymous API read compared all three attachments with
+the local files under ignored `build/jokesong-release/v0.1.2/`:
+- `JOKESONG.apk`: 88,014,016 bytes,
+  `0a8da3a8b264858c0dc16ca3d744da3ae7fa4badc646fdbb6ad1dcb28fe880d5`.
+- `JOKESONG-build.json`: 665 bytes,
+  `63bf27d016414f8058d165d9b15d764b6669f354b19800db0649115b6244214d`.
+- `SHA256SUMS.txt`: 79 bytes,
+  `c0823474881deffb155903d90bb1810917ca37b855ff64158ce5eb93a3fea650`.
+
+An unauthenticated HEAD on the stable latest APK URL follows to HTTP **200**, length
+88,014,016, and anonymous latest-release JSON reports v0.1.2. Source, records and
+APK are therefore delivered; the follow-up receipt-only commit is not another APK.
+Owner phone installation/visual acceptance remains pending; no device was operated.
+Next: download/cover-install and check the acceptance list above before broadening
+this UI slice. Keep the unrelated native licence review open.

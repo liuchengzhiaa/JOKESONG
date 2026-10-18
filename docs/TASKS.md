@@ -699,5 +699,6 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Existing focus/viewport/settings callbacks retained; reference attachments excluded from Git.
 - [x] Final layout/interaction: 17 targeted tests; full 69 suites / 523 tests passed,
       lint 0 errors / 28 warnings, app/test APKs built and app signer/version verified.
-- [ ] Source/docs push and verified v0.1.2 Release (versionCode 3).
+- [x] Source/docs pushed; v0.1.2 / code 3 published, source/tag and all asset digests
+      verified; latest APK responds HTTP 200 without login.
 - [ ] Owner phone acceptance: header readability/actions, five-way switching, wall gestures/return retention.
