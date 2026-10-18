@@ -1,0 +1,4 @@
+# Keep upstream/generated formatting and licence text unchanged.
+# These are formatting-only exceptions, not runtime or lint suppressions.
+app/src/main/assets/card/app.bundle.js -whitespace
+app/src/main/assets/card/font/OFL.txt -whitespace

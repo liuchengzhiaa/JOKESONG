@@ -5,6 +5,7 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
+import com.example.asmrplayer.core.artwork.audioArtworkUri
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
 import com.example.asmrplayer.core.model.NaturalNameComparator
@@ -54,6 +55,8 @@ class SafDirectoryScanner(
         val retainedItems = PriorityQueue(retainedItemLimit, DisplayComparator.reversed())
         var supportedItemCount = 0
         var currentFolderArtwork: ArtworkCandidate? = null
+        val trackArtworkCandidates = mutableListOf<ArtworkCandidate>()
+        val artworkVersions = mutableMapOf<String, String>()
         val timedTextCandidates = mutableListOf<TimedTextCandidate>()
 
         queryChildren(childrenUri)?.use { cursor ->
@@ -67,10 +70,12 @@ class SafDirectoryScanner(
                 ensureActive()
                 val documentId = cursor.getString(documentIdColumn) ?: continue
                 val displayName = cursor.getString(displayNameColumn)?.takeIf(String::isNotBlank) ?: continue
+                if (com.example.asmrplayer.core.metadata.isMetadataArtifactName(displayName)) continue
                 val mimeType = cursor.getString(mimeTypeColumn)
                 val isDirectory = mimeType == DocumentsContract.Document.MIME_TYPE_DIR
                 if (!isDirectory && SupportedArtwork.isSupported(displayName, mimeType)) {
                     val documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId)
+                    if (trackArtworkCandidates.size < retainedItemLimit) trackArtworkCandidates += ArtworkCandidate(displayName, documentUri.toString())
                     currentFolderArtwork = earlierArtwork(
                         currentFolderArtwork,
                         ArtworkCandidate(displayName, documentUri.toString()),
@@ -113,7 +118,14 @@ class SafDirectoryScanner(
                     paletteSeed = documentId.hashCode() and Int.MAX_VALUE,
                     documentUri = documentUri.toString(),
                 )
-                retainSmallest(retainedItems, item)
+                val evicted = retainedItems.peek()?.takeIf {
+                    retainedItems.size == retainedItemLimit && DisplayComparator.compare(item, it) < 0
+                }
+                val retained = retainSmallest(retainedItems, item)
+                evicted?.let { artworkVersions.remove(it.id) }
+                if (retained && !isDirectory) {
+                    artworkVersions[item.id] = "${sizeColumn.takeIf { it >= 0 }?.let { cursor.getLong(it) } ?: 0L}:${modifiedColumn.takeIf { it >= 0 }?.let { cursor.getLong(it) } ?: 0L}"
+                }
             }
         }
 
@@ -121,7 +133,13 @@ class SafDirectoryScanner(
         val itemsWithArtwork = sortedItems.mapIndexed { index, item ->
             when {
                 item.type == LibraryItemType.Audio -> item.copy(
-                    artworkUri = currentFolderArtwork?.documentUri,
+                    artworkUri = audioArtworkUri(
+                        audio = item.documentUri!!,
+                        fallback = trackArtworkCandidates.firstOrNull {
+                            it.displayName.substringBeforeLast('.').equals(item.title, ignoreCase = true)
+                        }?.documentUri ?: currentFolderArtwork?.documentUri,
+                        version = artworkVersions[item.id].orEmpty(),
+                    ),
                 )
                 index < artworkProbeLimit -> {
                     val probe = item.documentUri?.let(Uri::parse)?.let { childFolderUri ->
@@ -154,13 +172,16 @@ class SafDirectoryScanner(
         )
     }
 
-    private fun retainSmallest(queue: PriorityQueue<LibraryItem>, item: LibraryItem) {
+    private fun retainSmallest(queue: PriorityQueue<LibraryItem>, item: LibraryItem): Boolean {
         if (queue.size < retainedItemLimit) {
             queue += item
+            return true
         } else if (DisplayComparator.compare(item, queue.peek()) < 0) {
             queue.poll()
             queue += item
+            return true
         }
+        return false
     }
 
     private fun queryChildren(uri: Uri): Cursor? {

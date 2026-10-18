@@ -3,6 +3,8 @@ package com.example.asmrplayer.core.media
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
+import android.os.Bundle
+import androidx.core.net.toUri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -55,6 +57,15 @@ class PlaybackConnection(context: Context) {
         }
     }
 
+    // Extras are not player events, so the tick above would not notice a sleep timer
+    // being armed from another surface while this one is paused. This is the only
+    // signal that the deadline changed.
+    private val sessionListener = object : MediaController.Listener {
+        override fun onExtrasChanged(controller: MediaController, extras: Bundle) {
+            publish()
+        }
+    }
+
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
     private var positionJob: Job? = null
@@ -63,7 +74,9 @@ class PlaybackConnection(context: Context) {
     fun connect() {
         if (controllerFuture != null) return
         val token = SessionToken(appContext, ComponentName(appContext, PlaybackService::class.java))
-        val future = MediaController.Builder(appContext, token).buildAsync()
+        val future = MediaController.Builder(appContext, token)
+            .setListener(sessionListener)
+            .buildAsync()
         controllerFuture = future
         future.addListener(
             {
@@ -110,10 +123,11 @@ class PlaybackConnection(context: Context) {
      * Replaces the queue with the current folder's audio children, in display
      * order, and starts at [selected].
      */
-    fun playFromFolder(folderItems: List<LibraryItem>, selected: LibraryItem) {
+    fun playFromFolder(folderItems: List<LibraryItem>, selected: LibraryItem,
+        timedText: Map<String, com.example.asmrplayer.core.subtitles.TimedTextMatch> = emptyMap()) {
         val plan = buildFolderQueue(folderItems, selected) ?: return
         withController { controller ->
-            controller.setMediaItems(plan.items.map(LibraryItem::toMediaItem), plan.startIndex, 0L)
+            controller.setMediaItems(plan.items.map { it.toMediaItem(timedText[it.id]) }, plan.startIndex, 0L)
             controller.prepare()
             controller.play()
         }
@@ -121,11 +135,28 @@ class PlaybackConnection(context: Context) {
 
     fun togglePlayPause() {
         withController { controller ->
-            when (toggleCommandFor(controller.toPlaybackState())) {
+            when (toggleCommandFor(controller.toPlaybackState(controller.sleepTimerSnapshot()))) {
                 PlaybackCommand.Play -> controller.play()
                 PlaybackCommand.Pause -> controller.pause()
                 PlaybackCommand.None -> Unit
             }
+        }
+    }
+
+    /** Reopen the edited source without losing queue, position, repeat, timer or subtitle extras. */
+    fun onFileMetadataSaved(id: String, saved: com.example.asmrplayer.core.metadata.TagSaveResult) {
+        withController { c ->
+            val index = (0 until c.mediaItemCount).firstOrNull { c.getMediaItemAt(it).mediaId == id } ?: return@withController
+            val old = c.getMediaItemAt(index)
+            val current = c.currentMediaItemIndex
+            val position = c.currentPosition.coerceAtLeast(0L)
+            val ready = c.playWhenReady
+            if (index == current) c.stop() // Releases the now-replaced inode, rather than reusing an identical URI.
+            val title = saved.title.ifBlank { old.mediaMetadata.title?.toString().orEmpty() }
+            c.replaceMediaItem(index, old.buildUpon().setUri(saved.documentUri).setMediaMetadata(
+                old.mediaMetadata.buildUpon().setTitle(title).setArtist(saved.artist).setArtworkUri(saved.artworkUri.toUri()).build()).build())
+            if (index == current) { c.seekTo(current, position); c.prepare(); if (ready) c.play() }
+            publish()
         }
     }
 
@@ -152,6 +183,25 @@ class PlaybackConnection(context: Context) {
     fun skipToPrevious() {
         withController { controller ->
             if (controller.hasPreviousMediaItem()) controller.seekToPreviousMediaItem()
+        }
+    }
+
+    /**
+     * Repeat is a player command rather than app state, so it is set on the player and
+     * read back off it. That is what makes it survive a locked screen and a UI that is
+     * torn down and rebuilt -- there is no second copy to go stale.
+     */
+    fun setRepeatMode(mode: RepeatMode) {
+        withController { controller -> controller.setRepeatMode(mode.toPlayerMode()) }
+    }
+
+    /** Arms the timer for [minutes], or cancels it when that is zero. */
+    fun setSleepTimer(minutes: Int) {
+        withController { controller ->
+            controller.sendCustomCommand(
+                SleepTimerCommand,
+                Bundle().apply { putInt(SleepTimerMinutesKey, minutes) },
+            )
         }
     }
 
@@ -189,11 +239,12 @@ class PlaybackConnection(context: Context) {
 
     private fun publish() {
         val current = controller
-        mutableState.value = current?.toPlaybackState() ?: PlaybackState()
+        mutableState.value = current?.toPlaybackState(current.sleepTimerSnapshot())
+            ?: PlaybackState()
     }
 }
 
-private fun Player.toPlaybackState(): PlaybackState {
+private fun Player.toPlaybackState(sleepTimer: SleepTimerSnapshot): PlaybackState {
     val position = currentPosition
     val duration = duration
     return PlaybackState(
@@ -211,14 +262,24 @@ private fun Player.toPlaybackState(): PlaybackState {
         hasPrevious = hasPreviousMediaItem(),
         hasQueue = mediaItemCount > 0,
         errorMessage = playerError?.message,
+        repeatMode = RepeatMode.ofPlayerMode(repeatMode),
+        sleepExpiresAtMs = sleepTimer.expiresAtMs,
+        sleepTimerMinutes = sleepTimer.minutes,
     )
 }
 
-private fun LibraryItem.toMediaItem(): MediaItem = MediaItem.Builder()
+private fun LibraryItem.toMediaItem(match: com.example.asmrplayer.core.subtitles.TimedTextMatch?): MediaItem = MediaItem.Builder()
     .setMediaId(id)
     .setUri(documentUri)
     .setMediaMetadata(
         MediaMetadata.Builder()
+            .setExtras(Bundle().apply {
+                match?.candidate?.let {
+                    putString("desktop_lyric_uri", it.documentUri)
+                    putString("desktop_lyric_format", it.format.name)
+                    putString("desktop_lyric_version", "${it.sizeBytes}:${it.modifiedAtMs}")
+                }
+            })
             .setTitle(title)
             .setArtworkUri(artworkUri?.let(Uri::parse))
             .setIsBrowsable(false)

@@ -1,21 +1,27 @@
-# ASMR Player
+# JOKESONG
 
-An offline, folder-first Android ASMR player in active development.
+An offline, folder-first Android audio player in active development. Music, long-form
+audio and ASMR share one library and playback session; branding is not genre-specific.
 
 The product specification is in [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md), and
 the architecture baseline is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
-## Current prototype
+## Current implementation
 
 - Kotlin and Jetpack Compose
-- Portrait focus-cover flow with focus separate from now-playing state
+- SAF folder browsing and Media3 playback, with focus separate from now-playing state
+- Portrait/landscape cover walls plus compact/list/grid layouts
 - Bounded pinch zoom and inertial scrolling; dragging never changes the focused cover
 - Folder/audio type markers and focused actions
 - Deterministic random discovery sampler with tests
 - Chinese-first resources and four-destination navigation shell
+- Ordinary timed lyrics, immersive visualizers and optional desktop lyrics
+- Direct, validated single-track tag/embedded-art editing on supported local files
+- Initial collectible-card studio/viewer; see HANDOFF for limitations and device status
 
-The current screen uses generated fixture cards; it does not scan or play local
-media yet.
+Current browsing is bounded and folder-first, not a finished recursive 40,000-track
+index. Read [`docs/HANDOFF.md`](docs/HANDOFF.md) for actual verification and remaining
+acceptance; a compiled native test is not a device test pass.
 
 ## Open in Android Studio
 
@@ -26,8 +32,28 @@ media yet.
 Command-line verification:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest
-.\gradlew.bat lintDebug
+.\gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest
+.\gradlew.bat -I tools/ascii-build-dir.init.gradle lintDebug
+.\gradlew.bat -I tools/ascii-build-dir.init.gradle assembleDebug
 ```
 
-The application ID and product name are placeholders until final naming is chosen.
+On this host the current APK is under the sibling
+`../.asmrplayer-build/app/outputs/apk/debug/`, not the stale `app/build` directory.
+Keep the existing application ID/signing key so owner-installed updates retain data.
+
+## Updates and releases
+
+- [`CHANGELOG.md`](CHANGELOG.md): user-facing changes and known limits.
+- [`docs/RELEASING.md`](docs/RELEASING.md): tested source + private Release APK delivery.
+- [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md): shared agent rules.
+
+Each completed code update must sync code, documentation and a tested APK. Signing
+secrets, private media, local settings and tool/auth caches never belong in Git.
+
+Private source: https://github.com/liuchengzhiaa/JOKESONG
+
+Phone downloads: https://github.com/liuchengzhiaa/JOKESONG/releases/latest
+
+After reviewing/committing a completed slice, `./tools/publish-release.ps1` verifies,
+builds, pushes and publishes a new version without overwriting existing releases.
+`./tools/publish-release.ps1 -PlanOnly` prints the local plan without network/writes.

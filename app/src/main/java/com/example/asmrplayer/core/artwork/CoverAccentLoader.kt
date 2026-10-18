@@ -35,6 +35,8 @@ internal data class CoverFacts(
     val paletteArgbs: List<Int>,
     val width: Int,
     val height: Int,
+    val rawPaletteArgbs: List<Int> = paletteArgbs,
+    val playerToneArgb: Int? = rawPaletteArgbs.firstOrNull(),
 ) {
     /** The artwork's own proportions, which is what a card has to take the shape of. */
     val aspect: Float get() = width.toFloat() / height
@@ -85,14 +87,17 @@ internal object CoverAccentLoader {
                 // The size comes from the bounds, not from the bitmap: the bitmap is a
                 // downsampled copy, and a card cut to its proportions would be cut to
                 // the proportions of whatever sample size happened to be chosen.
-                val palette = bitmap.usePixels { pixels ->
-                    representativeCoverArgbs(pixels, MaximumPaletteColors)
+                val (rawPalette, playerTone) = bitmap.usePixels { pixels ->
+                    representativeCoverArgbs(pixels, MaximumPaletteColors, balance = false) to playerCoverArgb(pixels)
                 }
+                val palette = rawPalette.map(::balanceCoverColor)
                 CoverFacts(
                     accentArgb = palette.firstOrNull(),
                     paletteArgbs = palette,
                     width = bounds.outWidth,
                     height = bounds.outHeight,
+                    rawPaletteArgbs = rawPalette,
+                    playerToneArgb = playerTone ?: rawPalette.firstOrNull(),
                 )
             }
         } catch (_: IOException) {
@@ -158,7 +163,7 @@ internal fun dominantCoverArgb(pixels: IntArray): Int? {
  * different ambient lights. Transparent, near-black and near-white pixels are
  * ignored for the same reason as [dominantCoverArgb].
  */
-internal fun representativeCoverArgbs(pixels: IntArray, maxColors: Int = MaximumPaletteColors): List<Int> {
+internal fun representativeCoverArgbs(pixels: IntArray, maxColors: Int = MaximumPaletteColors, balance: Boolean = true): List<Int> {
     if (pixels.isEmpty() || maxColors <= 0) return emptyList()
 
     val buckets = HashMap<Int, CoverColorBucket>(128)
@@ -197,7 +202,7 @@ internal fun representativeCoverArgbs(pixels: IntArray, maxColors: Int = Maximum
             selected += candidate
         }
     }
-    return selected.map(::balanceCoverColor)
+    return if (balance) selected.map(::balanceCoverColor) else selected
 }
 
 /** Keeps very dark/bright swatches useful as UI light without erasing their hue. */
@@ -230,3 +235,25 @@ private fun opaqueArgb(red: Int, green: Int, blue: Int): Int =
 
 private fun mixChannel(source: Int, target: Int, fraction: Float): Int =
     (source + (target - source) * fraction).toInt().coerceIn(0, 255)
+
+/** Coarser colour families avoid a broad pale highlight dominating a tonal background. */
+internal fun playerCoverArgb(pixels: IntArray): Int? {
+    val buckets = HashMap<Int, CoverColorBucket>()
+    val step = max(1, pixels.size / MaximumSampledPixels)
+    for (i in pixels.indices step step) {
+        val pixel = pixels[i]
+        val r = pixel ushr 16 and 255
+        val g = pixel ushr 8 and 255
+        val b = pixel and 255
+        val high = maxOf(r, g, b)
+        val low = minOf(r, g, b)
+        // Ignore transparency, deep shadows, paper/skin highlights and neutral typography.
+        if ((pixel ushr 24) < 160 || high !in 45..210 || high - low < high * 0.20f) continue
+        val key = (r shr 5 shl 6) or (g shr 5 shl 3) or (b shr 5)
+        buckets.getOrPut(key) { CoverColorBucket() }.apply {
+            count++; red += r; green += g; blue += b
+        }
+    }
+    return buckets.values.sortedWith(compareByDescending<CoverColorBucket> { it.score() }
+        .thenBy { it.averageArgb() }).firstOrNull()?.averageArgb()
+}

@@ -54,6 +54,10 @@ class MainActivity : ComponentActivity() {
                     subtitleState = subtitleState,
                     onChooseRoot = { rootPicker.launch(null) },
                     onRefresh = libraryViewModel::refresh,
+                    onMetadataSaved = { id, saved ->
+                        playback.onFileMetadataSaved(id, saved)
+                        libraryViewModel.refreshAfterMetadataEdit(id, saved)
+                    },
                     onOpenFolder = libraryViewModel::openFolder,
                     onNavigateUp = { libraryViewModel.navigateUp() },
                     onFocusedItemChange = libraryViewModel::onFocusedItemChange,
@@ -82,6 +86,8 @@ class MainActivity : ComponentActivity() {
                     onLuminousTuningChange = libraryViewModel::onLuminousTuningChange,
                     onPendoloTuningChange = libraryViewModel::onPendoloTuningChange,
                     onTemperaTuningChange = libraryViewModel::onTemperaTuningChange,
+                    onToolClusterStyleChange = libraryViewModel::onToolClusterStyleChange,
+                    onCardCoverByDefaultChange = libraryViewModel::onCardCoverByDefaultChange,
                     onResetAppearanceDefaults = libraryViewModel::resetAppearanceDefaults,
                     onOpenSubtitleDetail = libraryViewModel::openSubtitleDetail,
                     onCloseSubtitleDetail = libraryViewModel::closeSubtitleDetail,
@@ -101,7 +107,7 @@ class MainActivity : ComponentActivity() {
                             notificationPermissionRequested = true
                             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
-                        playback.playFromFolder(libraryState.items, item)
+                        playback.playFromFolder(libraryState.items, item, libraryState.timedText)
                     },
                     // The wall only offers this when it can be honoured, so the
                     // refusal is not something the UI has to react to.
@@ -111,6 +117,8 @@ class MainActivity : ComponentActivity() {
                     onSeekBy = playback::seekBy,
                     onNext = playback::skipToNext,
                     onPrevious = playback::skipToPrevious,
+                    onRepeatModeChange = playback::setRepeatMode,
+                    onSleepTimerChange = playback::setSleepTimer,
                 )
             }
         }

@@ -1,0 +1,13 @@
+Audio metadata editing uses the unmodified io.github.kyant0:taglib:1.0.6 Android AAR.
+Wrapper source and published source archive:
+https://github.com/Kyant0/taglib
+https://repo.maven.apache.org/maven2/io/github/kyant0/taglib/1.0.6/
+The wrapper declares Apache-2.0; see taglib-wrapper-APACHE-2.0.txt.
+
+Native TagLib and adapted FileRef code include LGPL-2.1 / alternative MPL-1.1 notices.
+https://github.com/taglib/taglib
+https://github.com/Kyant0/taglib/tree/main/src/main/cpp
+See taglib-LGPL-2.1.txt and the upstream source-file copyright notices.
+No upstream native code is modified in this application.
+Before public release, verify corresponding native source/relinking obligations for
+the exact published AAR; a Maven wrapper licence is not the native code's licence.

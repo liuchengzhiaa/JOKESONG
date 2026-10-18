@@ -228,6 +228,43 @@
       and then **accepted it as it is** on 2026-09-25. It is now a settled product
       decision, recorded in `docs/DECISIONS.md` D-004, not an open question.
 
+- [x] Rebuild the full player as the reference layout, and take the backdrop colour from the
+      cover. Portrait is now the reference's column -- green current-lyric banner, title/artist
+      with a `((•))` output mark, one large rounded cover, the current and next lyric under it,
+      a thin bar with both times, three transport buttons, and a four-glyph tool row whose
+      fifth slot is the collect button. The background is a gradient of up to four colours from
+      `CoverAccentLoader`'s palette under a light scrim, where it used to be the cover itself
+      blurred over black -- which is why the page read as black before. 476 tests pass, lint is
+      0 errors / 26 warnings, and the APK is built; **the phone pass is outstanding**. See
+      `docs/DECISIONS.md` D-033 and `docs/HANDOFF.md` for the acceptance checklist.
+- [x] Move 闪卡 and the immersive lyric entry into the bottom-right ⋯ button, and change that
+      glyph from the four-square `Widgets` to a horizontal ellipsis. `GlassToolCluster` gained
+      `triggerIcon` and `triggerRotationDegrees`, both defaulted to the wall's current values so
+      the wall is unchanged; the player passes `MoreHoriz` and `0f`, because the 45-degree turn
+      exists for a glyph that closes into a cross and only makes an ellipsis look damaged.
+      The panel grew to seven rows: 闪卡 / 歌词 / 后退 10 秒 / 前进 10 秒 / 定时关闭 / 书签 / 章节.
+      D-035.
+- [x] Add repeat mode -- off, list, one -- as a bottom-row control. `Player.repeatMode` already
+      existed and the session already lives in the service, so this is read back off the player
+      through `PlaybackState.repeatMode` and is durable across a locked screen by construction.
+      `core/media/RepeatMode.kt` keeps Media3's ints out of the UI. D-034.
+- [x] Add a sleep timer -- off / 5 / 10 / 15 / 30 / 45 / 60 / 90 minutes -- that pauses playback
+      when it fires. It lives in `PlaybackService`, not the UI: `PlaybackConnection.disconnect()`
+      fires on `ON_STOP`, so a countdown kept in the page would be cancelled by locking the
+      screen, which is the one thing the owner is certain to do between arming it and needing
+      it. Armed over a `SessionCommand`, read back through session extras. D-034.
+- [ ] **Review this round on the phone.** Twelve items, itemised in `docs/HANDOFF.md`; the ones
+      that matter most are whether the background is visibly the cover's own colour across three
+      differently-coloured songs, whether locking the screen lets the sleep timer fire, and
+      whether the ⋯ button really lands in the fifth slot of the tool row.
+- [ ] Decide whether two lines is the right limit for the player's title. The reference truncates
+      to one; Claude allowed two, on the grounds that a long Chinese title reads better folded
+      than cut off. One number if the owner disagrees.
+- [ ] Decide whether 歌词 in the ⋯ panel and 可视化 in the tool row are redundant. They open the
+      same immersive lyric scene, because the owner asked for both a lyric entry in ⋯ and a
+      waveform entry in the bottom row, and this app has one visualiser surface. Deleting the
+      panel row is the cheap fix if it reads as a duplicate on the phone.
+
 ## Folia presentation roadmap (recommended order)
 
 The researched behaviour, Android mapping, acceptance criteria and clean-room
@@ -400,6 +437,142 @@ order because each layer consumes the stable model built by the one before it:
       Folia card's edge, tint-border and directional shade language. Phone gesture
       and visual acceptance remains open.
 
+- [ ] **10. The glass tool cluster, its one-tap style, and the cover flash card.**
+      *(Implemented and verified 2026-09-28; uncommitted; phone acceptance open.)*
+      The wall's collapsible cluster is extracted into `ui/components/GlassToolCluster.kt`
+      and planted in the full player's bottom-right corner; `ToolClusterStyle`
+      (`Frosted` default / `Outline` / `Solid` / `Minimal`) restyles every copy of it
+      from one row in 设置 -> 外观, stored as `AppSettings.toolClusterStyleOrdinal` and
+      passed down as a parameter. The cluster's first entry opens the card workshop:
+      a warehouse of cards already made, a form pre-filled from the song, and the
+      vendored reference viewer hosted in a `WebView` that renders the card in 3D and
+      saves a 1400x1800 PNG into `Pictures/白相/`. The three layers are derived from
+      the cover that already exists -- a shared centre crop, a subject cut out through
+      ML Kit's confidence mask (with the whole cover as a designed fallback), a blurred
+      depth-plane background, and a Skia port of the reference's own typography script
+      in a subset LXGW WenKai. No AI image generation, no model and no API path in this
+      version, and still **no `INTERNET` permission**. Verification: `testDebugUnitTest`
+      **404/404**, `lintDebug` **0 errors / 25 warnings**, `assembleDebug` produces the
+      APK, `git diff --check` clean, and no device or `adb` was touched. Lint's
+      `UnusedResources` list is what exposed the one missing piece mid-round -- the
+      setting's strings, enum, storage and threading were all in place with no page
+      rendering them. Remaining: phone acceptance (see `docs/HANDOFF.md`), the model
+      path behind the owner's off-by-default switch, and the warehouse's own layout.
+
+      The 2026-09-29 viewer pass removes the desktop-page break in the app: the same
+      Three.js scene now has an `?embedded=1` presentation with a full-bleed dark stage,
+      native glass back control, glass information/save controls, and one bottom-corner
+      button that animates the title/material/depth workbench in and out. Horizontal
+      finger movement is no longer clamped to a decorative tilt: it continuously rotates
+      through the edge-on point over the full `-PI..PI` range, updates the front/back
+      state while crossing 90 degrees, and settles to the nearest face on release.
+      Browser verification at 390 x 844 covered the closed and open workbench and a
+      front-to-back drag. Real-device visual acceptance remains open.
+
+      **Real-device correction, 2026-09-29:** the owner's System WebView reported
+      `innerHeight=904` but resolved both `svh` and `vh`-based document heights to
+      `0px` inside this edge-to-edge screen. Three.js was healthy (`ready=true`, six
+      draw calls, 414 triangles), but its canvas was literally `407 x 0`; the material
+      panel was also capped to 0 and collapsed to its padding. The bundle now measures
+      `visualViewport.height`/`innerHeight`, publishes pixel CSS variables before scene
+      construction and refreshes them on both viewport resize paths. A source-contract
+      test protects the ordering and CSS consumption. CDP injection of the same pixel
+      values restored the current phone canvas to `407 x 904` and made the card visible.
+      The fixed APK still awaits owner installation under the standing execution rule.
+
+      **Claude review and inset fix, 2026-09-29:** the slice above was reviewed against the
+      working tree and holds -- both asset-server fixes are preserved, the bundle's
+      `syncEmbeddedViewport()` runs before `init()` and its `if (renderer) resize()` is
+      legal because `var renderer` is hoisted, and the save anchor and bridge hook are
+      unchanged. One hole was closed. The embedded shell positioned its own glass actions
+      and workbench from `env(safe-area-inset-*)` in eleven places; Android System WebView
+      resolves that to zero inside this edge-to-edge app, so the page's information/save
+      buttons drew 14 px from the physical top of the screen -- under the status bar --
+      beside a Compose back control that cleared it correctly. The host now measures
+      `WindowInsets.safeDrawing`, the same inset the back control already uses, and
+      publishes `--safe-top/right/bottom/left` to the page, with `env()` kept as a second
+      source behind a `max()` so that with neither the offsets fall back to exactly the
+      constants they had. Guarded by `CardViewerSafeAreaTest` and a CSS case in
+      `CardViewerAssetContractTest`. The slice is built and green; **nothing is installed
+      on the phone**, so every visual question this item raises is still open.
+
+- [x] **11. The viewer's WebView rendered blank on the owner's phone: two bugs.**
+      *(Found and fixed 2026-09-28 on the device. Bug 1 verified; bug 2 installed but
+      awaiting re-verification.)*
+      The page was not blank because of the card build. It was being rendered as **plain
+      text**: `CardAssetServer` passed a parameterised mime type
+      (`"text/html; charset=utf-8"`) as well as the charset in the `encoding` argument, and
+      a main frame typed that way goes to Chromium's plain-text viewer -- the document that
+      results is `<body><pre>&lt;!doctype html&gt;...`, the card's own source on a white
+      page. Fixed by making every type in both route tables bare. Verified on the device:
+      the shell, the parameter panel, the four finishes and the gloss slider all render.
+      That exposed the second bug, which the first had been hiding: `assets/card.glb`
+      404'd, because `AssetRoutes` derived the asset path by prefixing `card/` while the
+      vendored template keeps the model beside its other files rather than under
+      `assets/`. Fixed by naming the asset path in the table; **installed but not yet
+      re-verified** -- the device was disconnected first.
+      The `ViewerMessage` colour bug from the previous round was real and is also fixed
+      (theme colours drawn on the shell's light background, i.e. invisible), but it was not
+      what the owner was looking at.
+      The on-device WebView can be inspected from the PC over the DevTools protocol; the
+      recipe, including the port that must not be used, is in `docs/HANDOFF.md`.
+      **Remaining**: open a card and confirm the card itself draws and Save writes a PNG.
+
+- [ ] **12. The owner's four card asks: a picture at once, a collection room, pinch to
+      zoom, and the card as the cover.** *(Implemented and verified 2026-09-29;
+      uncommitted; phone acceptance open. Installed by the owner.)*
+      (a) A card is never a blank frame: `CardLayerFactory` now writes `preview.png`, a
+      flat 512x768 composite of the same three layers the viewer loads, and
+      `CardSummary.thumbnail` is the viewer's capture when one exists and the preview
+      otherwise. This closes the one phone-pass item that described known-wrong
+      behaviour rather than an unknown one. (b) The warehouse is now a collection room:
+      a search box, three sort orders and a selection mode with batch pin and batch
+      delete, and the wall of cards is shelved -- 置顶 first, then one shelf per series,
+      then the ungrouped remainder -- so a growing collection stays navigable. Pinning
+      is a key in the card's own `meta.json`, and shelves are recomputed on every read
+      rather than stored, so no index can disagree with the files. The room is reached
+      from 设置 -> 闪卡 as well as from the player, and reached from Settings it starts
+      a new card blank rather than from whatever was last playing. (c) A card in the
+      viewer can be pinched: the gesture is injected as the wheel events the vendored
+      page already handles, so the page's own zoom zooms (its clamp widened to
+      0.72-2.4), a double tap resets it, and a Kotlin test reads the clamp out of the
+      bundle so the two cannot drift. (d) On the full player, a song that has a card
+      shows the card instead of its artwork -- always live, per the owner's explicit
+      choice of power draw over a still image -- in a new `?bare=1` shell mode that
+      hides the page's own save button and panels before first paint. The lyrics
+      surface keeps an explicit 闪卡 row so the lost artwork swipe still reaches the
+      studio.
+      Verification: `testDebugUnitTest` **438/438**, `lintDebug` **0 errors / 26
+      warnings**, `assembleDebug` produces the APK, and no device and no `adb` was
+      touched. Remaining: phone acceptance, the model path behind the owner's
+      off-by-default switch, and the room's own visual tuning.
+- [ ] **13. The owner's correction to the card cover: it is asked for, it is the card's
+      own shape, and the entry says what it does.** *(Implemented and verified
+      2026-09-29; uncommitted; phone acceptance open.)*
+      (a) The card cover is now a choice, not a state: the default is the original
+      artwork, showing the card is per song and per visit, and a new off-by-default
+      setting 封面默认闪卡 covers the owner who would rather not ask every time. The fold
+      is `showsCardCover`, a pure function with a unit test
+      (`CardCoverChoiceTest`). **A card built from the player still does not switch the
+      cover to itself** -- the owner said the card is asked for each time, and this is
+      the literal reading; flagged in `HANDOFF.md` as the one place he may have meant
+      otherwise. (b) The black frame around a card in the cover slot is gone: the cause
+      was the slot's *shape*, not a colour -- the page's `resize()` fits a 2:3 card to
+      ~58% of a square viewport's width and leaves the rest to its own near-black
+      background. The slot now takes the card's own proportions and draws none of the
+      artwork's hairline, square or shade. The 2:3 is read from
+      `CardLayerGeometry.CanvasAspect` rather than written a third time. (c) 闪卡制作 is
+      now 闪卡 and no longer opens the room: with no card on the song it opens the form
+      directly (the room is one back away, and back from the form leaves the workshop),
+      and with a card it switches the cover -- 原封面 while the card is showing, so the
+      label states what pressing it does rather than what the song has. Opening from
+      Settings is unchanged and still the room.
+      Verification: `testDebugUnitTest` **442/442**, `lintDebug` **0 errors / 26
+      warnings**, `assembleDebug` produces the APK, and no device and no `adb` was
+      touched. Remaining: phone acceptance, and the two judgement calls flagged in
+      `HANDOFF.md` (no auto-switch after a build; back from the viewer lands on the
+      room on the direct-from-a-song path).
+
 ## Next
 
 - [x] Implement SAF root selection and persistable URI permission.
@@ -433,9 +606,78 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Subtitle parsing, and a subtitle detail view reached from the player. Not yet
       full-screen: it reuses the immersive player chrome, and the dedicated lyric
       scene is roadmap phase 5.
-- [ ] Transactional metadata editor with capability checks.
+- [x] First single-track transactional metadata editor with capability checks (D-040).
+      Native/SAF device acceptance and broader metadata features remain below.
 - [ ] Search, pinyin index and collections.
 - [ ] Privacy presentation projection.
 - [ ] Encrypted export/import.
 - [x] Landscape two-dimensional focus wall.
 - [ ] Large-library macrobenchmarks.
+
+## Current slice — 2026-10-11 player alignment
+- [x] Preserve incoming card/player work; intrinsic-fit artwork and smaller default sizing.
+- [x] Raw dominant tonal backdrop; existing wall palette unchanged.
+- [x] Explicit transport skips; ordinary swipe lyric page before existing visualizer.
+- [x] Durable cover/title/lyric percentages in Appearance and player tools.
+- [x] Final verification: 480 JVM tests passed; lint 0 errors / 29 warnings; fresh APK built.
+- [ ] Owner phone pass: proportions/fonts/colour, swipe + scroll + seek, return retention
+      and persistent sizing (see latest HANDOFF).
+
+## Current follow-up — colour, lyric context, audio artwork
+- [x] Diagnose identical thumbnails: scanner assigned one folder image to all audio.
+- [x] Mid-tone chromatic player colour selection + dark crown/soft lateral field.
+- [x] Cover lyric previous/current/next window, current highlighted.
+- [x] Lazy private per-track embedded art with same-name/folder fallback, bounded cache.
+- [x] JVM/Lint/APK verification: 486 tests passed; lint 0 errors / 29 warnings; APK built.
+- [ ] Owner phone refresh/compare: verify distinct embedded covers and colour/three-line lyrics.
+
+## Current slice — desktop lyrics (2026-10-11)
+- [x] Independent durable settings: opt-in, font/colours, 1–4 sentences, line/word,
+      bold, opacity, locking and normalized position.
+- [x] Playback-service overlay; shared matching/parser/timing, screen-off/
+      keyguard/permission gating, drag/close and touch-through lock.
+- [x] Final tests/lint/APK: 495 tests passed; lint 0 errors / 30 warnings; APK built.
+- [ ] Owner phone pass: grant/deny/revoke, home/other app/return, locked touch-through,
+      drag/rotation/restart, seek/pause/next/previous/missing and untimed lyrics.
+
+## Current follow-up — continuous overlay and friendly colour controls
+- [x] Owner changed visibility: keep the same desktop lyric window inside/outside app.
+- [x] HSV gradient sliders, circular thumbs, swatches/presets/reset; existing colours preserved.
+- [x] Explicit transparent-backdrop shortcut and lock hint; metrics cached between configuration changes.
+- [x] Final tests/lint/APK: 501 tests passed; lint 0 errors / 29 warnings; APK built.
+- [ ] Owner transition/palette/persistence/transparent-background + lock/rotation pass.
+
+## Current request — direct metadata editing (2026-10-18)
+- [x] Review current source, D-003, safety contract and native metadata library candidate.
+- [x] Owner “写入吧” accepts explicitly recoverable/non-atomic local-provider commit;
+      record D-040 and supersede former architecture strict-atomic-only clause.
+- [x] Details-page editor, nine tag fields, embedded front-cover replacement/removal,
+      SAF picker initial-directory hint and direct file writer (TagLib 1.0.6).
+- [x] Sibling-only mutation, independent audio/tag/art validation, durable journal,
+      startup/editor recovery and conflict refusal; latest bounded old-tag/art snapshot.
+- [x] Playback metadata/artwork refresh, captured edit target, folder focus/viewport retained.
+- [x] JVM generated-fixture container/transaction/fault/recovery tests; generated PCM
+      Android native round-trip test added and instrumentation APK compiles.
+- [x] Final verification of latest code: 69 suites / 522 JVM tests passed (21 metadata
+      tests), lint 0 errors / 29 warnings; app APK + instrumentation APK built.
+- [ ] Owner-authorized device acceptance on disposable/generated MP3/FLAC/M4A/WAV:
+      actual native tag/art round trips, SAF commit/restart recovery, rotation and
+      playback/cache/notification refresh. No original user media used as tests.
+- [x] Owner reports basic metadata editing flow verified successfully (2026-10-18).
+      Detailed fault/format coverage and generated native instrumentation remain unverified.
+- [ ] Undo UI, batch writes, circle/publisher/custom-tag editing and broader providers.
+- [ ] Native corresponding-source/relinking licence review before public release.
+      Implementation/limitations: `docs/METADATA_EDITOR_PLAN.md`; latest HANDOFF entry.
+
+## Current slice — JOKESONG and private GitHub delivery (2026-10-18)
+- [x] Owner chooses JOKESONG and authorizes full source + APK + record synchronization.
+- [x] Official CLI device authorization completed; credentials verified in keyring.
+- [x] Created and verified private `liuchengzhiaa/JOKESONG`.
+- [x] JOKESONG launcher/docs branding, version 0.1.1 / code 2; application ID unchanged.
+- [x] Shared AGENTS/CLAUDE delivery policy, CHANGELOG, RELEASING and sensitive-file ignores.
+- [x] Publish script with clean-commit/private-origin/version/signer guards and remote
+      commit/asset digest verification; local parser/PlanOnly passed; fingerprint pinned.
+- [x] Focused common-secret/private-file/large-blob screening of source and 19 old commits.
+- [x] New version: 522 tests passed; lint 0 errors / 29 warnings; app/test APKs built.
+- [ ] Initial source push and APK Release; verify actual remote commit and asset digests.
+- [ ] Owner phone private-Release download/cover-install acceptance without USB.

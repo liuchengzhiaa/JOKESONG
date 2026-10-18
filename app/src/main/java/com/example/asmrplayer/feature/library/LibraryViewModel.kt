@@ -8,14 +8,15 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
-import com.example.asmrplayer.core.storage.FolderSnapshot
-import com.example.asmrplayer.core.storage.FolderSnapshotCache
-import com.example.asmrplayer.core.storage.AppPreferences
-import com.example.asmrplayer.core.storage.AppSettings
-import com.example.asmrplayer.core.storage.RootPreferences
-import com.example.asmrplayer.core.storage.SafDirectoryScanner
+import com.example.asmrplayer.core.settings.ToolClusterStyle
 import com.example.asmrplayer.core.settings.UiAccentPalette
 import com.example.asmrplayer.core.settings.UiStylePreset
+import com.example.asmrplayer.core.storage.AppPreferences
+import com.example.asmrplayer.core.storage.AppSettings
+import com.example.asmrplayer.core.storage.FolderSnapshot
+import com.example.asmrplayer.core.storage.FolderSnapshotCache
+import com.example.asmrplayer.core.storage.RootPreferences
+import com.example.asmrplayer.core.storage.SafDirectoryScanner
 import com.example.asmrplayer.core.subtitles.TimedTextCache
 import com.example.asmrplayer.core.subtitles.TimedTextDocument
 import com.example.asmrplayer.core.subtitles.TimedTextMatch
@@ -24,22 +25,22 @@ import com.example.asmrplayer.core.subtitles.cacheKey
 import com.example.asmrplayer.core.subtitles.parseTimedText
 import com.example.asmrplayer.feature.focuswall.FoliaFocusShape
 import com.example.asmrplayer.feature.focuswall.FoliaFocusSize
-import com.example.asmrplayer.feature.subtitles.SubtitleDetailState
 import com.example.asmrplayer.feature.subtitles.LuminousTuning
-import com.example.asmrplayer.feature.subtitles.PendoloTuning
-import com.example.asmrplayer.feature.subtitles.TemperaTuning
 import com.example.asmrplayer.feature.subtitles.LyricsVisualizerBackground
 import com.example.asmrplayer.feature.subtitles.LyricsVisualizerMode
 import com.example.asmrplayer.feature.subtitles.LyricsWordGlowMode
+import com.example.asmrplayer.feature.subtitles.PendoloTuning
+import com.example.asmrplayer.feature.subtitles.SubtitleDetailState
+import com.example.asmrplayer.feature.subtitles.TemperaTuning
 import com.example.asmrplayer.feature.subtitles.clamped
 import java.util.ArrayDeque
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 data class LibraryUiState(
@@ -82,6 +83,10 @@ data class LibraryUiState(
     val uiStylePresetOrdinal: Int = UiStylePreset.Balanced.ordinal,
     val uiAccentPaletteOrdinal: Int = UiAccentPalette.Ocean.ordinal,
     val uiScalePercent: Int = 100,
+    /** Presentation of every collapsible tool cluster; one choice drives all of them. */
+    val toolClusterStyleOrdinal: Int = ToolClusterStyle.Default.ordinal,
+    /** Whether the full player opens on a song's card rather than on its cover. */
+    val cardCoverByDefault: Boolean = false,
     /** Draggable global record position, normalized inside the current safe viewport. */
     val globalVinylXPerMille: Int = 0,
     val globalVinylYPerMille: Int = 1_000,
@@ -211,6 +216,15 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         folderStack.removeLast()
         folderStack.lastOrNull()?.let(::loadFolder)
         return true
+    }
+
+    /** Patch only the edited item's URI/artwork; retain folder focus and viewport. */
+    fun refreshAfterMetadataEdit(id: String, saved: com.example.asmrplayer.core.metadata.TagSaveResult) {
+        fun project(items: List<LibraryItem>) = items.map { item ->
+            if (item.id == id) item.copy(documentUri = saved.documentUri, artworkUri = saved.artworkUri) else item
+        }
+        folderSnapshots.updateAll { it.copy(items = project(it.items)) }
+        mutableUiState.update { it.copy(items = project(it.items)) } // Preserve focus/viewport, no re-scan spinner.
     }
 
     /** Explicit refresh: drop the snapshot and scan the folder again. */
@@ -407,6 +421,17 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             )
         }
         viewModelScope.launch { appPreferences.setUiScalePercent(safePercent) }
+    }
+
+    fun onToolClusterStyleChange(ordinal: Int) {
+        val safeOrdinal = ToolClusterStyle.fromOrdinal(ordinal).ordinal
+        mutableUiState.update { it.copy(toolClusterStyleOrdinal = safeOrdinal) }
+        viewModelScope.launch { appPreferences.setToolClusterStyle(safeOrdinal) }
+    }
+
+    fun onCardCoverByDefaultChange(enabled: Boolean) {
+        mutableUiState.update { it.copy(cardCoverByDefault = enabled) }
+        viewModelScope.launch { appPreferences.setCardCoverByDefault(enabled) }
     }
 
     fun onGlobalVinylPositionChange(xPerMille: Int, yPerMille: Int) {
@@ -666,6 +691,8 @@ private fun LibraryUiState.withAppSettings(
     uiStylePresetOrdinal = settings.uiStylePresetOrdinal,
     uiAccentPaletteOrdinal = settings.uiAccentPaletteOrdinal,
     uiScalePercent = settings.uiScalePercent,
+    toolClusterStyleOrdinal = settings.toolClusterStyleOrdinal,
+    cardCoverByDefault = settings.cardCoverByDefault,
     globalVinylXPerMille = settings.globalVinylXPerMille,
     globalVinylYPerMille = settings.globalVinylYPerMille,
     lyricsVisualizerOrdinal = LyricsVisualizerMode

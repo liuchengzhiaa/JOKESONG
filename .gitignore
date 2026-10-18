@@ -13,3 +13,23 @@ local.properties
 *.stackdump
 .tools/
 local-test-media/
+
+# Private authentication/signing/machine files: never publish to GitHub.
+.env
+.env.*
+!.env.example
+!.env.template
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+keystore.properties
+signing.properties
+secrets.properties
+github-recovery-codes*.txt
+.claude/settings.local.json
+.codex/
+.aws/
+.ssh/

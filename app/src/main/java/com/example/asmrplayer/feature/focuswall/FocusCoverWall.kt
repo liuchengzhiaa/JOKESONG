@@ -2,18 +2,17 @@ package com.example.asmrplayer.feature.focuswall
 
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,7 +22,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -42,11 +40,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AspectRatio
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Circle
-import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.CropLandscape
 import androidx.compose.material.icons.filled.CropPortrait
 import androidx.compose.material.icons.filled.CropSquare
@@ -78,6 +75,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -86,10 +84,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -99,15 +96,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.SubcomposeLayout
@@ -122,7 +119,6 @@ import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
@@ -139,9 +135,10 @@ import com.example.asmrplayer.core.artwork.CoverFacts
 import com.example.asmrplayer.core.media.PlaybackState
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
+import com.example.asmrplayer.core.settings.ToolClusterStyle
+import com.example.asmrplayer.core.settings.levelFraction
 import com.example.asmrplayer.core.subtitles.TimedTextDocument
 import com.example.asmrplayer.feature.folderSummaryLine
-import com.example.asmrplayer.core.settings.levelFraction
 import com.example.asmrplayer.feature.player.formatPlaybackTime
 import com.example.asmrplayer.feature.subtitles.CoverLyricsFrame
 import com.example.asmrplayer.feature.subtitles.LyricsWordGlowMode
@@ -149,11 +146,14 @@ import com.example.asmrplayer.feature.subtitles.SubtitleDetailState
 import com.example.asmrplayer.feature.subtitles.coverLyricsFrame
 import com.example.asmrplayer.feature.subtitles.coverLyricsGlowTimeline
 import com.example.asmrplayer.feature.subtitles.coverLyricsShadeAlpha
-import com.example.asmrplayer.ui.CrestLevelIcon
-import com.example.asmrplayer.ui.GlowingLyricText
 import com.example.asmrplayer.ui.FoliaSeekBar
-import com.example.asmrplayer.ui.theme.artworkBrush
+import com.example.asmrplayer.ui.GlowingLyricText
+import com.example.asmrplayer.ui.components.GlassOptionsPanel
+import com.example.asmrplayer.ui.components.GlassTool
+import com.example.asmrplayer.ui.components.GlassToolCluster
+import com.example.asmrplayer.ui.components.GlassToolsPanel
 import com.example.asmrplayer.ui.theme.artworkAccent
+import com.example.asmrplayer.ui.theme.artworkBrush
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -233,6 +233,8 @@ fun FocusCoverWall(
      * the entry is then shown disabled.
      */
     onRevealPlayingItem: (() -> Unit)? = null,
+    /** Presentation of the wall's corner tool cluster, shared with the player's. */
+    toolClusterStyle: ToolClusterStyle = ToolClusterStyle.Default,
 ) {
     // The state holder is stable while its value advances. Only the one focused,
     // current poster reads it inside its own subcomposition; 30 ordinary posters
@@ -317,30 +319,11 @@ fun FocusCoverWall(
                 onAutoFocusPlayingChange = onAutoFocusPlayingChange,
                 onPosterTintStrengthChange = onPosterTintStrengthChange,
                 onMotionPercentChange = onMotionPercentChange,
+                toolClusterStyle = toolClusterStyle,
             )
         }
     }
 }
-
-/**
- * One entry of the wall's tools panel. Adding a tool is adding a row here.
- *
- * A row either acts ([onClick]) or, for a setting whose value is a short list,
- * opens a page of options. Rows that open a page carry [valueRes] so the panel
- * shows what is currently chosen without having to open it. A row over a
- * continuous setting carries [levelFraction] instead: its position on the setting's
- * own control, which the row draws as a filled crest rather than as a percentage.
- */
-private data class WallTool(
-    val icon: ImageVector,
-    val labelRes: Int,
-    val enabled: Boolean,
-    val onClick: () -> Unit,
-    val valueRes: Int? = null,
-    val valueText: String? = null,
-    val levelFraction: Float? = null,
-    val selected: Boolean = false,
-)
 
 /**
  * Ranges of the two presentation settings, shared by the crest on their row and the
@@ -396,6 +379,7 @@ private fun WallToolsOverlay(
     onAutoFocusPlayingChange: (Boolean) -> Unit,
     onPosterTintStrengthChange: (Int) -> Unit,
     onMotionPercentChange: (Int) -> Unit,
+    toolClusterStyle: ToolClusterStyle,
     modifier: Modifier = Modifier,
 ) {
     // Keyed on the content, so changing folder or wall style closes the panel and
@@ -410,354 +394,236 @@ private fun WallToolsOverlay(
     val minimumZoomPercent = (MinimumCanvasZoom * 100).roundToInt()
     val maximumZoomPercent = (MaximumCanvasZoom * 100).roundToInt()
 
-    // The overlay fills the wall, so the scrim below covers all of it -- the button
-    // and the panel are placed inside, at the bottom end.
-    Box(modifier = modifier.fillMaxSize()) {
-        if (expanded) {
-            val interactionSource = remember { MutableInteractionSource() }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(interactionSource = interactionSource, indication = null) {
-                        expanded = false
-                        page = WallPanelPage.Root
-                    },
-            )
-        }
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            val panelMotionMillis = wallMotionDuration(190, motionPercent)
-            AnimatedVisibility(
-                visible = expanded,
-                enter = fadeIn(tween(panelMotionMillis)) + scaleIn(
-                    animationSpec = tween(panelMotionMillis),
-                    initialScale = 0.82f,
-                    transformOrigin = TransformOrigin(1f, 1f),
-                ),
-                exit = fadeOut(tween(panelMotionMillis)) + scaleOut(
-                    animationSpec = tween(panelMotionMillis),
-                    targetScale = 0.88f,
-                    transformOrigin = TransformOrigin(1f, 1f),
-                ),
-            ) {
-                when (page) {
-                    WallPanelPage.Root -> WallToolsPanel(
-                        tools = listOf(
-                            WallTool(
-                                icon = Icons.Default.MyLocation,
-                                labelRes = R.string.focus_playing_item,
-                                enabled = onRevealPlayingItem != null,
-                                onClick = {
-                                    expanded = false
-                                    onRevealPlayingItem?.invoke()
-                                },
-                            ),
-                            WallTool(
-                                icon = Icons.Default.Widgets,
-                                labelRes = R.string.wall_density,
-                                enabled = true,
-                                onClick = { page = WallPanelPage.Density },
-                                levelFraction = levelFraction(
-                                    viewportState.densityPercent,
-                                    MinimumWallDensityPercent..MaximumWallDensityPercent,
-                                ),
-                            ),
-                            WallTool(
-                                icon = Icons.Default.FitScreen,
-                                labelRes = R.string.wall_zoom,
-                                enabled = true,
-                                onClick = { page = WallPanelPage.Zoom },
-                                levelFraction = levelFraction(
-                                    zoomPercent,
-                                    minimumZoomPercent..maximumZoomPercent,
-                                ),
-                            ),
-                        ) + if (style == FocusWallStyle.Folia) {
-                            listOf(
-                                WallTool(
-                                    icon = Icons.Default.GraphicEq,
-                                    labelRes = R.string.wall_ambient_strength,
-                                    enabled = true,
-                                    onClick = { page = WallPanelPage.AmbientStrength },
-                                    levelFraction = levelFraction(
-                                        viewportState.ambientPercent,
-                                        0..MaximumAmbientPercent,
-                                    ),
-                                ),
-                                WallTool(
-                                    icon = Icons.Default.Tune,
-                                    labelRes = R.string.wall_presentation,
-                                    enabled = true,
-                                    onClick = { page = WallPanelPage.Presentation },
-                                ),
-                                WallTool(
-                                    icon = Icons.Default.CropSquare,
-                                    labelRes = R.string.wall_focus_shape,
-                                    enabled = true,
-                                    onClick = { page = WallPanelPage.FocusShape },
-                                    valueRes = viewportState.focusShape.labelResource(),
-                                ),
-                                WallTool(
-                                    icon = Icons.Default.AspectRatio,
-                                    labelRes = R.string.wall_focus_size,
-                                    // The silhouettes are drawn at one size: there is
-                                    // no second size for a heart or a circle to grow
-                                    // into, so the row shows the setting greyed out
-                                    // rather than opening a page that cannot change
-                                    // anything.
-                                    enabled = !viewportState.focusShape.isSilhouette,
-                                    onClick = { page = WallPanelPage.FocusSize },
-                                    valueRes = viewportState.focusSize.labelResource(),
-                                ),
-                            )
-                        } else {
-                            emptyList()
+    val panelMotionMillis = wallMotionDuration(190, motionPercent)
+
+    // Collapsing also returns the panel to its first page, so reopening never lands on
+    // the page the last visit left behind.
+    GlassToolCluster(
+        expanded = expanded,
+        onExpandedChange = { open ->
+            expanded = open
+            if (!open) page = WallPanelPage.Root
+        },
+        panelMotionMillis = panelMotionMillis,
+        contentDescription = stringResource(R.string.wall_tools),
+        style = toolClusterStyle,
+        modifier = modifier,
+    ) {
+        when (page) {
+            WallPanelPage.Root -> GlassToolsPanel(
+                style = toolClusterStyle,
+                tools = listOf(
+                    GlassTool(
+                        icon = Icons.Default.MyLocation,
+                        labelRes = R.string.focus_playing_item,
+                        enabled = onRevealPlayingItem != null,
+                        onClick = {
+                            expanded = false
+                            onRevealPlayingItem?.invoke()
                         },
-                    )
-                    WallPanelPage.Density -> WallPercentPanel(
-                        titleRes = R.string.wall_density,
-                        valuePercent = viewportState.densityPercent,
-                        valueRange = MinimumWallDensityPercent..MaximumWallDensityPercent,
-                        onValuePreview = {},
-                        onValueCommit = { percent ->
-                            viewportState.densityPercent = percent
-                            onDensityChange(percent)
-                        },
-                        onBack = { page = WallPanelPage.Root },
-                        onReset = {
-                            viewportState.densityPercent = DefaultWallPercent
-                            onDensityChange(DefaultWallPercent)
-                        },
-                    )
-                    WallPanelPage.Zoom -> WallZoomPanel(
-                        zoom = viewportState.zoom,
-                        onZoomChange = { requestedZoom ->
-                            val oldZoom = viewportState.zoom
-                            val newZoom = requestedZoom.coerceIn(
-                                MinimumCanvasZoom,
-                                MaximumCanvasZoom,
-                            )
-                            // A menu-driven zoom uses the viewport centre as its
-                            // anchor, matching a centred pinch and keeping the same
-                            // world point under the centre of the screen.
-                            viewportState.pan *= newZoom / oldZoom
-                            viewportState.zoom = newZoom
-                        },
-                        onBack = { page = WallPanelPage.Root },
-                    )
-                    WallPanelPage.AmbientStrength -> WallPercentPanel(
-                        titleRes = R.string.wall_ambient_strength,
-                        valuePercent = viewportState.ambientPercent,
-                        valueRange = 0..MaximumAmbientPercent,
-                        onValuePreview = { viewportState.ambientPercent = it },
-                        onValueCommit = { onAmbientStrengthChange(it) },
-                        onBack = { page = WallPanelPage.Root },
-                        onReset = {
-                            viewportState.ambientPercent = DefaultWallPercent
-                            onAmbientStrengthChange(DefaultWallPercent)
-                        },
-                    )
-                    WallPanelPage.Presentation -> WallOptionsPanel(
-                        titleRes = R.string.wall_presentation,
-                        onBack = { page = WallPanelPage.Root },
-                        options = listOf(
-                            WallTool(
-                                icon = Icons.Default.LightMode,
-                                labelRes = R.string.wall_lights_out,
-                                enabled = true,
-                                valueRes = if (lightsOut) R.string.setting_on else R.string.setting_off,
-                                onClick = { onLightsOutChange(!lightsOut) },
-                            ),
-                            WallTool(
-                                icon = Icons.Default.CenterFocusStrong,
-                                labelRes = R.string.wall_auto_focus,
-                                enabled = true,
-                                valueRes = if (autoFocusPlaying) {
-                                    R.string.setting_on
-                                } else {
-                                    R.string.setting_off
-                                },
-                                onClick = { onAutoFocusPlayingChange(!autoFocusPlaying) },
-                            ),
-                            WallTool(
-                                icon = Icons.Default.ColorLens,
-                                labelRes = R.string.wall_poster_tint,
-                                enabled = true,
-                                levelFraction = levelFraction(
-                                    posterTintPercent,
-                                    PosterTintPercentRange,
-                                ),
-                                onClick = { page = WallPanelPage.PosterTint },
-                            ),
-                            WallTool(
-                                icon = Icons.Default.MotionPhotosOff,
-                                labelRes = R.string.wall_reduced_motion,
-                                enabled = true,
-                                levelFraction = levelFraction(motionPercent, MotionPercentRange),
-                                onClick = { page = WallPanelPage.Motion },
-                            ),
-                        ),
-                    )
-                    WallPanelPage.PosterTint -> WallPercentPanel(
-                        titleRes = R.string.wall_poster_tint,
-                        valuePercent = posterTintPercent,
-                        // No reset row: this one's default is zero, and the slider's
-                        // left end already is it.
-                        valueRange = PosterTintPercentRange,
-                        onValuePreview = {},
-                        onValueCommit = onPosterTintStrengthChange,
-                        onBack = { page = WallPanelPage.Presentation },
-                    )
-                    WallPanelPage.Motion -> WallPercentPanel(
-                        titleRes = R.string.wall_motion_strength,
-                        valuePercent = motionPercent,
-                        valueRange = MotionPercentRange,
-                        onValuePreview = {},
-                        onValueCommit = onMotionPercentChange,
-                        onBack = { page = WallPanelPage.Presentation },
-                        onReset = { onMotionPercentChange(DefaultWallPercent) },
-                    )
-                    WallPanelPage.FocusShape -> WallOptionsPanel(
-                        titleRes = R.string.wall_focus_shape,
-                        onBack = { page = WallPanelPage.Root },
-                        options = FoliaFocusShape.entries.map { shape ->
-                            WallTool(
-                                icon = shape.icon(),
-                                labelRes = shape.labelResource(),
-                                enabled = true,
-                                selected = shape == viewportState.focusShape,
-                                onClick = {
-                                    viewportState.focusShapeOrdinal = shape.ordinal
-                                    onFocusShapeChange(shape.ordinal)
-                                    page = WallPanelPage.Root
-                                },
-                            )
-                        },
-                    )
-                    WallPanelPage.FocusSize -> WallOptionsPanel(
-                        titleRes = R.string.wall_focus_size,
-                        onBack = { page = WallPanelPage.Root },
-                        options = FoliaFocusSize.entries.map { size ->
-                            WallTool(
-                                icon = Icons.Default.AspectRatio,
-                                labelRes = size.labelResource(),
-                                enabled = true,
-                                selected = size == viewportState.focusSize,
-                                onClick = {
-                                    viewportState.focusSizeOrdinal = size.ordinal
-                                    onFocusSizeChange(size.ordinal)
-                                    page = WallPanelPage.Root
-                                },
-                            )
-                        },
-                    )
-                }
-            }
-            val iconRotation by animateFloatAsState(
-                targetValue = if (expanded) 45f else 0f,
-                animationSpec = tween(panelMotionMillis),
-                label = "wall glass tool rotation",
-            )
-            val glassShape = CircleShape
-            Surface(
-                onClick = { expanded = !expanded },
-                modifier = Modifier
-                    .size(42.dp)
-                    .border(
-                        width = 1.dp,
-                        color = Color.White.copy(alpha = 0.30f),
-                        shape = glassShape,
                     ),
-                shape = glassShape,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.54f),
-                contentColor = MaterialTheme.colorScheme.primary,
-                tonalElevation = 0.dp,
-                shadowElevation = 10.dp,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    Color.White.copy(alpha = 0.16f),
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                                    Color.Transparent,
-                                ),
+                    GlassTool(
+                        icon = Icons.Default.Widgets,
+                        labelRes = R.string.wall_density,
+                        enabled = true,
+                        onClick = { page = WallPanelPage.Density },
+                        levelFraction = levelFraction(
+                            viewportState.densityPercent,
+                            MinimumWallDensityPercent..MaximumWallDensityPercent,
+                        ),
+                    ),
+                    GlassTool(
+                        icon = Icons.Default.FitScreen,
+                        labelRes = R.string.wall_zoom,
+                        enabled = true,
+                        onClick = { page = WallPanelPage.Zoom },
+                        levelFraction = levelFraction(
+                            zoomPercent,
+                            minimumZoomPercent..maximumZoomPercent,
+                        ),
+                    ),
+                ) + if (style == FocusWallStyle.Folia) {
+                    listOf(
+                        GlassTool(
+                            icon = Icons.Default.GraphicEq,
+                            labelRes = R.string.wall_ambient_strength,
+                            enabled = true,
+                            onClick = { page = WallPanelPage.AmbientStrength },
+                            levelFraction = levelFraction(
+                                viewportState.ambientPercent,
+                                0..MaximumAmbientPercent,
                             ),
                         ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Widgets,
-                        contentDescription = stringResource(R.string.wall_tools),
-                        modifier = Modifier
-                            .size(19.dp)
-                            .rotate(iconRotation),
+                        GlassTool(
+                            icon = Icons.Default.Tune,
+                            labelRes = R.string.wall_presentation,
+                            enabled = true,
+                            onClick = { page = WallPanelPage.Presentation },
+                        ),
+                        GlassTool(
+                            icon = Icons.Default.CropSquare,
+                            labelRes = R.string.wall_focus_shape,
+                            enabled = true,
+                            onClick = { page = WallPanelPage.FocusShape },
+                            valueRes = viewportState.focusShape.labelResource(),
+                        ),
+                        GlassTool(
+                            icon = Icons.Default.AspectRatio,
+                            labelRes = R.string.wall_focus_size,
+                            // The silhouettes are drawn at one size: there is
+                            // no second size for a heart or a circle to grow
+                            // into, so the row shows the setting greyed out
+                            // rather than opening a page that cannot change
+                            // anything.
+                            enabled = !viewportState.focusShape.isSilhouette,
+                            onClick = { page = WallPanelPage.FocusSize },
+                            valueRes = viewportState.focusSize.labelResource(),
+                        ),
                     )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun WallToolsPanel(tools: List<WallTool>) {
-    val shape = RoundedCornerShape(16.dp)
-    Surface(
-        modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.18f), shape),
-        shape = shape,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.76f),
-        tonalElevation = 0.dp,
-        shadowElevation = 12.dp,
-    ) {
-        Column(modifier = Modifier.padding(vertical = 6.dp)) {
-            tools.forEach { tool -> WallToolRow(tool) }
-        }
-    }
-}
-
-/**
- * A page of options for one setting. It carries its own back row rather than a
- * breadcrumb: the panel is a small floating list, and one row that returns to the
- * page above is quicker to hit than a title with a target beside it.
- */
-@Composable
-private fun WallOptionsPanel(titleRes: Int, onBack: () -> Unit, options: List<WallTool>) {
-    val shape = RoundedCornerShape(16.dp)
-    Surface(
-        modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.18f), shape),
-        shape = shape,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.76f),
-        tonalElevation = 0.dp,
-        shadowElevation = 12.dp,
-    ) {
-        Column(modifier = Modifier.padding(vertical = 6.dp)) {
-            Row(
-                modifier = Modifier
-                    .clickable(onClick = onBack)
-                    .padding(horizontal = 16.dp, vertical = 11.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(titleRes),
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = stringResource(titleRes),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            options.forEach { option -> WallToolRow(option) }
+                } else {
+                    emptyList()
+                },
+            )
+            WallPanelPage.Density -> WallPercentPanel(
+                titleRes = R.string.wall_density,
+                valuePercent = viewportState.densityPercent,
+                valueRange = MinimumWallDensityPercent..MaximumWallDensityPercent,
+                onValuePreview = {},
+                onValueCommit = { percent ->
+                    viewportState.densityPercent = percent
+                    onDensityChange(percent)
+                },
+                onBack = { page = WallPanelPage.Root },
+                onReset = {
+                    viewportState.densityPercent = DefaultWallPercent
+                    onDensityChange(DefaultWallPercent)
+                },
+            )
+            WallPanelPage.Zoom -> WallZoomPanel(
+                zoom = viewportState.zoom,
+                onZoomChange = { requestedZoom ->
+                    val oldZoom = viewportState.zoom
+                    val newZoom = requestedZoom.coerceIn(
+                        MinimumCanvasZoom,
+                        MaximumCanvasZoom,
+                    )
+                    // A menu-driven zoom uses the viewport centre as its
+                    // anchor, matching a centred pinch and keeping the same
+                    // world point under the centre of the screen.
+                    viewportState.pan *= newZoom / oldZoom
+                    viewportState.zoom = newZoom
+                },
+                onBack = { page = WallPanelPage.Root },
+            )
+            WallPanelPage.AmbientStrength -> WallPercentPanel(
+                titleRes = R.string.wall_ambient_strength,
+                valuePercent = viewportState.ambientPercent,
+                valueRange = 0..MaximumAmbientPercent,
+                onValuePreview = { viewportState.ambientPercent = it },
+                onValueCommit = { onAmbientStrengthChange(it) },
+                onBack = { page = WallPanelPage.Root },
+                onReset = {
+                    viewportState.ambientPercent = DefaultWallPercent
+                    onAmbientStrengthChange(DefaultWallPercent)
+                },
+            )
+            WallPanelPage.Presentation -> GlassOptionsPanel(
+                style = toolClusterStyle,
+                titleRes = R.string.wall_presentation,
+                onBack = { page = WallPanelPage.Root },
+                options = listOf(
+                    GlassTool(
+                        icon = Icons.Default.LightMode,
+                        labelRes = R.string.wall_lights_out,
+                        enabled = true,
+                        valueRes = if (lightsOut) R.string.setting_on else R.string.setting_off,
+                        onClick = { onLightsOutChange(!lightsOut) },
+                    ),
+                    GlassTool(
+                        icon = Icons.Default.CenterFocusStrong,
+                        labelRes = R.string.wall_auto_focus,
+                        enabled = true,
+                        valueRes = if (autoFocusPlaying) {
+                            R.string.setting_on
+                        } else {
+                            R.string.setting_off
+                        },
+                        onClick = { onAutoFocusPlayingChange(!autoFocusPlaying) },
+                    ),
+                    GlassTool(
+                        icon = Icons.Default.ColorLens,
+                        labelRes = R.string.wall_poster_tint,
+                        enabled = true,
+                        levelFraction = levelFraction(
+                            posterTintPercent,
+                            PosterTintPercentRange,
+                        ),
+                        onClick = { page = WallPanelPage.PosterTint },
+                    ),
+                    GlassTool(
+                        icon = Icons.Default.MotionPhotosOff,
+                        labelRes = R.string.wall_reduced_motion,
+                        enabled = true,
+                        levelFraction = levelFraction(motionPercent, MotionPercentRange),
+                        onClick = { page = WallPanelPage.Motion },
+                    ),
+                ),
+            )
+            WallPanelPage.PosterTint -> WallPercentPanel(
+                titleRes = R.string.wall_poster_tint,
+                valuePercent = posterTintPercent,
+                // No reset row: this one's default is zero, and the slider's
+                // left end already is it.
+                valueRange = PosterTintPercentRange,
+                onValuePreview = {},
+                onValueCommit = onPosterTintStrengthChange,
+                onBack = { page = WallPanelPage.Presentation },
+            )
+            WallPanelPage.Motion -> WallPercentPanel(
+                titleRes = R.string.wall_motion_strength,
+                valuePercent = motionPercent,
+                valueRange = MotionPercentRange,
+                onValuePreview = {},
+                onValueCommit = onMotionPercentChange,
+                onBack = { page = WallPanelPage.Presentation },
+                onReset = { onMotionPercentChange(DefaultWallPercent) },
+            )
+            WallPanelPage.FocusShape -> GlassOptionsPanel(
+                style = toolClusterStyle,
+                titleRes = R.string.wall_focus_shape,
+                onBack = { page = WallPanelPage.Root },
+                options = FoliaFocusShape.entries.map { shape ->
+                    GlassTool(
+                        icon = shape.icon(),
+                        labelRes = shape.labelResource(),
+                        enabled = true,
+                        selected = shape == viewportState.focusShape,
+                        onClick = {
+                            viewportState.focusShapeOrdinal = shape.ordinal
+                            onFocusShapeChange(shape.ordinal)
+                            page = WallPanelPage.Root
+                        },
+                    )
+                },
+            )
+            WallPanelPage.FocusSize -> GlassOptionsPanel(
+                style = toolClusterStyle,
+                titleRes = R.string.wall_focus_size,
+                onBack = { page = WallPanelPage.Root },
+                options = FoliaFocusSize.entries.map { size ->
+                    GlassTool(
+                        icon = Icons.Default.AspectRatio,
+                        labelRes = size.labelResource(),
+                        enabled = true,
+                        selected = size == viewportState.focusSize,
+                        onClick = {
+                            viewportState.focusSizeOrdinal = size.ordinal
+                            onFocusSizeChange(size.ordinal)
+                            page = WallPanelPage.Root
+                        },
+                    )
+                },
+            )
         }
     }
 }
@@ -851,7 +717,7 @@ private fun WallPercentPanel(
     onBack: () -> Unit,
     onReset: (() -> Unit)? = null,
 ) {
-    var pendingPercent by remember(valuePercent) { mutableStateOf(valuePercent) }
+    var pendingPercent by remember(valuePercent) { mutableIntStateOf(valuePercent) }
     val shape = RoundedCornerShape(16.dp)
     Surface(
         modifier = Modifier.border(1.dp, Color.White.copy(alpha = 0.18f), shape),
@@ -917,60 +783,6 @@ private fun WallPercentPanel(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun WallToolRow(tool: WallTool) {
-    val contentAlpha = if (tool.enabled) 1f else 0.38f
-    val contentColor = MaterialTheme.colorScheme.onSurface
-    Row(
-        modifier = Modifier
-            .clickable(enabled = tool.enabled, onClick = tool.onClick)
-            .padding(horizontal = 16.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Icon(
-            imageVector = tool.icon,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = contentColor.copy(alpha = contentAlpha),
-        )
-        Text(
-            text = stringResource(tool.labelRes),
-            color = contentColor.copy(alpha = contentAlpha),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        // The chosen option is the only row that can carry a trailing affordance:
-        // a setting row shows its current value instead, so it never needs both.
-        when {
-            tool.selected -> Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            tool.levelFraction != null -> CrestLevelIcon(
-                fraction = tool.levelFraction,
-                // Dimmed with the row it belongs to, so an unavailable setting does
-                // not read as a live one.
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = contentAlpha),
-                track = contentColor.copy(alpha = 0.16f * contentAlpha),
-            )
-            tool.valueText != null -> Text(
-                text = tool.valueText,
-                color = contentColor.copy(alpha = 0.7f * contentAlpha),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            tool.valueRes != null -> Text(
-                text = stringResource(tool.valueRes),
-                // Dimmed with the row it belongs to: an unavailable setting's value is
-                // not something to read as actionable either.
-                color = contentColor.copy(alpha = 0.7f * contentAlpha),
-                style = MaterialTheme.typography.bodyMedium,
-            )
         }
     }
 }

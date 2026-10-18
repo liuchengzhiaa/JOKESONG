@@ -13,8 +13,8 @@ android {
         applicationId = "com.example.asmrplayer"
         minSdk = 29
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -50,12 +50,19 @@ room {
 }
 
 dependencies {
+    implementation(libs.taglib)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
+    // Subject cutout for card subjects. The bundled-model variant would be
+    // larger and is selfie-only; this one fetches a general subject model through
+    // Play Services, so a device without them degrades to the whole-cover
+    // fallback in CardLayerFactory rather than failing.
+    implementation(libs.mlkit.subject.segmentation)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -74,5 +81,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     testImplementation(libs.junit4)
+    androidTestImplementation(libs.androidx.test.junit)
+    androidTestImplementation(libs.androidx.test.runner)
     testImplementation(libs.androidx.room.testing)
 }

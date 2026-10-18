@@ -1,5 +1,10 @@
 # Handoff
 
+**Latest continuation (2026-10-18):** see the final “Codex implementation: direct tag
+editing” entry and `docs/METADATA_EDITOR_PLAN.md`. Earlier sections are chronological
+history, including the now-superseded investigation-only status. Preserve the large
+incoming uncommitted tree; no Claude invocation or automatic device installation.
+
 ## Current state
 
 The repository began empty. Product discovery is complete and captured in the
@@ -2871,3 +2876,1597 @@ Final pre-commit verification for the consolidated tree: `compileDebugKotlin` pa
 17 warnings and 2 informational issues**; `git diff --check` reported no whitespace
 errors. No device launch was performed. The next owner check remains visual and
 gesture acceptance on a real phone, followed by the next 凝彩 fidelity slice.
+
+## Claude slice: the glass tool cluster and the cover flash card (2026-09-28, uncommitted)
+
+Two owner requests in one round. The first finishes an idea that was already half
+built: the collapsible glass tool cluster on the focus wall is extracted into a shared
+component, planted in a corner of the full player, and given one setting that restyles
+every copy of it at once. The second is the round's substance -- a card workshop
+reached from that cluster: a warehouse of cards already made, a form pre-filled from
+the song, and the vendored reference viewer hosted in a `WebView`, rendering a real
+tilt-reactive card and saving a 1400x1800 PNG into `Pictures/白相/`.
+
+Scope was fixed by the owner before any code: the card is derived from the cover that
+already exists (**no AI image generation**), the model/API path is a switch that is off
+by default and **not built at all in this version**, and every remaining "which is
+closer to the reference?" question was answered by choosing the closest.
+
+### The cluster is one component with four presentations
+
+- `ui/components/GlassToolCluster.kt` is the wall's cluster, lifted out unchanged:
+  42 dp disc, hairline white edge, `surface` at 54% alpha, 10 dp shadow, the glyph
+  rotating 0 -> 45 degrees, `fadeIn + scaleIn(0.82f, TransformOrigin(1f, 1f))` growing
+  out of the corner, and a full-screen scrim that closes it on tap. `FocusCoverWall`
+  now calls it; the wall's own panel-page switching stayed in the wall, because that is
+  the wall's and not the cluster's.
+- `core/settings/ToolClusterStyle.kt` -- `Frosted` (default, and byte-for-byte what
+  shipped before the setting existed), `Outline`, `Solid`, `Minimal`. Stored as
+  `AppSettings.toolClusterStyleOrdinal`, always read back through the enum's own
+  `fromOrdinal` so a value this build does not know shows the default instead of
+  nothing.
+- The style reaches the cluster as a **parameter**, threaded `LibraryViewModel` ->
+  `AsmrPlayerApp` -> `PlayerDetail` and `FocusCoverWall`. That is this app's existing
+  convention for presentation state (the same way `motionPercent` travels); there is no
+  `CompositionLocal` for it. `SettingsContent` renders the four choices under
+  外观, and `resetAppearanceDefaults` already covers the new field because it replaces
+  the whole `AppSettings()`.
+- **The settings row did not exist when this session resumed.** The enum, the storage
+  key and the whole threading path were in place, but nothing rendered the four
+  choices, so the five strings were dead and the owner had no way to reach the setting
+  they had explicitly asked for. It was found by reading lint's `UnusedResources` list,
+  not by reading the code -- the strings were correct and the wiring was correct, and
+  only the one page that uses them was missing. Worth remembering as a failure mode:
+  green compiles and passing tests said nothing about it.
+
+### The card workshop
+
+Entry is the cluster in the full player's bottom-right corner (`PlayerDetail.kt`), on
+both the portrait and landscape artwork branches. `onOpenCardStudio` raises a
+`rememberSaveable` flag in `AsmrPlayerApp` and renders `CardStudioScreen` in the same
+trailing `AnimatedVisibility` block as the subtitle detail and the full player; the
+`contentWindowInsets` guard was extended to include it. Inside, the studio owns its own
+`StudioPage` enum (Warehouse -> Compose -> Viewer) and one `BackHandler`, the same
+shape `FocusCoverWall` uses for `WallPanelPage`.
+
+- **Warehouse** (`ui/card/CardStudioScreen.kt`): a grid of cards already made, each a
+  screenshot plus title and date; tap reopens the viewer, long-press offers deletion.
+  Deleting removes only a directory this app created, so `AGENTS.md`'s "deletion means
+  removing an index entry" holds without any extra care. A card that has never been
+  saved has no screenshot and shows an empty frame rather than the cover it was built
+  from, because the cover is not what the card is.
+- **Form** (`ui/card/CardComposeForm.kt`): the cover (defaulting to the song's own,
+  replaceable through `ActivityResultContracts.PickVisualMedia`, which needs no
+  permission at any API level and falls back to an open-document intent by itself), the
+  four material presets, and the seven copy fields pre-filled from the song. It is a
+  **page, not a sheet** -- a deviation from the plan, recorded in D-024.
+- **Viewer** (`ui/card/CardViewerScreen.kt`): `AndroidView { WebView }` over the
+  vendored reference page, unmodified.
+
+### The three layers, derived from the cover
+
+`core/card/CardLayerFactory.kt` is the round's core new code. Everything is
+deterministic, runs on `Dispatchers.Default`, and comes out at exactly 1024x1536
+because the viewer composites the layers with per-layer parallax: a layer one pixel off
+is a layer that slides visibly against the others.
+
+- Every layer is taken from **one shared crop** (`CardLayerGeometry.centreCrop`,
+  frame-filling, never letterboxed), so the three cannot disagree about framing.
+- `subject.png`: the cover's own pixels through ML Kit's foreground **confidence** mask
+  (`play-services-mlkit-subject-segmentation:16.0.0-beta1` -- `beta4` is not published;
+  the version in the plan was wrong). The confidence is rescaled above a 0.35 floor
+  rather than thresholded, which removes the faint wash the model's uncertainty leaves
+  over the whole frame while keeping soft edges soft. Taking the pixels from the cover
+  rather than from the result is deliberate: the card shows the artwork's colours, not
+  the model's re-composite.
+- **The fallback is a designed state, not an error.** No Play Services, no model
+  downloaded, no subject found, a failure or a timeout all mean the same thing: the
+  whole cover becomes the subject at full alpha and the card simply has a still hero.
+  A large part of this library is a room, an object or flat graphic art, so this is a
+  normal outcome.
+- `background.png`: the cover magnified 1.06, blurred, and darkened in the top and
+  bottom bands with a light vignette. The blur is a reduction and re-expansion rather
+  than a render effect -- same result for a layer this size, no GPU, and it cannot vary
+  between devices. **Blurring is not decoration**: the background and subject sit on
+  different depth planes and slide against each other, so a sharp copy of the cover
+  behind a cut-out of that cover reads as a ghosted double image the moment they move
+  apart.
+- `text.png`: a faithful port of the reference's own `generate_typography.py` into
+  Skia -- the same design canvas, the same seven slots with their own x/y/size/anchor/
+  colour, the two gold rules at y=245 and y=1280, the same 1 px dark stroke, and the
+  same shrink-until-it-fits loop. The one translation that matters: PIL anchors on the
+  ascender line and Skia draws from the baseline, so `baseline = y - ascent`.
+- The font is LXGW WenKai, chained to the system's own through
+  `Typeface.CustomFallbackBuilder` (API 29, which is exactly minSdk), so a glyph the
+  subset lacks -- kana, a traditional-only form, an emoji -- changes face for that one
+  glyph instead of becoming a blank box.
+- `card-config.json` is hand-written (`CardConfig.toJson()`), because the schema is
+  fixed and small. `sourceMode`, `artworkFit`, `lineart` and `effects` are **absent on
+  purpose**: omitting a key is how "absent" is expressed, and the viewer is designed
+  for it. The four presets differ in `appearance.finish` and `parameters.foil` only --
+  depth is the card's scene, not its material, and two presets that differed in depth
+  would make one cover look like two different photographs.
+
+### Hosting the viewer with no network at all
+
+`CardAssetServer` answers `shouldInterceptRequest` under
+`https://appassets.androidplatform.net/cards/<id>/`. Routing is an **allow-list of
+known relative paths**, not a path join, so `..` is unmatched rather than rejected;
+only the card id is treated as data and it is checked separately. Three things are
+deliberate:
+
+1. **Per-card URLs.** The cache key differs per card, so card B's texture request can
+   never be answered with card A's image. Everything also carries
+   `Cache-Control: no-store`.
+2. **An explicit 404, never a null return.** `shouldInterceptRequest` fires for the
+   top-level document too, and returning null there means the real network, which
+   `blockNetworkLoads` would then refuse -- a blank page with no explanation.
+3. **`settings.blockNetworkLoads` is not set.** The app has no `INTERNET` permission,
+   which already forces it on; repeating it here would make this screen look like the
+   thing keeping the viewer offline, and it is not.
+
+Saving is the other half. The viewer's own save button clicks an anchor holding a
+`data:image/png;base64,` URL, and that anchor is **never attached to the DOM** -- so a
+document-level click listener would never see it. `CardSaveBridge` therefore overrides
+`HTMLAnchorElement.prototype.click` itself once the page has loaded, and hands the
+payload over in 512 KB chunks rather than marshalling multi-megabytes in one call. The
+bytes land twice: `card.png` in the card's own directory (the warehouse thumbnail) and
+`Pictures/白相/` through MediaStore, where the app inserts and then owns its own entry
+and needs no permission. The app never reads, enumerates or deletes from the picture
+library: a card the owner removes from the app stays in Pictures, because by then it is
+the owner's picture and this app is not its custodian.
+
+The WebView is also gated: rather than comparing version strings, which vendor WebViews
+misreport, the page runs a one-line ES2020 feature probe inside a try/catch. A failure
+shows the engine's own package name and version, so there is something to act on.
+`onRenderProcessGone` returns true and renders this app's own message instead of taking
+the process down.
+
+### The font, and how to rebuild it
+
+`app/src/main/assets/card/font/kai.ttf` is **LXGW WenKai Regular, version 1.520
+(2025-06-14)**, SIL OFL 1.1, and `OFL.txt` ships beside it. It is subset to:
+
+| Set | Count |
+| --- | --- |
+| GB2312's hanzi (all of them, exactly) | 6,763 |
+| ASCII U+0020-U+007E | 95 |
+| CJK symbols and punctuation U+3000-U+303F | 60 |
+| Fullwidth forms U+FF01-U+FF60 | 96 |
+| General punctuation U+2000-U+206F | 21 |
+| U+00A0 and U+00B7 | 2 |
+| **Total codepoints / glyphs** | **7,036 / 7,131** |
+
+That coverage was verified against the shipped file with `fontTools`, and the hanzi
+were verified to be **exactly** GB2312's set -- nothing missing, nothing extra. The
+original `pyftsubset` invocation was **not recorded**, so this reproduces the coverage
+rather than the file:
+
+```bash
+# 1. dump the shipped subset's own character set (this is the exact list)
+python -c "from fontTools.ttLib import TTFont; \
+  f=TTFont('app/src/main/assets/card/font/kai.ttf'); \
+  open('kai-chars.txt','w').write(''.join(chr(c) for c in sorted(f.getBestCmap())))"
+# 2. rebuild from the upstream font
+pyftsubset LXGWWenKai-Regular.ttf --text-file=kai-chars.txt \
+  --output-file=kai.ttf --layout-features='*' --no-hinting --desubroutinize
+```
+
+The font lives in `assets/` rather than `res/font/` on purpose: the card face is drawn
+with Skia into `text.png`, not rendered by Compose's `Font()`.
+
+### Verification
+
+```powershell
+$env:GRADLE_USER_HOME='C:\Users\LiuDeZhou\.gradle'; $env:TEMP='C:\jtmp'; $env:TMP='C:\jtmp'
+.\gradlew.bat -I tools\ascii-build-dir.init.gradle testDebugUnitTest lintDebug assembleDebug
+```
+
+- `testDebugUnitTest`: **404 tests, 404 passed, 0 failed, 0 skipped**, counted from
+  `...\.asmrplayer-build\app\test-results\testDebugUnitTest\*.xml` (50 suites) and not
+  from the Gradle console. The tree was at 337 when this round began.
+- `lintDebug`: **0 errors, 25 issues**, all warnings, from
+  `lint-results-debug.xml`. `SetJavaScriptEnabled` was reviewed and suppressed with the
+  reasoning written into the file; three `AutoboxingStateCreation` warnings were fixed
+  by moving to `mutableIntStateOf`/`mutableFloatStateOf`.
+- `assembleDebug`: `app-debug.apk`, 79.8 MB.
+- `git diff --check`: clean (only the checkout's existing LF/CRLF notices).
+- **No device, emulator or `adb` was touched.** The APK is left for the owner to
+  install.
+
+**The lint count needs one honest caveat.** The last recorded figure in this file is
+"0 errors, 17 warnings and 2 informational issues" for the consolidated tree, and 25
+does not reconcile with it. Every one of the 12 `UnusedResources` is a string that
+exists in `HEAD` **and has no reference in `HEAD` either**
+(`all_audio`, `recent`, `favorites`, the four `ambient_strength_*`, `sort`, `layout`,
+`demo_hint`, `back_to_library`, `times_value`), so none of them are this round's and
+they are not new. **All 45 strings this round adds are referenced**, verified by
+removing the three that were not and wiring the one that was only a hint
+(`card_cover_missing`, now shown under the cover picker, which also closed a real gap:
+the Generate button is disabled without a cover and nothing said why). Nothing in the
+lint configuration was changed, so the like-for-like comparison is against the tree as
+found, not against that recorded number. Whoever next runs lint on a quiet tree should
+re-derive the baseline rather than trusting either figure.
+
+### Deviations, and what is deliberately not here
+
+- **No model, no API, no network, no `INTERNET` permission.** The owner's switch
+  exists as a decision and defaults to off; this version does not build the path behind
+  it at all (`D-025`).
+- **`effects.png` and `lineart.png` are omitted on purpose.** The reference's line art
+  is a model-drawn contour; thresholding or edge-detecting a photograph produces speckle
+  instead, and **not shipping it is better than shipping a worse one**. The viewer
+  handles the omission by design.
+- **`CardComposeForm` is a page, not a bottom sheet** (`D-024`).
+- **One card per generate.** The form builds one card and opens it; there is no batch
+  and no re-run from the warehouse.
+- **Material and depth changes made inside the viewer are not persisted.** That is the
+  reference's own behaviour: its sliders rewrite uniforms live and never write back to
+  the config. Reproducing it was chosen over "improving" it.
+- **`app/src/main/assets/card/icons.data.js` is vendored but never requested** -- it is
+  inlined into `app.bundle.js`, which is why `CardAssetServer`'s allow-list has exactly
+  four asset routes. Removing it would be a change to the vendored tree for 6 KB; it
+  stays.
+- **The plan's "tool table completeness" test was dropped.** The tool tables are built
+  inside composables and the repository has no Compose test dependency, so it cannot be
+  written without adding one. Recorded rather than faked.
+- **`CardExporter.AlbumName` is `白相`**, the reference's own shell title, kept because
+  the owner asked for the closest possible reproduction.
+
+### Phone acceptance (not yet done)
+
+1. The cluster appears bottom-right on the full player in both orientations; the glyph
+   rotates 45 degrees, the panel grows out of that corner, and the scrim closes it.
+2. 设置 -> 外观 -> 收纳按钮样式: each of the four changes the player's **and** the
+   wall's buttons at once, and the choice survives a restart.
+3. The cluster's entry opens the warehouse; 新建 shows a form pre-filled from the song;
+   换一张 opens the system picker and **asks for no permission**.
+4. 生成 produces a card that tilts under the finger: the cover's subject floating over
+   a blurred atmosphere layer, the title in kai, four finishes switchable, four depth
+   sliders live.
+5. The viewer's own save button puts a 1400x1800 PNG into Pictures/白相.
+6. Reopening a card from the warehouse shows its screenshot.
+7. No `INTERNET` permission is requested at any point.
+8. A cover with no separable subject (flat colour, pure graphic) still produces a card
+   through the whole-cover fallback.
+9. Side by side with the PC reference card: the shell chrome, four materials and four
+   depth sliders.
+
+The constants most likely to want a nudge once it is on the phone, so that only numbers
+change: `subjectScale`, `subjectDepth`, `backgroundDepth`, the blur radius, the two
+band tints, `foil`, and `safeArea`.
+
+**Nothing is committed.** The working tree is left as it stands for the owner's
+decision, and `bash.exe.stackdump` is still untracked and unstaged.
+
+## Claude fix: the card viewer explains a blank page (2026-09-28, uncommitted)
+
+The owner installed the previous APK and reported the viewer as 空白的 -- a light,
+apparently empty page under the screen's own header. The warehouse screenshot that came
+with it shows two cards with correct titles and dates and empty thumbnails, which is the
+documented "never saved" state and not a fault.
+
+### What was ruled out, and how
+
+The vendored page was rendered **on the PC**, which is the only way to see it from here.
+`C:\jtmp\cardsim` holds a copy of `index.html`, `style.css`, `app.bundle.js` and
+`card.glb` from `app/src/main/assets/card/`, three synthesised 1024x1536 layers, and a
+`card-config.json` written in exactly the shape `CardConfig.toJson()` produces for a
+Heirloom card. Served with `python -m http.server` and screenshotted with headless
+Chrome at both a desktop and a phone-shaped viewport:
+
+    chrome.exe --headless=new --no-sandbox --enable-unsafe-swiftshader --hide-scrollbars \
+      --window-size=1080,1700 --force-device-scale-factor=3 --virtual-time-budget=15000 \
+      --screenshot=shot.png --enable-logging=stderr --v=1 http://127.0.0.1:8731/index.html
+
+The card renders correctly in both, down to the parameter panel showing the config's own
+numbers (1.18 / 0.42 / 0.14 / -0.28, 光泽 68%, 烫金 selected reading from
+`appearance.finish`). **So the config schema, the vendored bundle and the shipped
+`card.glb` are all correct**, and neither the layer derivation nor the hand-written config
+can be the cause. The same run established that a missing asset is not silent either: a
+404 on `card.glb` produced the page's own red "作品暂时无法加载。" with the failing URL and
+a 重新加载 link.
+
+### A real bug, found by reading the code afterwards
+
+`ViewerMessage` in `ui/card/CardViewerScreen.kt` -- what is shown for Unsupported, Failed
+and Crashed -- drew in `MaterialTheme.colorScheme.onSurface`, which is near-white in this
+app's dark theme, onto a `Box` hard-coded to the vendored shell's light `#FAFAFA`. In a
+dark theme that is not a message, it is a slightly different shade of blank, and it is the
+likeliest reading of what the owner saw. Fixed: fixed colours and a dark scrim, with the
+reason recorded on the block itself so it is not "tidied" back to theme colours later.
+
+### The round's substance: the screen now reports on itself
+
+A WebView cannot be attached to from here and a phone has no console, so the viewer screen
+collects what would otherwise only exist in a log nobody can open, and puts it on screen:
+every request the interceptor answers **with its status** (not only the failures -- "no
+entry for `style.css`" is a different fault from "asked and refused"), `onPageStarted` and
+`onPageFinished`, every console message from the page, every network error with its code,
+and the probe's result. The probe now also creates a WebGL context and reports its version,
+then drops it, because the one thing worth knowing in front of a card that did not appear
+is which of the viewer's two drawing paths was even available. The panel appears whenever
+the status is anything but Ready, and after four seconds of Loading.
+
+**Still unresolved: why the phone's WebView renders nothing.** The log is there to
+separate the hypotheses in one screenshot -- interception refused because the app holds no
+`INTERNET` permission (the main-frame error code names it), a renderer death, a WebView too
+old for the bundle's syntax (the message names the package and version), or a layer that
+404s after all.
+
+### Verification
+
+- `testDebugUnitTest lintDebug assembleDebug` -> BUILD SUCCESSFUL.
+- 50 suites, **404 tests, 0 failures, 0 errors, 0 skipped**, counted from
+  `.asmrplayer-build/app/test-results/testDebugUnitTest/*.xml`.
+- Lint **0 errors, 25 issues**: 12 `UnusedResources` (all pre-existing), 9 `UseKtx`,
+  `AndroidGradlePluginVersion`, `NewerVersionAvailable`, `DataExtractionRules`,
+  `MissingApplicationIcon`. The three strings added this round are all used.
+- `app-debug.apk`, 82,576,108 bytes, at
+  `D:\c\Documents\ChatGPT\.asmrplayer-build\app\outputs\apk\debug\app-debug.apk`.
+- The PC harness is **not** part of the repository and nothing in it is a fixture the app
+  depends on.
+
+## Claude: the blank viewer was two bugs, and both were found on the device (2026-09-28, uncommitted)
+
+The owner authorised `adb` for this round -- "你安装，测试看看" -- which is the only reason
+any of the following is measured rather than inferred. The APK went on, the app was driven
+to the viewer by hand, and the blank page reproduced on the first attempt.
+
+The standing note that the owner installs the APK themselves is **not** withdrawn; it was
+overridden for this round because the fault could not be seen from here any other way.
+
+### How the phone's WebView was inspected
+
+A debug build has WebView contents debugging on, so the page can be attached to over the
+DevTools protocol -- the one view into the renderer that a phone otherwise cannot give:
+
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+$pid = (& $adb shell pidof com.example.asmrplayer).Trim()
+& $adb forward tcp:9333 "localabstract:webview_devtools_remote_$pid"
+(Invoke-WebRequest http://127.0.0.1:9333/json -UseBasicParsing).Content
+```
+
+Two things worth knowing: the socket is `webview_devtools_remote_<pid>`, and **do not use
+port 9222** on this machine -- desktop Chrome already holds it, and the failure looks like a
+successful connection to the wrong browser. `C:\jtmp\cdp.ps1` and `C:\jtmp\cdp-nav.ps1`
+(evaluate an expression / navigate then evaluate) are throwaway, outside the repository, and
+use nothing but `System.Net.WebSockets.ClientWebSocket`. Neither is a fixture the app needs.
+
+### Bug 1: the main frame was being rendered as plain text
+
+`document.documentElement.outerHTML` came back as
+
+```
+<html><head><meta name="color-scheme" content="light dark"></head>
+<body><pre style="word-wrap: break-word; white-space: pre-wrap;">&lt;!doctype html&gt; ...
+```
+
+-- Chromium's plain-text viewer, holding the card's own source. That *is* the blank page:
+the page's HTML on white, in the default `<pre>` colour. `document.contentType` still read
+`text/html; charset=utf-8`, which is why this was not obvious from the outside.
+
+The cause was in `CardAssetServer`: the mime type was passed as `"text/html; charset=utf-8"`
+**and** the charset again as the `encoding` argument. What settled it was navigating the
+same WebView to a URL the same interceptor serves as `image/png` -- a bare type with a null
+encoding -- which rendered as an image at 1024x1536, complete. Every type in both route
+tables is now bare (`MimeHtml`, `MimeCss`, `MimeJs`, `MimeJson`, `MimePng`) and the charset
+comes only from `encoding`, which is the argument the platform has for it.
+
+**Verified on the device.** With this fixed the page renders: masthead, the 景深与构图
+panel, the four 卡面质感 swatches, the 光泽 slider, the footer. No longer blank.
+
+### Bug 2: `assets/card.glb` 404'd, and bug 1 was hiding it
+
+With the page finally parsing, the vendor's own error UI appeared and named the next fault:
+
+```
+作品暂时无法加载。
+fetch for ".../cards/<id>/assets/card.glb" responded with 404: Not Found
+```
+
+`AssetRoutes` mapped a request path to an asset path by prefixing `card/`, which is right for
+three of the four files and wrong for the fourth. The vendored files sit at
+`assets/card/{index.html, style.css, app.bundle.js, card.glb}`; the viewer asks for the
+model as `./assets/card.glb` -- the same shape as a card's own layer paths in
+`card-config.json` -- so the prefix produced `card/assets/card.glb`, which does not exist.
+The table now names both sides explicitly (`Route(asset, mime)`), so the one place where the
+request path and the asset path differ is written down instead of inferred.
+
+Also checked while there: **`icons.data.js` needs no route.** It is inlined into
+`app.bundle.js` as `ICON_TREES`, with a `// icons.data.js` banner above it; the separate
+asset file is a build-time input.
+
+### What is verified, and what is not
+
+- **Bug 1: verified on the device.**
+- **Bug 2: fixed, built and installed, but not re-verified.** The device disconnected before
+  the viewer was reopened -- the owner unplugged it to look at the result himself. The next
+  step is to open a card and see whether the card itself draws, and whether Save produces a
+  PNG in `Pictures/白相`.
+
+### A build-output trap worth repeating
+
+`.asmrplayer-build/app/outputs/apk/debug/app-debug.apk` had been cleaned away between rounds
+and had to be rebuilt. `app/build/outputs/apk/debug/app-debug.apk` is still the **Sep 25**
+build from before the card feature existed, and installing it would look exactly like the
+bug coming back. Install from `.asmrplayer-build`, and check the size
+(82,576,108 bytes) before trusting it.
+
+### Verification
+
+- `assembleDebug` -> BUILD SUCCESSFUL. `testDebugUnitTest lintDebug` -> BUILD SUCCESSFUL.
+- 50 suites, **404 tests, 0 failures, 0 errors, 0 skipped**, counted from
+  `.asmrplayer-build/app/test-results/testDebugUnitTest/*.xml`.
+- Lint **0 errors, 25 warnings**, unchanged: 12 `UnusedResources`, 9 `UseKtx`,
+  `AndroidGradlePluginVersion`, `MissingApplicationIcon`, `NewerVersionAvailable`,
+  `DataExtractionRules`.
+- **Nothing is committed.** The tree is left as it stands for the owner's acceptance.
+
+## Codex: the card viewer becomes an Android surface (2026-09-29, uncommitted)
+
+The owner confirmed that the card itself now renders, then named three presentation
+problems: the viewer looked like a jump to an unrelated white website, all of its
+adjustment UI stayed open, and the horizontal gesture only produced a small decorative
+tilt rather than letting a card turn slowly from its front to its back. This slice fixes
+those three without replacing the reference Three.js renderer or changing card files.
+
+### One renderer, two shells
+
+`CardAssetServer.viewerUrl()` now loads the card document with `?embedded=1`. A tiny head
+selector adds `app-embedded` before CSS is parsed (avoiding a white-paper flash while the
+module loads), so the same assets retain the complete desktop atelier when opened without
+the query but become an in-app surface in Android:
+
+- the canvas fills the window over a dark, lightly card-tinted gradient;
+- the desktop wordmark, collection label, stage note and footer are removed;
+- information and save remain small glass actions in the top-right;
+- the title, front/back selector, material and depth controls become a frosted bottom
+  workbench; one glass sliders button expands/collapses it with scale and translation;
+- the workbench starts closed, becomes `aria-hidden` while closed, and closing it also
+  closes the deeper depth panel;
+- `CardViewerScreen` no longer draws a second app header above the page. The WebView is
+  full-bleed and a 44 dp Compose-native glass back button sits above it with safe-drawing
+  padding, so the exit remains usable during a slow load or renderer crash;
+- `CardStudioScreen` applies safe-drawing insets only to warehouse/form pages. The viewer
+  owns its edge-to-edge canvas and safe overlays.
+
+The transparent WebGL clear colour is embedded-only. The GLB, layer textures, shaders,
+finish uniforms, depth values, fallback renderer, export resolution and intercepted file
+routes are unchanged. This distinction replaces the now-inaccurate phrase "vendored
+unmodified" in D-025: the render engine is still vendored; the Android shell and gesture
+semantics are intentionally adapted.
+
+### Direct manipulation now turns the card over
+
+The old pointer path clamped horizontal rotation to about `+/-0.65` radians, so it could
+show foil but could never reach the card's edge. The new path applies `0.0125` radians per
+horizontal pixel over `-PI..PI`. While the pointer is down the target follows every move;
+crossing `PI/2` updates the front/back state immediately. Only after release does it settle
+to the nearest complete face (0 or `+/-PI`). Vertical pitch remains deliberately smaller
+(`+/-0.48`) and is softened on release. Keyboard rotation follows the same full range.
+Animation easing is faster only while dragging, so the card does not trail far behind the
+finger, while idle/settle motion remains smooth. No gesture causes texture work or layout.
+
+### Verification
+
+- `node --check app/src/main/assets/card/app.bundle.js`: passed.
+- A local copy of the exact viewer files was served to the hidden in-app browser and
+  checked at a temporary **390 x 844** viewport. The card filled the portrait stage; the
+  workbench started closed; opening it produced the frosted bottom sheet without leaving
+  the page; closing it restored an unobstructed stage.
+- A left drag from x=330 to x=50 changed the viewer's semantic state from `front=1,
+  back=0` to `front=0, back=1` and rendered the complete back face. The browser console
+  contained no warnings or errors.
+- `testDebugUnitTest`: **404/404 passed**, 50 suites, no failures/errors/skips. This was
+  run after the Kotlin shell changes.
+- `lintDebug`: **BUILD SUCCESSFUL**, 0 errors / 25 warnings, unchanged from the incoming
+  Claude slice.
+- `git diff --check`: clean apart from the checkout's standing LF/CRLF notices.
+
+The browser viewport override was reset after the check and the throwaway server is not a
+repository dependency. No Android device run was performed in this slice. The safest next
+action is therefore a visual phone pass for (1) status-bar clearance of the native back and
+web information/save actions, (2) finger-to-card response during a deliberately slow drag,
+(3) the panel's maximum height on the owner's font scale, and (4) Save after the embedded
+shell change. Do not discard the rest of the uncommitted Claude card-workshop tree.
+
+## Codex hotfix: the embedded canvas was zero pixels high (2026-09-29, uncommitted)
+
+The owner installed/opened the preceding viewer and reported that the card had disappeared
+completely. That report was correct. The browser harness used in the preceding slice had a
+modern viewport implementation and therefore missed a real System WebView incompatibility.
+
+The connected phone was inspected without installing another APK. Its current page had
+loaded all card files and was healthy from Three.js's point of view:
+
+- `window.__holo.ready=true`, no error and no CSS fallback;
+- the root was visible with the expected GLB child;
+- the renderer was making 6 calls and drawing 414 triangles per frame;
+- textures, title, finish and config were all present.
+
+But the decisive geometry was `stage height=0`, `canvas=814 x 0` backing pixels and
+`renderer size=407 x 0` CSS pixels. `innerHeight` was correctly 904. The same failure
+compressed the open controls to 34 px -- only their padding and the gloss row seemed to
+remain. The culprit was the new `100svh` embedded height: this WebView recognises the unit
+but resolves it to zero in the edge-to-edge Android host. Substituting `100vh` and a
+percentage chain was tested and also resolved to zero, so a CSS-only fallback is not safe.
+
+`app.bundle.js` now calls `syncEmbeddedViewport()` before `init()`. It takes the maximum
+of `visualViewport.height` and `innerHeight`, publishes exact pixel CSS variables for the
+stage and both control-panel limits, and refreshes them on window/visual-viewport resize.
+The embedded CSS consumes those variables. `CardViewerAssetContractTest` asserts that the
+measurement exists, runs before scene construction and is the value the embedded shell
+uses, so replacing it with a viewport unit is now a failing test rather than a phone-only
+regression.
+
+For direct evidence, the exact measured pixel values were temporarily injected into the
+already-running installed page through its local WebView DevTools socket. The stage and
+canvas immediately changed from `407 x 0` to `407 x 904`, and a subsequent device screenshot
+showed the full generated card again with the native back, information/save and collapsed
+controls around it. That injection was ephemeral; it changed no app files or card data.
+
+The updated source was also served in the local 390 x 844 browser harness: the CSS variable
+was `844px`, stage/canvas were 390 x 844, the full card rendered and the console had no
+warning or error. **The source fix has not been installed on the phone**, following the
+owner's standing instruction that they execute/install unless explicitly asking Codex.
+After they rebuild/install, reopening any card is the only remaining visual acceptance
+step for this regression.
+
+## Claude: the page's own controls now know where the status bar is (2026-09-29, uncommitted)
+
+The owner asked for a review of the Codex slice above and then to continue with the cards.
+The review found the slice intact, the tree green, and one hole in it -- the same one Codex
+had itself named as the first thing a phone pass should look at.
+
+### What the review found
+
+- **The two asset-server fixes are preserved.** `CardAssetServer` still answers with bare
+  mime types and still reads the model from an explicit `Route(asset, mime)` table, so
+  `assets/card.glb` resolves to `card/card.glb`. Codex added the reasoning to the comments
+  rather than changing the behaviour. Bug 2 therefore remains **fixed in source and
+  unverified on the device**, exactly as the previous slice left it.
+- **The bundle patches are localised and safe.** `syncEmbeddedViewport()` is defined at
+  `app.bundle.js:31090` and called at `:31106`, before `async function init()`; the
+  `if (renderer) resize()` on the line above it is legal because `var renderer` is declared
+  at `:31116` and hoisted, and `function resize()` at `:31677` is hoisted too. No
+  temporal-dead-zone fault. The gesture change is at `:31819` (`0.0125` rad per pixel) and
+  `:31828` (`PI/2` face switch). The save path is untouched: `saveCard()` at `:31933` still
+  builds the same `data:image/png;base64` anchor at `:31956`, so `CardSaveBridge`'s
+  `HTMLAnchorElement.prototype.click` hook still catches it.
+- **The recorded test count was one run stale.** Codex's section above reports "404/404,
+  50 suites"; the tree actually carries **51 classes and 405 tests**. `CardViewerAssetContractTest`
+  is stamped 19:51 and that section 19:47, so the numbers were written before the test
+  existed and it had never been executed. It passes, but the ordering assertion it makes
+  about `syncEmbeddedViewport()` is only now known to hold.
+- **Nothing is committed**, and no file outside the three card sources, the vendored
+  assets, the new test and the documents was touched: `git status` still lists the same 15
+  modified and 7 untracked paths as the incoming slice.
+
+### The hole: the page was laying out its own controls from a value Android does not give it
+
+Every fixed position in the embedded shell was offset from `env(safe-area-inset-*)`, in
+eleven places (`style.css:935,936,960,961,982,983,984,1056,1057,1058,1077` as they stood).
+That is a browser feature. A WebView is not obliged to resolve it, Android System WebView
+in an edge-to-edge app reports zero for it, and this app *is* edge-to-edge
+(`MainActivity.kt:30` calls `enableEdgeToEdge()`, and `AsmrPlayerApp.kt:220` zeroes the
+Scaffold's content insets for the card studio). The page therefore drew its glass
+information and save buttons 14 px from the physical top of the screen -- under the status
+bar -- while the Compose-native back button beside them correctly cleared it. The two rows
+were meant to be one row.
+
+The host is the side that knows the answer, so the host now says it. `CardViewerScreen`
+measures `WindowInsets.safeDrawing` -- deliberately the same inset the native back control
+already uses, so the two cannot drift apart -- converts it to dp (a WebView's CSS pixel is
+a dp, so no conversion is owed), and publishes it as `--safe-top/right/bottom/left` on
+`document.documentElement` through `evaluateJavascript`. The stylesheet keeps `env()` as a
+*second* source rather than dropping it:
+
+```css
+--inset-top: max(var(--safe-top, 0px), env(safe-area-inset-top, 0px));
+```
+
+so whichever of the two knows, the larger wins, and with neither the offsets fall back to
+exactly the constants they had before. Every use site became `calc(var(--inset-X) + Npx)`,
+which is identical to the old `max(Npx, 0)` when the property is absent. The top glass row
+is now 44 px to match the native control it sits beside. **This change cannot move a
+correct layout**: it only replaces a zero with a measured value.
+
+The script is re-published on every status change, not once, because the properties live in
+the document and a page that has just loaded has none of them.
+
+### Verification
+
+- `testDebugUnitTest assembleDebug` -> BUILD SUCCESSFUL.
+- **409 tests, 52 classes, 0 failures, 0 errors, 0 skipped**, counted from
+  `.asmrplayer-build/app/test-results/testDebugUnitTest/*.xml`. That is the incoming 405
+  plus the four cases this slice adds: three in the new `CardViewerSafeAreaTest` and one
+  CSS case in `CardViewerAssetContractTest`.
+- `lintDebug`: **0 errors, 25 warnings**, the same 12 `UnusedResources`, 9 `UseKtx`,
+  `AndroidGradlePluginVersion`, `MissingApplicationIcon`, `NewerVersionAvailable`,
+  `DataExtractionRules` as the incoming slice.
+- The fresh APK is at `.asmrplayer-build/app/outputs/apk/debug/app-debug.apk`, 82,811,819
+  bytes built 2026-09-29 20:17. **Both this
+  slice and the one above it are uninstalled**: `app/build/outputs/apk/debug/app-debug.apk`
+  is still the stale Sep 25 build, and installing that would look exactly like the bugs
+  coming back.
+- **No device and no `adb` was touched.** The owner installs.
+
+### What the phone pass still has to answer
+
+In order, because each one gates the next:
+
+1. Does a card draw at all? This is bug 2 plus the `svh` regression together, and neither
+   has been seen on the device since it was fixed.
+2. Are the page's information/save buttons clear of the status bar and level with the
+   native back control?
+3. Does Save put a 1400x1800 PNG into `Pictures/白相/`, after the embedded shell change
+   moved the button that triggers it?
+4. Does the workbench expand, and does a left drag turn the card over rather than tilt it?
+5. ~~Does a freshly made card show a picture in the warehouse? It will not: the tile reads
+   `card.png`, which only the viewer's own save writes, so a card that has been built but
+   never saved is an empty frame.~~ **Withdrawn in the next slice**: the tile now reads
+   `preview.png` when no capture exists, and every card is built with one, so a card has a
+   face from the moment it is made. See "the four card asks" below. This was the only item
+   on this list that described a known-wrong behaviour rather than an unknown one.
+
+## Claude: the four card asks -- a picture at once, a collection room, pinch, and the card as the cover (2026-09-29, uncommitted)
+
+The owner asked for four changes in one message and then answered four questions about
+them before any code was written:
+
+> 1、立刻有图；2、设置中提供闪卡仓库入口，并且优化闪卡仓库，让他更具拓展性和想一个收藏室；
+> 3、闪卡欣赏页，闪卡能否支持收缩放大；4、能否在歌词详情页现在的"闪卡"修改为这样的效果，
+> 如果该音频已经有了对应的闪卡，就直接将闪卡充当封面（具有闪卡的效果，可以翻转、收缩放大）
+
+His four answers, which the slice is built to:
+
+- **The fourth ask lands on the full player's cover, not the lyrics page.** The lyrics
+  surface already opens by swiping the artwork left, so replacing *that* cover would
+  take away the only way into the lyrics. The cover that can afford to become a card is
+  the one on the page before the lyrics.
+- **The cover card is always live.** He chose the WebGL card knowing it costs a running
+  `requestAnimationFrame` loop, over a still capture of the same card.
+- **The warehouse is a full collection room**: grouping, search, sort and batch
+  operations.
+- **All four land in one APK**, installed once rather than four times.
+
+### 1. A card is never a blank frame
+
+The incoming phone-pass item 5 described the one known-wrong behaviour left in the tree: a
+card that had been built but not saved to the picture library drew as an empty tile,
+because the tile read `card.png`, and only the viewer's own save writes that file.
+`PRODUCT_SPEC.md` had documented it as intended, which is not the same as it being right.
+
+`CardLayerFactory.previewOf` now draws the card's face from the same three layers the
+viewer loads -- background, subject, typography, in that order -- and `build` writes it
+beside them as `preview.png`, in the same pass, while the three bitmaps are still alive:
+`writePng` recycles each one, and the preview is composited from all three, so it has to
+be struck before the first of them is released. It is 512x768, exactly half the card's
+width and
+height, which is a quarter of its pixels: enough that a tile and a half-screen preview are
+sharp, and small enough that a hundred cards is a few megabytes rather than a gigabyte.
+`CardSummary.thumbnail` is the capture when one exists and the preview otherwise, so the
+two states are one field and the room never has to know which it is looking at.
+
+The preview is deliberately not a substitute for the capture. It is the card lying still:
+no foil sweep, no tilt, no lighting, no depth. That is what makes it useful as an index --
+two cards of the same song differ in it by their copy, which is the thing the owner is
+looking for when he scans the room -- and it is why the viewer's own save still writes
+`card.png` and still means something different.
+
+### 2. The warehouse is a collection room
+
+The room is reached from 设置 -> 闪卡 as well as from the player's tool cluster, and
+`AsmrPlayerApp` seeds it differently depending on which door was used. From the player the
+seed is the item that was open; from Settings there is deliberately no seed at all,
+because a room you walk into to look at your collection should not start a new card from
+whatever happened to be playing an hour ago. The seed is *captured* when the studio is
+opened rather than read live -- the id so it survives a rotation, the item itself so the
+form is exact until then -- which is also what stops a configuration change from silently
+stripping the `mediaId` off a card that is being composed.
+
+Three things make it a room rather than a grid:
+
+- **Shelves.** `CardShelves.shelve` partitions the listing into 置顶 first, then one shelf
+  per series, then the ungrouped remainder, each sorted independently, and the grid
+  renders a full-width heading per shelf. The drawer is the card's own `series` field --
+  the one the compose form already fills from the song's album -- so shelving needed no
+  new data, no new field and no migration. The headings are a sealed `ShelfHeading` rather
+  than sentinel strings, because the first draft used `"\u0000pinned"` as a marker and
+  would have rendered it literally.
+- **Search and sort.** A query box filtering title and series, and three orders -- newest,
+  oldest, title -- applied within each shelf rather than across the whole set.
+- **Batch.** A long press enters selection mode; the bar offers pin/unpin and delete for
+  everything selected. Batch pin is deliberately *one* control: it reads the selection and
+  pins or unpins the whole of it, so the label can always describe what the button will
+  do. A per-card toggle would have been a button that says 置顶 while unpinning some of
+  what is selected. Batch delete goes through the same repository call as deleting one
+  card, so there is one implementation of "delete a card" and one place where the
+  path-safety check lives.
+
+Everything the room shows is recomputed from the directory on every read. Pinning is a key
+in the card's own `meta.json`; there is no index file, no Room row and no cache that can
+disagree with the files on disk. Deleting a card removes the directory `CardRepository`
+created and nothing else, which keeps `AGENTS.md`'s rule -- deletion means removing an
+index entry, never user media -- true by construction.
+
+`CardRepository` validates every path segment it joins (`isSafeSegment` rejects `..`, `.`,
+empty, and anything containing a separator or a NUL), and `CardRepositoryTest` pins that
+down, because the delete path is the one place in this feature where a bug reaches the
+filesystem.
+
+### 3. A card can be pinched
+
+The vendored page's zoom was already there and already full-resolution: `resize()` divides
+the camera frustum by `zoom` and re-renders, so magnifying costs no sharpness. It was
+reachable only from a `wheel` listener, and a WebView never delivers a wheel event -- on
+the phone the framing slider in the workbench was the only way to change it, and that nudge
+was clamped to 0.82-1.05.
+
+`CardGesture` is a second injected script that turns a two-finger pinch into the wheel
+events the page already handles, rather than into a CSS transform of its own. One zoom
+implementation, one source of truth, and the card stays resolution-independent.
+
+Two details are load-bearing and both are in the code comments:
+
+- **The listeners are on `document` in the capture phase.** The page's own handlers are on
+  `#stage`; a listener on the same element is queued *behind* the ones already registered
+  there, so it could not stop them. A capture listener on an ancestor runs first and can.
+  The script ends the page's drag with a synthetic `pointerup` before it starts magnifying,
+  because the page tracks "a finger is down" in a single flag shared by all pointers --
+  without that, the second finger would keep turning the card while the first is trying to
+  zoom it.
+- **The clamp is widened, and the two copies are asserted equal.** The page's own wheel
+  clamp went from 0.82-1.05 to 0.72-2.4 -- the old range was a framing nudge for a desktop
+  mouse, not a zoom. `CardGesture.MinZoom`/`MaxZoom` have to duplicate those numbers in
+  Kotlin, and `CardGestureTest` reads the clamp straight out of `app.bundle.js` and
+  compares, so a future re-vendor that changes one and not the other fails the build
+  instead of being discovered as a pinch that stops moving partway.
+
+A double tap resets to 1, which is the gesture the owner will reach for after
+over-zooming and the only one that gets him back to the card's own framing.
+
+### 4. A song's card becomes the cover
+
+`PlayerDetail` asks the repository whether the item on screen has a card
+(`CardRepository.findForMedia`, matching on `mediaId`) and, if it does, mounts
+`CardSurface` in the artwork slot instead of the Coil image. `mediaId` is the
+`LibraryItem.id` -- the document URI's identity -- not the title, so a renamed file keeps
+its card and two different songs with the same name never share one.
+
+The card is **live**, which is what the owner chose: the page's idle drift and its response
+to touch both keep running wherever the card is, so the cover is the same object as the
+card rather than a picture of it. `CardSurface` was split out of the viewer screen for
+this: it owns everything true of a card wherever it appears (the WebView's lifecycle, the
+insets, the gestures, the save bridge) and none of the chrome, so the viewer puts a back
+control over it and the player puts nothing over it at all.
+
+`bare` mode is what makes that possible. `CardAssetServer.viewerUrl(..., bare = true)` adds
+`?bare=1`, and `index.html`'s inline bootstrap turns it into an `app-bare` class before the
+stylesheet link -- the same mechanism `?embedded=1` already used, and for the same reason:
+a class applied after first paint would show the save button on top of the cover for a
+frame, which reads as a fault rather than as a loading order. The stylesheet hides the
+masthead, the header actions, the controls toggle and the artwork bar outright. A cover
+that offers to export itself is offering something the owner did not ask it for.
+
+Two URL-level tests guard the parameter, because `bare` is read before CSS parses and a URL
+that carries it by accident is a card with no save button and no way to tell why.
+
+**The cost is real and was accepted.** A card in the cover slot means a WebView and a
+Three.js scene alive on the full player page. `CardSurface` pauses the WebView on
+`ON_PAUSE` and on dispose, so it stops when the app is not in front; it does not stop when
+the owner is merely looking at another screen with the player open. That is the trade the
+owner picked, and if it turns out to drain the battery in use, the one change is to mount a
+still capture in the cover slot instead -- the preview and the capture both already exist.
+
+### The lyrics page keeps a 闪卡 row
+
+Because the cover on the *player* is now the card, the lyrics surface no longer has a cover
+to swipe. Its 闪卡 entry is an explicit row in the tool cluster rather than a gesture, which
+is also the honest control: the swipe was a discoverability accident that happened to work.
+
+### Verification
+
+- `testDebugUnitTest lintDebug assembleDebug` -> BUILD SUCCESSFUL.
+- **438 tests, 56 classes, 0 failures, 0 errors, 0 skipped**, counted from
+  `.asmrplayer-build/app/test-results/testDebugUnitTest/*.xml`. Incoming was 409/52; this
+  slice adds `CardGestureTest` (4), `CardMetaTest` (10), `CardRepositoryTest` and
+  `CardAssetServerTest` (4), and extends `CardLayerGeometryTest` with the preview's
+  geometry and `CardViewerAssetContractTest` with the bare-mode ordering case.
+- `lintDebug`: **0 errors, 26 warnings**. The one warning this slice adds is a `UseKtx` on
+  `CardLayerFactory.previewOf`'s `Bitmap.createBitmap`; the other 25 are the incoming set,
+  and the 12 `UnusedResources` are all pre-existing strings.
+- The fresh APK is `.asmrplayer-build/app/outputs/apk/debug/app-debug.apk`, 83,707,335
+  bytes built 2026-09-29 21:15.
+  `app/build/outputs/apk/debug/app-debug.apk` is still the stale Sep 25 build (73,353,000
+  bytes, 14:38) and installing that would look exactly like every bug in this log coming
+  back.
+- **No device and no `adb` was touched.** The owner installs.
+- `git diff --check` clean; `bash.exe.stackdump` remains untracked and unstaged.
+
+### What the phone pass has to answer
+
+The five items from the slice above still stand, and these are new:
+
+6. Does a card made now show a picture in the room **before** it has ever been saved? It
+   should: that is what `preview.png` is for.
+7. Does the room's shelf structure read? Specifically whether 置顶-above-everything is the
+   right priority, and whether a card with no series belongs in its own shelf at the bottom
+   or should be folded into one.
+8. Do the batch controls do what their labels say -- in particular, does pin act on the
+   whole selection in one direction rather than flipping each card?
+9. Does a pinch zoom the card on the viewer, and does a double tap put it back? This is the
+   one change here with **no** automated coverage of how it feels: the clamp, the constants
+   and the script's structure are tested, the gesture itself is not.
+10. On the full player, does a song with a card show the card instead of its artwork -- and
+    does it look like a cover there, with no save button and no panel over it? A song with
+    no card must be unchanged.
+11. Does the always-live cover cost more than it is worth? This is the question the owner's
+    answer to Q2 deferred rather than closed.
+
+### Declared, so nobody goes looking
+
+- Cards made **before** this slice have no `mediaId` (the key did not exist) and no
+  `preview.png`, so they match no song and show an empty tile until they are re-saved or
+  re-made. `CardMeta.parse` falls back on every field rather than failing, and
+  `CardRepository.findForMedia` simply finds nothing, which is the correct answer for a card
+  that does not record a song. D-028 records the decision not to guess a link from the
+  title.
+- The room's own visual tuning -- tile size, shelf heading weight, how the selection bar
+  sits over the grid -- is unexercised on a device.
+- The model/API path behind the owner's off-by-default switch is still absent by decision,
+  and still **no `INTERNET` permission** has been added.
+
+---
+
+## Claude: the card cover is asked for, is the card's own shape, and the entry says what it does (2026-09-29, uncommitted)
+
+The owner's message, verbatim:
+
+> 1、闪卡封面要可以随时取消，切换回原来的封面；切换为 闪卡封面时，原先封面的黑框要去除。3、"闪卡制作"
+> 改为"闪卡"，不会跳转到闪卡库，没有闪卡的音频点击时会直接进入制作闪卡页面。有闪卡的音频点击会切换闪卡
+> 封面；
+
+It arrived as three numbered items 1, 3, 3 -- there is no item 2, and nothing is missing
+from the list; the numbering is the owner's. His answers to the questions this raised:
+
+- **黑框 means** 「封面容器本身的细描边 + 方形外框」. He did **not** mean the near-black
+  rectangle the card leaves exposed, which is what the first reading of the phrase suggested
+  and what an earlier question in this log asked about.
+- **默认行为**: 「默认原封面、闪卡每次都必须手动触发，或者选择"封面默认闪卡"（这里指的是全播放器
+  中的封面）」 -- the default is the original artwork, the card is triggered by hand every
+  time, and 封面默认闪卡 is a setting, scoped to the full player's cover.
+- **The button's text**: 「显示「原封面」」 when the card is showing.
+
+### 1. The card cover is a choice, and the setting is only a default
+
+`AppPreferences.cardCoverByDefault` (off), surfaced on the Cards page of Settings as
+封面默认闪卡. In `PlayerDetail` the choice is a `Boolean?` keyed to the item -- null until he
+touches the toggle -- and the three values fold in `showsCardCover`: a song with no card
+never shows one, otherwise his choice wins, otherwise the setting decides. The function
+takes plain values rather than a `CardSummary?` so it is testable without a card on disk;
+`CardCoverChoiceTest` is the six cases.
+
+**A card built from the player does not switch the cover to itself.** This is the literal
+reading of 「闪卡每次都必须手动触发」, and it is the one judgement call in this slice: the
+studio reports the new card up and the player re-reads it, but the cover stays the artwork
+until he presses 闪卡. If he meant "show me the card I just made on this song", it is one
+line in `AsmrPlayerApp`'s `onCardCreated` and the paragraph in D-030 is what to change.
+Item 6 of the phone pass below asks about it directly.
+
+### 2. The black frame is the slot's shape, and it is gone
+
+The cause was not a colour. The vendored page's `resize()` fits the card to whatever
+viewport it is given, so a **square** slot leaves a 2:3 card at ~58% of the width with the
+page's own `#0d0e13` filling the rest. The owner's「方形外框」 is exactly that: the square
+was Kotlin's, so the fix is Kotlin's, and no vendored line was touched.
+
+`Modifier.artworkSized` gives the card a 2:3 box at the same vertical budget the square
+had, and `PlayerArtwork` draws the card branch with **no** hairline, **no** clip and **no**
+artwork gradient -- those are the artwork's frame, and a card is not a picture in it. The
+2:3 is `CardLayerGeometry.CanvasAspect`, derived from the canvas the layers are built on;
+`CardStudioScreen`'s private `CardAspect` and `CardComposeForm`'s were both replaced by it
+in this slice, so the number now has one home instead of three copies. The existing
+`CardLayerGeometryTest` gained a case pinning it to the canvas.
+
+The artwork branch is otherwise untouched: the same square, the same 1.1dp hairline, the
+same gradient, the same left swipe into the lyrics.
+
+### 3. The entry does one of three things, and the song's page opens the form
+
+闪卡制作 became 闪卡 and the row's **label states what pressing it does**:
+
+| The song | The label | Pressing it |
+|---|---|---|
+| no card | 闪卡 | the form, seeded from this song |
+| has a card, showing the artwork | 闪卡 | the cover becomes the card |
+| has a card, showing the card | 原封面 | the cover goes back |
+
+`CardStudioScreen` gained `startAtCompose` (from a song) and `onCardCreated`. Opened from a
+song with no card it starts on the form, and `composeIsRoot` keeps back from the form
+leaving the workshop rather than opening a room that was not on the way in; the room's own
+新建 clears it, because from then on the room is behind him. Opened from Settings it still
+starts on the room.
+
+**Back from the viewer still returns to the room**, including on the direct-from-a-song
+path, so that path costs two backs to leave. The alternative -- back to the form -- was
+rejected because the form is a dead end that invites building the same card twice, and
+because that is already what the room-first path does. This is the second judgement call
+in the slice and item 7 below asks about it.
+
+### Verification
+
+- `testDebugUnitTest lintDebug assembleDebug` -> BUILD SUCCESSFUL.
+- **442 tests, 57 classes, 0 failures, 0 errors, 0 skipped**, counted from
+  `.asmrplayer-build/app/test-results/testDebugUnitTest/*.xml`. Incoming was 438/56; this
+  slice adds `CardCoverChoiceTest` (3) and one case on `CardLayerGeometryTest`.
+- `lintDebug`: **0 errors, 26 warnings** -- the incoming set, unchanged. The slice did add
+  a `ModifierFactoryExtensionFunction` warning by writing `artworkSized` as a plain
+  function, so it was written as a `Modifier` extension instead; `Modifier` is now its
+  receiver rather than a parameter it ignores.
+- The fresh APK is `.asmrplayer-build/app/outputs/apk/debug/app-debug.apk`, **83,753,067
+  bytes** built 2026-09-29 21:59. `app/build/outputs/apk/debug/app-debug.apk` is still the
+  stale Sep 25 build (73,353,000 bytes, 14:38) -- installing that would look exactly like
+  every bug in this log coming back.
+- **No device and no `adb` was touched.** The owner installs.
+- `git diff --check` clean; `bash.exe.stackdump` remains untracked and unstaged. HEAD is
+  still `9d11202` -- nothing in this slice or the one above has been committed, per the
+  standing rule that the owner confirms on the phone first.
+
+### What the phone pass has to answer
+
+Items 6-11 from the slice above still stand. This slice adds:
+
+12. **After making a card from a song's own page, is the cover still the artwork?** It will
+    be -- see §1 -- and this item exists to find out whether that is right. If the answer is
+    "it should have shown me the card", the change is one line.
+13. Does a card in the cover slot now fill the slot, with no dark bars down the sides and no
+    hairline around it? And does the artwork still look exactly as it did?
+14. Do the three label states read correctly -- in particular, is 原封面 obviously a way
+    *back* rather than a second thing to press?
+15. From a song with no card, does 闪卡 land on the form directly? And does back from the
+    form leave the workshop, rather than opening the room?
+16. Does 设置 -> 闪卡 -> 封面默认闪卡 survive a restart, and does turning it on make a song
+    with a card open on the card while leaving every song without one alone?
+
+### Declared, so nobody goes looking
+
+- **The setting is live; the per-song choice is not written to disk.** `AppPreferences.settings`
+  is a `Flow` collected for the app's lifetime, so `libraryState.cardCoverByDefault` follows
+  the toggle and the player picks it up the moment it is turned. It only shows through for a
+  song the owner has not touched the toggle on: his choice outranks it in both directions
+  (`showsCardCover`), which is what D-030 is about. The choice itself lives in
+  `rememberSaveable`, so it survives a rotation and is a fresh question after a cold start --
+  the intended behaviour, not a gap.
+- The 闪卡 row's icon is still `Icons.Default.Style` in all three states. Only the label
+  changes; a second icon for the way back was not asked for and would need its own decision.
+- Nothing in this slice touches the files a card is made of, `meta.json`, the room's
+  shelves, or the vendored bundle. Cards made before this slice behave identically.
+
+## Claude: the player page takes the reference layout, and the colour comes from the cover (2026-09-29, uncommitted)
+
+The owner's ask, verbatim: *"现在我们要进行住播放器界面的优化（不影响原有的功能，但是是主播放器页面的
+UI优化），请完全参考下面的布局（原来的闪卡和沉浸式歌词的进入方式改为收纳到最右下角的那三个点的图标中，
+并修改这个图标）其余完全照抄，特别是它背景取色的方式"* -- with six portrait screenshots of a
+reference player. Everything below is that layout, plus the three questions the pictures forced.
+
+### What the six pictures actually asked for
+
+Read off them, top to bottom: the line being sung in green bold over everything; the title large
+and white with the artist dimmed under it and a `((•))` mark at the top right; one large
+rounded-rectangle cover inset from both edges; the current lyric line bright and the next one dim
+below the cover; a thin progress bar with elapsed left and total right; three transport buttons;
+and a bottom row of five evenly spread glyphs -- repeat, timer, waveform, queue, and a
+horizontal ellipsis. Background: a big soft colour wash taken from the cover, under a light scrim.
+
+Two things in that row did not exist anywhere in this repository. **循环模式** and **定时关闭**
+were asked as questions rather than assumed:
+
+| question | owner's answer |
+| --- | --- |
+| the bottom row's five slots -- three of them have nothing behind them | **完全照抄语义，缺的三个都做** |
+| the green lyric banner above the title | **照抄** |
+| the transport row in the reference is three buttons, ours is five | **照抄三个按钮** |
+
+So repeat and the sleep timer are new features, not decoration; the waveform opens the immersive
+lyric scene, which is this app's only visualiser surface; and ±10 秒 moved into the ⋯ panel so
+the button count could drop to three without losing the function.
+
+### The colour, which is the part he singled out
+
+The old backdrop was the cover itself, scaled 1.18, at 34% alpha, blurred 46 dp **over black**.
+That is why the page read as black with a hint of texture: the cover's own colours were being
+multiplied by a near-black page. It never used `CoverAccentLoader`, which was already in the
+repository, already bounded, already cached, and already doing exactly this extraction for the
+wall's ambient light.
+
+`ui/PlayerBackdrop.kt` (new) now draws three layers: a diagonal gradient of up to four
+population-weighted palette colours taken from `CoverAccentLoader.resolve`; the cover over it at
+1.35 / 50% / 56 dp blur, contributing texture rather than shape; and a much lighter scrim
+(`0x33000000` at the top, transparent through the middle, `0x9906090D` at the foot) so the text
+stays readable without the colour being crushed. With no cover and no palette it falls back to
+`artworkBrush(item.paletteSeed)`, the wall's deterministic placeholder, so nothing lands on a
+blank page. **This is D-033.**
+
+### Where the new state lives, and why it is not in the UI
+
+`PlaybackConnection.disconnect()` fires on `ON_STOP`, so a countdown kept in the player page
+would be cancelled by the owner locking the screen -- which is precisely the moment a sleep timer
+has to survive. The timer therefore lives in `PlaybackService`:
+
+- `core/media/SleepTimerSession.kt` (new) is the wire. Arming is a `SessionCommand` sent with
+  `sendCustomCommand` and answered with a `SessionResult`; reading it back is **session extras**,
+  because extras are the only part of a Media3 session a controller can read on connect without a
+  round trip. The service publishes the deadline in `onCreate` before anyone has connected, so a
+  UI that arrives late reads the timer rather than starting out believing there is none.
+- `MediaSession.Callback.onConnect` grants the command **on top of** the defaults
+  (`defaults.availableSessionCommands.buildUpon().add(...)`). Building a fresh set there would
+  take away every command the controller needs to drive playback, which would have looked like
+  the player page having lost its controls.
+- `PlaybackConnection` gained a `MediaController.Listener.onExtrasChanged` that republishes. The
+  500 ms position ticker alone was almost enough -- and is not, because a *paused* player does not
+  tick, and arming a timer while paused is exactly what he will do in bed.
+- `SleepTimerArmedKey` carries the duration chosen alongside the deadline. A countdown cannot say
+  which row of a list is the live one, because it is always slightly less than the duration
+  picked; carrying the choice makes the selected row exact rather than inferred.
+
+Repeat is simpler: `Player.repeatMode` already exists, the session already lives in the service,
+so `PlaybackState.repeatMode` is just read back off the player and is durable across a locked
+screen and a UI rebuild by construction. `RepeatMode` keeps Media3's ints out of the UI. **D-034.**
+
+### The layout, and the one piece of arithmetic in it
+
+`ui/PlayerDetail.kt` was rewritten around the reference's column -- banner, header, cover, lyric
+pair, progress, transport, tool row -- with the pieces extracted to `ui/PlayerLyrics.kt`
+(`lyricPairAt`, the green banner, the two-line block) and `ui/PlayerBackdrop.kt`.
+
+The bottom row is four glyphs and the collect button, and the button is the *fifth slot of that
+row* rather than a thing floating near it. That works without touching `GlassToolCluster`'s
+layout at all: its trigger sits in a `Column` aligned `BottomEnd` with 16 dp padding, so its
+centre is 16 + 21 dp above the inset box's foot; a row of four 42 dp boxes with
+`padding(start = 16.dp, end = 58.dp, bottom = 16.dp)` and `Arrangement.SpaceEvenly` puts the
+trailing gap at exactly `42 + g` where `g = (width - 168) / 5` -- the same gap as between two
+icons. The space between icon four and the button therefore reads as a fifth slot.
+
+`GlassToolCluster` gained `triggerIcon` and `triggerRotationDegrees`, **both with defaults that
+are the wall's current values**, so the wall renders byte-identically. The player passes
+`Icons.Default.MoreHoriz` and `0f`: the 45-degree turn exists because the wall's glyph closes
+into a cross, and the same turn on a horizontal ellipsis just leaves a slanted one -- a glyph
+that reads as damaged rather than as open. **D-035.**
+
+### Five things done that the plan did not call for
+
+1. **`GlassTool` gained `labelText`.** The two skip rows read "后退 10 秒", and `GlassToolRow`
+   resolves its label from a resource id with no arguments. The alternatives were to freeze the
+   10 into the string where it would then have to be kept in step with `SkipSeconds` by hand, or
+   to give every panel a formatting parameter for the one row that needs it. An optional
+   pre-resolved label is the smaller thing. Defaulted, so the wall is unaffected.
+2. **`SessionResult.RESULT_ERROR_NOT_SUPPORTED` is not accepted by `SessionResult(int)`.** Lint's
+   `WrongConstant` names `SessionError.ERROR_NOT_SUPPORTED` as the constant that constructor
+   declares, so `notSupportedResult()` uses that one. Same value, different declaration.
+3. **The timer page's armed row shows the check, not the countdown.** They compete for one
+   trailing slot (`GlassToolRow` is a `when`), and the check is the app's established "this is
+   the chosen one" affordance. The countdown instead sits on the row that *opens* the timer, so
+   it is readable without a tap at all. This deviates from the plan, which put it on the live row.
+4. **`not_available_short` was deleted; `queue_position` moved.** The old header showed the album
+   and "第 3 / 12 首"; the reference's header is two lines and has room for neither. The queue
+   position now heads the queue panel, where "which of these is playing" is the question being
+   asked. The album had no other home and the string no longer had a reader.
+5. **`notSupportedResult` and the opt-in.** See the lint note under Verification.
+
+### Verification
+
+- `testDebugUnitTest lintDebug assembleDebug` -> BUILD SUCCESSFUL.
+- **476 tests, 0 failures, 0 skipped**, counted from
+  `.asmrplayer-build/app/test-results/testDebugUnitTest/*.xml`. Incoming was 442; this slice adds
+  34: `RepeatModeTest` (6), `SleepTimerTest` (7), `AudioOutputTest` (7), `PlayerLyricsTest` (7),
+  `PlayerBackdropTest` (4), `SleepChoiceLabelTest` (3).
+- `lintDebug`: **0 errors, 26 warnings** -- the incoming warning set, unchanged. The slice first
+  arrived with 6 errors and both classes are worth recording: `UnsafeOptInUsageError` x5 on
+  `MediaSession.ConnectionResult` (fixed with `@androidx.annotation.OptIn(UnstableApi::class)` --
+  note the **androidx** `OptIn`, not Kotlin's; `UnstableApi` is marked with
+  `androidx.annotation.RequiresOptIn`, which the Kotlin compiler does not police, so no compiler
+  warning had appeared), and `WrongConstant` x1 as above.
+- The fresh APK is `.asmrplayer-build/app/outputs/apk/debug/app-debug.apk`, **83,905,123 bytes**
+  built 2026-09-29 23:33. `app/build/outputs/apk/debug/app-debug.apk` is still the stale 21:59
+  build from the previous slice, and the Sep 25 one before that -- installing either would look
+  exactly like this round never happened.
+- **No device and no `adb` was touched.** The owner installs.
+- `git diff --check` clean; `bash.exe.stackdump` remains untracked and unstaged. HEAD is still
+  `9d11202`; nothing from this round, nor the two before it, has been committed.
+
+### One test that had to be weakened, and why that is not a loss
+
+The first `SleepChoiceLabelTest` asserted that no two rows of the timer page share a label, by
+comparing the `R.string.*` ids the mapping returns. That failed: **a plain JVM unit test has no
+resource table, so every `R.string.*` is `0`** and all eight compare equal. The assertions now stop
+at "this duration has a label, that one does not", which is the drift the test can actually catch
+-- a duration added to `SleepTimerChoices` with no phrase to go with it. Which wording each row
+carries is a thing to read on the phone. Worth knowing before writing any future resource-id
+assertion in this repository.
+
+### What the phone pass has to answer
+
+The reference's six pictures, item by item:
+
+1. Portrait: green banner, title/artist, `((•))` at the top right, the large rounded cover, the
+   current and next lyric under it, the thin bar with both times, three transport buttons, and
+   the tool row -- do they land where the pictures put them?
+2. **Is the background visibly taken from the cover?** Three songs with different dominant
+   colours -- the pictures are purple/magenta, teal/green and deep red -- should give three
+   different page colours. A song with no cover should give the placeholder gradient, not black.
+3. A song with lyrics: the green banner appears at the top. Switch to one without: **both the
+   banner and the two-line block vanish, leaving no gap.**
+4. Is the ⋯ a horizontal ellipsis (not the old four-square glyph), does it stay unrotated when
+   the panel opens, and does the panel grow out of the bottom-right corner with all seven rows
+   -- 闪卡 / 歌词 / 后退 10 秒 / 前进 10 秒 / 定时关闭 / 书签 / 章节? Do two presses of ±10 秒
+   leave the panel open?
+5. **循环:** one press -> 列表循环, two -> 单曲循环, three -> 关闭. Lock and unlock: the state
+   survives.
+6. **定时:** set 1 分钟, watch the countdown on the ⋯ panel's 定时关闭 row, **lock the screen**,
+   and confirm playback pauses at the end of it. Reopen the app: the timer reads as finished
+   (no countdown, no tint on the bottom row's timer glyph).
+7. 可视化 opens the immersive lyric scene, and back from it returns to the player -- not to the
+   library.
+8. The left swipe on the cover still reaches the lyric scene.
+9. A carded song: 闪卡's three states still work, and the card still draws at 2:3 with no black
+   bars and no hairline.
+10. Landscape: the two-column arrangement is intact and carries all of the above.
+11. **A long Chinese title** -- does two lines read better than the reference's single truncated
+    line would? This is the deliberate deviation and the one to overrule if not.
+12. Play a song, leave it playing, and open the player from the wall: does the ⋯ button still sit
+    in the fifth slot, or has the row drifted? The arithmetic above assumes the inset box, the
+    16 dp trigger padding and the 42 dp button, all of which are fixed -- but this is the one
+    piece of the layout that is arithmetic rather than arrangement.
+
+### Declared, so nobody goes looking
+
+- **The right-hand `((•))` is a status mark, not a button.** The reference appears to offer output
+  switching; this app has no such feature, and a control that does nothing is worse than none.
+  It reads `AudioManager.getDevices(GET_DEVICES_OUTPUTS)` off the main thread, prefers wired then
+  Bluetooth then built-in, and carries a `contentDescription` for TalkBack. It does not re-read
+  when headphones are plugged in while the page is open -- it is a mark, and it is read once per
+  composition of the header.
+- **The sleep timer pauses; it does not stop.** A paused queue is what the product default already
+  leaves behind after a task swipe, so the owner can resume by pressing play. It is not a "stop
+  after this song" and it does not fade out.
+- **Repeat and the sleep timer are not persisted to disk.** Repeat lives on the player and dies
+  with the service, which is the same lifetime the queue already has. The timer dies with the
+  service too -- a timer that outlived its process would be a deadline nobody is left to honour.
+- **横屏 was not rearranged.** There is no landscape reference, so rearranging it would have been
+  designing rather than copying. It keeps the two-column arrangement and inherits every shared
+  piece: the new backdrop, the banner, the lyric pair, the three-button transport, the tool row
+  and the panel.
+- `FoliaSeekBar`, `SubtitleDetail.kt`, the immersive scene and the visualizer were not touched; the
+  player page asks for lyrics through the same single parsed document the wall already requests
+  (`fullPlayerItem?.id ?: focusedPlayingWallItemId`), so the file is still parsed once and no two
+  surfaces can disagree about which line is being sung.
+- The 闪卡 row's icon is still `Icons.Default.Style` in all three states; only the label changes,
+  as before this slice.
+
+## Codex slice: intrinsic artwork + ordinary swipe lyrics (2026-10-11, uncommitted)
+
+Incoming HEAD remains `9d11202` with extensive uncommitted Claude/Codex card and
+player work. Preserved it; do not reset or attribute the whole current diff to this slice.
+Owner supplied five Salt Player screenshots and requested explicit skip controls,
+source-proportioned covers, smaller sizes/fonts, different colour extraction and a
+cover → ordinary lyrics → existing visualizer flow. D-036 supersedes the corresponding
+player presentation decisions; no Salt source/code reuse or pixel-identical claim.
+
+Implementation:
+- `PlayerDetail.kt`: HorizontalPager body with fixed shared header/seek/transport/footer.
+  No green banner; known artist only, compact one-line title, clean small-radius Fit
+  artwork. Previous / backward10s / play / forward10s / next. Skip menu rows removed;
+  sizing added, direct visualizer menu entry retained. Landscape uses same pageable body.
+- `PlayerPresentation.kt`: intrinsic fit math (default preferred width 85%, height
+  safety bound), ordinary left-aligned timed/untimed lyrics, subdued inactive lines,
+  edge fade, manual drag suspends following, tap seeks and return-to-current resumes.
+  Existing subtitle document/session reused; no new playback engine or parser.
+- `AsmrPlayerApp.kt` retains cover/ordinary section while immersive route is open.
+  Second left swipe uses a gateway page, then existing immersive route. It is not a
+  full duplicate renderer living in the pager: during that swipe the gateway previews
+  ordinary lyrics. Cover↔ordinary is directly finger-tracked; visualizer handoff is
+  route activation after settling. Back from scene restores the retained section.
+- `CoverAccentLoader`: same bounded thumbnail/cache; retains rawPaletteArgbs in
+  addition to existing unchanged balanced wall colours. PlayerBackdrop uses raw dominant
+  family as broad tonal field, no blurry art overlay or heavy black scrim. Wall unaffected.
+- `AppPreferences`: durable cover/title/lyric percentages (100 defaults); shared slider
+  UI in global Appearance and player tools, write on release, reset available.
+
+Phone acceptance still needed (owner installs; no device/app install in this slice):
+landscape/square/portrait artwork has full source, no crop; default width and fonts vs
+reference; different cover colours; drag left/right with vertical lyric scroll; line tap
+and progress seeking; second left swipe and Back retention; no-file/untimed behaviour;
+change dimensions, restart and confirm retention. Existing interactive card WebView owns
+its own horizontal drags; swipe outside card bounds to page and keep direct menu entry.
+Sizing affects ordinary cover/font presentation, not holographic card model geometry.
+
+Verification so far:
+- Narrow `testDebugUnitTest --tests com.example.asmrplayer.ui.PlayerPresentationTest
+  --tests com.example.asmrplayer.ui.PlayerBackdropTest`: BUILD SUCCESSFUL, 8/8 tests.
+- Full `testDebugUnitTest`: 64 suites, **480 tests, 0 failures/errors/skipped**.
+- `assembleDebug`: fresh APK at
+  `D:\c\Documents\ChatGPT\.asmrplayer-build\app\outputs\apk\debug\app-debug.apk`,
+  82,943,588 bytes, built 2026-10-11 17:49. Do not use the stale app/build APK.
+- Combined final `testDebugUnitTest lintDebug assembleDebug`: **BUILD SUCCESSFUL**.
+  Lint: **0 errors, 29 warnings**. Current warnings are version recommendations (3),
+  DataExtractionRules (1), UnusedResources (14), MissingApplicationIcon (1), UseKtx (10).
+  Two now-unused strings are from this presentation change (`unknown_artist` and
+  `swipe_left_for_subtitles`); left for a resource cleanup rather than hiding warnings.
+  No issues point at PlayerPresentation. No pixel/gesture benchmark is claimed.
+- Final `git diff --check`: clean after removing a trailing documentation blank line.
+- Initial sandbox Gradle cache lock was denied; standard build required elevation with
+  `GRADLE_USER_HOME=C:\Users\LiuDeZhou\.gradle`, `TEMP=TMP=C:\jtmp`. First compile
+  caught a title-font replacement leaking into a panel heading; corrected and both
+  subsequent narrow and full compilation/tests succeeded.
+- No install, adb/device mutation, media writes or commits. Source remains uncommitted.
+
+## Codex follow-up: colour and genuine audio artwork (2026-10-11, uncommitted)
+
+Owner supplied same-cover comparison. Sampled background patches with Pillow (analysis
+only, no image editing): ours top #93695d, mid #b78175, bottom #a37365; Salt top #643b25,
+left mid #825346, right mid #8d6448, bottom #8c5141. The difference is both brightness/
+saturation and horizontal hue variation, not merely one dark overlay. CoverAccentLoader
+now retains playerToneArgb: coarse chromatic mid-tone buckets exclude bright pale/skin
+highlights. PlayerBackdrop HSV field darkens/saturates the crown and paints soft lower
+stops + a cached radial side light. Wall colours remain on the old extraction.
+
+PlayerCoverLyrics reserves a larger three-slot reading window; LyricPair now has a
+previous field (default null preserves old call sites/tests). Current is bright; previous/
+next dim. This uses existing parsed timeline. Before first line / at last line no fake
+neighbour is invented; no lyric document means no reserved empty block.
+
+Third screenshot was explained by scanner source: every audio received precisely
+currentFolderArtwork.documentUri; there was no embedded-art retrieval. New private
+AudioArtworkProvider is read-only/non-exported and lazily reads that audio's embedded
+picture when Coil/CoverAccentLoader asks, with versioned SHA cache and bounded positive/
+negative caches. Scanner builds distinct source URIs without opening any audio and uses
+same-basename image, then common folder image as fallback. Folder cards unchanged.
+No source tags or user media are written. Limit/API details in ARCHITECTURE.
+
+Owner next action after new build: install, **manually refresh current folder** (old folder
+snapshots still hold old common-image URIs), compare 2+ files known to have different
+embedded covers. Identical embedded pictures or no embedded pictures legitimately still
+produce identical fallback thumbnails. No real-device file contents were inspected;
+actual differences in owner's audio remain to confirm. Also compare same cover colour
+and three lyric lines, including long paragraphs and first/last lines. No device install.
+
+Verification completed for this follow-up:
+- Narrow tests: PlayerCoverToneTest, PlayerLyricsTest and PlayerBackdropTest, 17 tests passed.
+- Final `testDebugUnitTest lintDebug assembleDebug`: BUILD SUCCESSFUL. Repeated after
+  the last HSV tuning so the delivered APK contains the latest saturation/side light.
+- Full JVM result: 65 suites, 486 tests, 0 failures/errors/skipped.
+- Lint: 0 errors, 29 warnings. No new warning count compared with the prior slice.
+- Fresh APK: `D:\c\Documents\ChatGPT\.asmrplayer-build\app\outputs\apk\debug\app-debug.apk`,
+  84,102,811 bytes, built 2026-10-11 19:07. Existing stale app/build output is not the artifact.
+- `git diff --check`: clean; only existing LF/CRLF conversion notices.
+- No phone install, runtime pixel comparison, original media writes, or commits.
+  Screenshot-derived colour matching is approximate, not a claim about Salt's source.
+  Safest next step is owner install + folder refresh + the comparison described above.
+
+## Codex slice: desktop lyrics (2026-10-11, uncommitted)
+
+Owner confirmed configurable font colours/size, word or line mode and sentence count;
+show only outside the app. Implemented Settings > 桌面歌词 as a separate accordion.
+Default off, two sentences, 20sp, white/light-blue, line mode, bold, 25% backdrop.
+All settings use the existing DataStore; custom colours accept six-digit HEX, normal
+and active independently. Font 12–36sp, 1–4 sentences, 0–80% backdrop, lock and reset
+position. Preview is Compose; no actual overlay over the settings page. First switch
+requests system draw-over-app permission; only confirmed grant enables it. Denial or
+revocation leaves audio unaffected. It does not request accessibility or usage access.
+
+PlaybackConnection now attaches the existing per-item TimedTextMatch URI, format and
+size/mtime to queue MediaMetadata extras. MainActivity supplies the current listing's
+matched map when building the queue. DesktopLyricsController belongs to PlaybackService,
+not LibraryViewModel: navigation to another folder or leaving UI cannot replace its
+lyrics. Cancels old reads, clears old text on transitions, uses the common bounded
+TimedTextReader and parser off-main; retains only current track's document. No scan of
+the media library. Reuses shared lyricGlowTimeline Smart (exact words first; otherwise
+estimated ordinary LRC), no new timestamp estimator. Seeking/pause follow player time.
+
+MainActivity start/stop publishes foreground state (configuration-change handover
+keeps foreground). Service removes the native TYPE_APPLICATION_OVERLAY window on app
+return, disabled, no timed text, permission revoked, ended/empty queue or keyguard.
+Screen-off receiver removes immediately. Paused playback retains a frozen line. The
+system window is a bounded native Canvas/StaticLayout View, a deliberate non-Compose
+exception (no fabricated ViewTree owner in a Service). At most four rows; line/width
+change caches layouts/timelines, active word mode 20Hz, other background checks 4Hz.
+No ticker when app visible/disabled. Drag saves normalized position only on release;
+system bars/cutouts clamp coordinates. Unlocked header allows close/lock; locked means
+FLAG_NOT_TOUCHABLE, unlock in settings. Window alpha <=0.75/platform touch maximum,
+not just backdrop alpha, respecting Android 12's touch-through security rule.
+
+Known limitations / safest owner next step:
+- Requires actual system overlay grant; some OEMs/apps can suppress overlays. No
+  bypass of banking/security screens or system restrictions is attempted.
+- No timed lyrics => no window; long sentences wrap to at most two visual lines per
+  sentence and ellipsize. Untimed files are not assigned fake times. No lockscreen lyrics.
+- Choose/play a track normally after upgrade; old live queue entries have no new
+  metadata extras. A new queue contains matched lyrics even after navigating elsewhere.
+- No additional service survives playback service shutdown. No boot auto-start or
+  restart workaround. Foreground visibility currently covers sole MainActivity; any
+  future additional app Activity must join it.
+- Owner phone test: grant/deny/revoke; home/another app/return; drag/rotate/restart;
+  lock touch-through/unlock; word/line + colours/font/count; pause/seek/cut/queue-end;
+  track without/with untimed lyrics, browse other folder while playing. No phone install
+  or runtime overlay claim was made. Keep existing card/player dirty work untouched.
+
+Verification: narrow DesktopLyricsTest (9 tests) passed after correcting the native
+TextPaint.apply receiver's `style` shadowing the preference property. Deprecated
+scaledDensity replaced with TypedValue SP conversion.
+
+Final verification:
+- `testDebugUnitTest lintDebug assembleDebug`: BUILD SUCCESSFUL after the final KTX/
+  float-state cleanup. 66 suites, 495 tests, 0 failures/errors/skipped.
+- Lint: 0 errors, 30 warnings (prior baseline 29). One new non-functional UseKtx
+  suggestion remains for the Canvas row's save/translate/restore (`withTranslation`).
+  Programmatic-only ViewConstructor and absolute-screen-left RtlHardcoded have narrow
+  justified suppressions; no functional checks are suppressed.
+- Fresh APK: `D:\c\Documents\ChatGPT\.asmrplayer-build\app\outputs\apk\debug\app-debug.apk`,
+  84,293,002 bytes, built 2026-10-11 20:05:22. Do not use stale repo app/build output.
+- `git diff --check` clean. No device install, adb mutation, media writes or commits.
+- Owner next: install APK, Settings > 桌面歌词, enable and grant the system overlay
+  permission; play a track with matched timed lyrics, then go Home. Perform the
+  phone checklist above. Window rendering/OEM touch-through remain device-unverified.
+
+## Codex follow-up: continuous desktop lyrics and HSV palettes (2026-10-11)
+
+Owner explicitly reversed background-only visibility: lyrics should remain over our
+app too to avoid the Home transition hitch. Also requested reference-inspired colour
+sliders rather than codes, plus transparent background. D-039 supersedes D-038's
+foreground-hide clause; earlier entries above describe history, not current behavior.
+
+- Removed PlayerAppVisibility object and MainActivity start/stop hooks. Controller
+  collects only distinct desktop settings; keeps one window/ticker inside/outside
+  the app. Screen off/keyguard/disabled/permission revoked/no timed lyrics/ended
+  queue still remove it. No foreground transition reads, removes or adds a window.
+- Cached WindowMetrics/configuration until new attachment/configuration changes,
+  instead of querying metrics on every word-sweep tick. Style commits can still
+  rebuild the small window; colour dragging uses local drafts and writes on release.
+- Replaced both HEX fields with HSV gradient tracks, round bordered thumbs, live
+  colour swatch, hue degrees / saturation and brightness percentages, six quick
+  presets and individual reset. LyricColorHsv is pure JVM, and old ARGB preferences
+  remain compatible. Achromatic colours retain a draft hue during local editing.
+- Explicit "完全透明背景" chip sets existing backdrop opacity to 0; no migration or
+  new setting needed. Native background paint already respects alpha 0. Unlocked
+  control hints remain for drag/close; lock hides hints and enables touch-through,
+  leaving only text/shadow. Default backdrop stays 25%, because owner requested
+  an option, not a silent reset of existing style choices.
+- Changed canvas row transforms to withTranslation, removing the prior new UseKtx
+  warning. All user-facing labels remain resources. Existing incoming work retained.
+
+Verification so far: narrow DesktopLyricsTest (10) + LyricColorHsvTest (5) passed.
+HSV tests cover primaries, achromatic endpoints, hue wrapping, clamping/NaN, old
+colour preservation and a 216-colour RGB grid round-trip. Added transparent-zero
+validation; display policy no longer includes foreground visibility.
+No phone install or actual transition FPS measurement. Owner next: compare app/Home switching, palette dragging and persistence,
+transparent + lock over app/wallpaper, rotation, permission revocation and screen lock.
+
+Final verification:
+- `testDebugUnitTest lintDebug assembleDebug`: BUILD SUCCESSFUL (final run 14m30s).
+  67 suites, 501 tests, 0 failures/errors/skipped; lint 0 errors / 29 warnings.
+- First full run found NewApi at the cached WindowMetrics bounds dereference.
+  Explicit API30 guard added at the dereference (not suppressed), then full verification
+  repeated successfully. Android10 runtime remains owner-device unverified.
+- Fresh APK: `D:\c\Documents\ChatGPT\.asmrplayer-build\app\outputs\apk\debug\app-debug.apk`,
+  83,211,074 bytes, built 2026-10-11 21:07:52, contains the compatibility fix.
+- `git diff --check` clean. No device installation, media writes or commits.
+  Continuity docs/spec/architecture and D-039 aligned with the owner's new visibility rule.
+
+## Codex investigation: direct tag editing (2026-10-18)
+
+Owner requests editing actual audio tags/artwork from song details, like Poweramp;
+cover chooser should initially point at /storage/emulated/0/Download/mihon/local/.
+Read AGENTS/CLAUDE, dirty status/log, relevant product/architecture/D-003 and source.
+No intervening commits: HEAD remains 9d11202; prior uncommitted work retained.
+
+Important open question: current architecture's atomic/read-only rule cannot be
+inferred from SAF FLAG_SUPPORTS_RENAME. Asked owner asynchronously to choose strict
+atomic-only versus a clearly non-atomic but journaled/recoverable local-provider
+swap with validated sibling + temporary original backup. No response recorded yet.
+Do not silently relax this rule or implement in-place truncation. Proposed design,
+entry points and TagLib primary sources are in docs/METADATA_EDITOR_PLAN.md.
+
+No application source/dependency changes, no Gradle/device/media mutations. This was
+research/docs only, so JVM/lint were not rerun; prior verified 501/0 errors/29 warnings
+remain historical, not fresh verification of a metadata editor (none exists yet).
+Safest next step: obtain the safety choice, record it, then implement the narrow
+writer/editor with generated fixtures and transactional failure/recovery tests.
+
+## Codex implementation: direct tag editing (2026-10-18)
+
+Owner answered **“写入吧”** to the recoverable-vs-atomic choice above. D-040 and the
+architecture now explicitly permit a narrow journaled **non-atomic** local commit.
+This entry supersedes the investigation-only status above. HEAD is still 9d11202;
+all incoming player/card/overlay changes were preserved. No Claude invocation,
+device install, actual user-media edit or commit was performed.
+
+### Implemented
+
+- Song details' existing bottom-right tool menu has **编辑歌曲信息**. Full-height
+  Compose editor reads/writes real TITLE, ARTIST, ALBUM, ALBUMARTIST, TRACKNUMBER,
+  DISCNUMBER, DATE, GENRE, COMMENT and embedded front art. Filename is read-only:
+  no rename, alias or lyric-basename change. Browser titles remain filenames;
+  details/Media3 use the actual saved title/artist. Picker uses ACTION_OPEN_DOCUMENT
+  with the requested `primary:Download/mihon/local` initial URI hint; it is neither
+  an automatic grant nor a guaranteed system picker root. Cancel preserves cover.
+- One Activity `MetadataEditViewModel`, dialog-session token and captured target
+  retain drafts across rotation and prevent queue changes/late loads from editing
+  another song. Save/cover load disable closing/reentry. Save pauses only the edited
+  current track; the owner resumes manually. Native IO never runs on the main thread.
+- `AudioTagEditor` uses unmodified published `io.github.kyant0:taglib:1.0.6`, pinned
+  in the catalog. Published source checked for FD ownership and Picture byte-content
+  equality. JNI gets duplicate/detached FDs and only generated stage names may open
+  writable. Source is always read-only. Existing unknown/multi-valued tags and other
+  artwork are retained and read back, not silently rebuilt from visible fields only.
+- `SafTagDocuments` only accepts a primary internal ExternalStorageProvider tree
+  with a persisted read/write grant, seekable regular file/known size, parent create
+  + file rename/delete/write flags and free space > one full file + 64 MiB. No broad
+  storage permission or reconstructed raw `/storage` file access. Other providers,
+  SD, RF64 and unsupported layouts fail closed. Name conflicts are not overwritten.
+- `MetadataTransaction` copies through 128 KiB buffers and Long lengths to a strict
+  UUID sibling, mutates/validates/fsyncs it, rehashes the source, journals backup,
+  installs by two renames, verifies the installed whole-file hash, then deletes only
+  the verified backup. This is **not atomic**. AtomicFile journal lives in
+  noBackupFilesDir and records planned names before mutation. A killed job can be
+  recovered/retried; conflicting external edits retain artifacts/journal for manual
+  attention. Startup prompt works even if the source temporarily has a backup name.
+- Independent `AudioPayload` hashes actual MP3/FLAC/M4A/WAV audio regions and fixed
+  codec data; Android `AudioProbe` compares MediaExtractor codec setup plus first/
+  last packets before any original-name mutation. Changed tags/picture bytes are
+  also read back. Runtime validation refuses a particular native/format combination
+  that cannot round-trip exactly. This is not evidence of universal format support.
+- Container metadata ≤16 MiB; existing pictures ≤16 / 8 MiB total. Selected image
+  sampled to ≤1024px and embedded as JPEG ≤4 MiB. MP4 lacks picture roles, so its
+  first image is replaceable front art. Keep one bounded private old-tag/art snapshot
+  and commit hash, not a permanent full-audio duplicate. **No Undo UI yet**.
+  DRM/encrypted samples and multi-track containers (including a separate chapter
+  or video track) are refused, because V1 does not verify their auxiliary tables.
+- Successful save versions artwork, reloads actual detail tags, patches current and
+  cached folder items without dropping focus/viewport, and updates the affected
+  Media3 item's title/artist/URI/art at the prior position with lyric extras/queue
+  preserved. Unrelated playing track is not stopped. No MediaStore-ID stability is
+  promised to other apps across the replacement.
+  The save event retains the captured same-name/folder-art fallback when rebuilding
+  the versioned private artwork URI; a tag-only edit must not make art-less tracks
+  lose their folder image. Verify this case on the owner's device as well.
+
+### Verification and remaining acceptance
+
+Initial full pass: `testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest`
+BUILD SUCCESSFUL in 4m53s, 518 JVM tests / zero failures, lint zero errors. Subsequent
+review tightened artifact UUID validation, prevented stale editor loads, and added
+restart-during-recovery/cancellation/invalid-field tests. Final latest-code results
+will be appended below; do not treat the initial APK as including those last changes.
+
+Added `NativeTagRoundTripTest`: generates disposable 1-second PCM WAV + 8x8 JPEG in
+app cache, writes Unicode tags/art only to a stage copy, checks original/payload and
+MediaExtractor results. It **compiles but has not executed on a device**. JVM tests
+cannot load the Android JNI/provider. MP3/FLAC/M4A native and actual SAF round trips,
+crash recovery on a phone, queue advancement, rotation and notification refresh
+remain owner-device acceptance, not claimed passed. No valuable originals tested.
+
+Safest next action:
+1. Owner installs the fresh final APK himself (no automatic adb install). Use copied
+   disposable MP3/FLAC/M4A/WAV, grant its **folder** through the existing library root
+   chooser, then details → tools → 编辑歌曲信息. Change one field/cover at a time.
+2. Close/reopen/read with another tag reader, verify audio/seek, three lyric surfaces,
+   distinct artwork, queue position and return focus. Repeat cancellation of image
+   picker, rotation, denied/revoked permission and interrupted-transaction recovery.
+   Keep another copy outside the test folder. Do not concurrently edit with another app.
+3. If explicitly authorizing device test installation, the generated native test is:
+   `./gradlew.bat -I tools/ascii-build-dir.init.gradle connectedDebugAndroidTest
+   -Pandroid.testInstrumentationRunnerArguments.class=com.example.asmrplayer.core.metadata.NativeTagRoundTripTest`.
+   This installs app/test APKs; it was deliberately **not run** in this slice.
+4. Recovery conflict: do not delete hidden `.__asmr-<UUID>-backup.*` or clear app data.
+   Restore the original folder grant and retry; inspect source/journal/backup before
+   any manual rename. No “discard backup” shortcut has been added.
+5. Continue from `docs/METADATA_EDITOR_PLAN.md`; future work is undo UI, batch/custom/
+   publisher fields, broader proven-safe providers and native public-release licence
+   review (packaged notices under `app/src/main/assets/licenses/`).
+
+### Final verification of the delivered code
+
+- Environment: PowerShell, `TEMP=TMP=C:\jtmp`,
+  `GRADLE_USER_HOME=C:\Users\LiuDeZhou\.gradle`.
+- Narrow metadata tests passed first; final set is 21 JVM cases (13 transaction/
+  recovery/property tests, 8 container/digest tests). Includes a generated RIFF/WAV
+  metadata/padding/format-change fixture and a sparse 4 GiB MP4 layout check; not
+  actual native writes to a 4 GiB file.
+- Final command, **after** the DRM/multi-track guard and artwork-fallback event fix:
+  `./gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest`
+  **BUILD SUCCESSFUL in 2m42s**. 69 suites, **522 tests**, 0 failures/errors/skipped.
+  Lint **0 errors / 29 warnings** (same count as incoming baseline); no new functional
+  lint suppression. Intermediate import errors during cleanup were fixed and the
+  full command repeated; final result is not a stale earlier report.
+- Fresh APK:
+  `D:\c\Documents\ChatGPT\.asmrplayer-build\app\outputs\apk\debug\app-debug.apk`
+  — 89,415,067 bytes, built **2026-10-18 13:53:50** (host local time), newer than the
+  final source changes. SHA256:
+  `133DA7FEB657C5A59017C980B2C600B92F5DBCE0915B3E9AF74710321DBB24C9`.
+  Instrumentation APK also compiled at
+  `D:\c\Documents\ChatGPT\.asmrplayer-build\app\outputs\apk\androidTest\debug\app-debug-androidTest.apk`;
+  it was **not installed/executed**. Do not confuse this with passed JNI/SAF tests.
+- `git diff --check` passes (normal checkout CRLF handling). No device operations,
+  user-media edits, Claude invocation, cleanup of incoming work or commits. Next
+  required acceptance is the owner's disposable-media phone pass above.
+
+## Owner feedback and wireless APK delivery discussion (2026-10-18)
+
+Owner reports the metadata editing feature was tested and works. This is owner
+acceptance of the basic flow, not an independently observed pass of every format,
+fault case or the unexecuted generated native instrumentation test.
+
+Owner can now invoke Codex remotely and wants the latest APK on the phone without
+USB. Read-only inspection found no configured Git remote or workflow files. No
+code/APK has been uploaded and no remote repository/service has been created.
+Recommended first step: keep building on this host with the existing compatible
+signer, then explicitly publish the APK as a private GitHub Release asset, rather
+than committing binaries to Git history. A separate private distribution repository
+can be used if the owner does not want to upload project source yet. Keep package ID
+and signing compatibility, increment version codes, and record build ID/SHA256.
+Phone can bookmark the Releases page, sign in, download and confirm installation.
+GitHub Actions/cloud signing or an in-app updater are future, separate decisions.
+Tailscale Serve is an alternative private download endpoint if both devices already
+use a tailnet, but the host must remain online. No public file server or remote ADB
+exposure is needed. Await the owner's chosen destination/approval before uploading.
+
+This turn changed continuity docs only; no new build/test run, phone operation or
+media mutation. The preceding 522-test/29-warning build remains the code baseline.
+
+## JOKESONG source hosting and first release preparation (2026-10-18)
+
+Owner chooses **JOKESONG**, authorizes uploading project source as well as APKs,
+and requires the same with updated records after every completed update. D-041 and
+AGENTS/CLAUDE carry this standing policy. Binary-only hosting is superseded.
+
+Chrome was logged in but unavailable to browser control. Installed checksum-verified
+official GitHub CLI 2.102.0 in ignored `.tools/github-cli/v2.102.0/bin/gh.exe` instead
+of accessing browser cookies/passwords. Owner completed official device authorization.
+`GH_CONFIG_DIR=<checkout>/.tools/gh-config`; masked auth status confirms active
+`liuchengzhiaa` with **keyring**, not plaintext. Do not upload tool/auth files. No
+global Git credential setup was enabled; delivery uses a checkout-local CLI helper.
+
+Created https://github.com/liuchengzhiaa/JOKESONG; API verified private and initially
+empty. Creation, source push and APK publication are separate stages; final delivery
+receipt follows below only after verification.
+
+- Launcher/product branding JOKESONG, versionName 0.1.1 / versionCode 2. Keep the
+  existing `com.example.asmrplayer` package ID, namespaces, data and signer; internal
+  class/checkout names need not be renamed. No package/data migration.
+- Refreshed stale README, PRODUCT_SPEC, added CHANGELOG/RELEASING and standing shared
+  source/APK/documentation rules. Docs-only delivery receipts do not require another
+  identical APK. Never force-push or silently replace releases/change visibility.
+- Sensitive-file excludes added. Screened 238 initial source candidates and 19 old
+  commits for common token/private-key patterns, private media/signing/local-env
+  filenames and >50 MiB blobs: no matches. This is not a comprehensive secret audit.
+  All incoming Claude/Codex work is retained for the first source snapshot.
+- `tools/publish-release.ps1`: ASCII source; `-PlanOnly` is local/non-mutating. Real
+  mode requires clean reviewed source/private matching origin, checks new tag/version
+  and pinned signer/package, runs full verification/build, rejects checkout drift,
+  pushes normally and reads back SHA, tags the exact commit, uploads APK/manifest/
+  SHA256SUMS and compares remote sizes/digests. No auto-staging, force or clobber.
+  If interrupted, inspect completed stages and finish only missing steps.
+- `tools/release-signing-certificate.sha256` contains the public fingerprint, not a
+  private key: `d834b2397f96c78efa5cf0b2dfa29ff56a92583d7c1402ecfdbbe9c993859152`.
+  Existing private signing key remains local. Cloud signing is a separate decision.
+
+Verification before commit/publication:
+- Full `testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest` passed
+  in 4m14s: 69 suites / **522 tests**, 0 failures/errors/skipped; lint **0 errors /
+  29 warnings**. Native test compiles, not device-executed. Owner basic metadata
+  pass is not a full native/format/fault matrix.
+- New APK under `../.asmrplayer-build/app/outputs/apk/debug/app-debug.apk`:
+  88,014,488 bytes, built 2026-10-18 14:41:54 (host timestamp), version 0.1.1 / code 2,
+  apksigner valid with pinned certificate. SHA256:
+  `DD822CCCA542EB7A5B32AEA81290BFB94C9DF3BD7EC8A0B8B83D08CAF3AFF9D6`.
+- Publish script parser and PlanOnly passed. Real network publication remains pending
+  until the source commit is made; actual result must be recorded below.
+- Initial staging exposed existing formatting in generated Three.js comments and
+  verbatim upstream font licence. Added two exact `.gitattributes -whitespace`
+  exceptions instead of rewriting those assets; no functional lint is suppressed.
+  Removed one extra EOF blank line in PlayerPresentation; publisher reruns verification.
+- No phone install/adb mutation, real media edit, Claude invocation, or incoming work
+  removal. Owner phone download/install verification remains pending.

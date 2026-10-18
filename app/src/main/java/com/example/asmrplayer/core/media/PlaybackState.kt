@@ -22,6 +22,18 @@ data class PlaybackState(
     val hasPrevious: Boolean = false,
     val hasQueue: Boolean = false,
     val errorMessage: String? = null,
+    /** How the queue repeats. Lives on the player, so it survives a locked screen. */
+    val repeatMode: RepeatMode = RepeatMode.Off,
+    /**
+     * When the sleep timer pauses playback, or null when it is not armed.
+     *
+     * A wall-clock instant rather than a countdown, so the row showing it can tick
+     * off its own clock and stays right across a UI restart; the countdown belongs to
+     * whoever is drawing it, and the deadline belongs to the service that will act.
+     */
+    val sleepExpiresAtMs: Long? = null,
+    /** The duration the armed timer was set for, or null when it is not armed. */
+    val sleepTimerMinutes: Int? = null,
 ) {
     val hasDuration: Boolean get() = durationMs > 0L
 

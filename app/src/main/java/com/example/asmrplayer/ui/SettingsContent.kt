@@ -23,7 +23,9 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -42,12 +44,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.asmrplayer.R
+import com.example.asmrplayer.core.settings.ToolClusterStyle
 import com.example.asmrplayer.core.settings.UiAccentPalette
 import com.example.asmrplayer.core.settings.UiStylePreset
 import com.example.asmrplayer.feature.library.LibraryUiState
@@ -55,6 +59,9 @@ import com.example.asmrplayer.feature.subtitles.LyricsWordGlowMode
 import com.example.asmrplayer.ui.theme.accent
 import com.example.asmrplayer.ui.theme.accentContentColor
 import kotlin.math.roundToInt
+
+/** The accordion's groups. One of these is open at a time, or none. */
+private enum class SettingsGroup { Appearance, Lyrics, DesktopLyrics, Cards, Library }
 
 /**
  * The settings surface.
@@ -74,15 +81,22 @@ fun SettingsScreen(
     onUiAccentPaletteChange: (Int) -> Unit,
     onMotionPercentChange: (Int) -> Unit,
     onUiScalePercentChange: (Int) -> Unit,
+    onToolClusterStyleChange: (Int) -> Unit,
     onLyricsWordGlowModeChange: (Int) -> Unit,
+    onOpenCardStudio: () -> Unit,
+    onCardCoverByDefaultChange: (Boolean) -> Unit,
     onResetAppearanceDefaults: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Each group owns the state it renders. Opening one closes the others so the
-    // settings root remains a short index rather than three nested screens at once.
-    var appearanceOpen by rememberSaveable { mutableStateOf(false) }
-    var lyricsOpen by rememberSaveable { mutableStateOf(false) }
-    var libraryOpen by rememberSaveable { mutableStateOf(false) }
+    // One group is open at a time, so the settings root stays a short index rather than
+    // a stack of nested screens. Held as which group is open rather than as one flag per
+    // group, because that is the invariant: a fourth flag is a fourth chance to leave two
+    // of them open at once.
+    var openGroup by rememberSaveable { mutableStateOf<SettingsGroup?>(null) }
+
+    fun toggle(group: SettingsGroup) {
+        openGroup = if (openGroup == group) null else group
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -108,15 +122,11 @@ fun SettingsScreen(
                 titleRes = R.string.settings_appearance,
                 summaryRes = R.string.settings_appearance_summary,
                 icon = Icons.Default.Palette,
-                expanded = appearanceOpen,
-                onToggle = {
-                    appearanceOpen = !appearanceOpen
-                    lyricsOpen = false
-                    libraryOpen = false
-                },
+                expanded = openGroup == SettingsGroup.Appearance,
+                onToggle = { toggle(SettingsGroup.Appearance) },
             )
         }
-        if (appearanceOpen) {
+        if (openGroup == SettingsGroup.Appearance) {
             item {
                 AppearanceSettingsSection(
                     state = state,
@@ -124,8 +134,10 @@ fun SettingsScreen(
                     onUiAccentPaletteChange = onUiAccentPaletteChange,
                     onMotionPercentChange = onMotionPercentChange,
                     onUiScalePercentChange = onUiScalePercentChange,
+                    onToolClusterStyleChange = onToolClusterStyleChange,
                     onResetAppearanceDefaults = onResetAppearanceDefaults,
                 )
+                PlayerSizingPreferences()
             }
         }
         item {
@@ -133,15 +145,11 @@ fun SettingsScreen(
                 titleRes = R.string.settings_lyrics,
                 summaryRes = R.string.settings_lyrics_summary,
                 icon = Icons.Default.Subtitles,
-                expanded = lyricsOpen,
-                onToggle = {
-                    lyricsOpen = !lyricsOpen
-                    appearanceOpen = false
-                    libraryOpen = false
-                },
+                expanded = openGroup == SettingsGroup.Lyrics,
+                onToggle = { toggle(SettingsGroup.Lyrics) },
             )
         }
-        if (lyricsOpen) {
+        if (openGroup == SettingsGroup.Lyrics) {
             item {
                 WordGlowModeSettings(
                     selectedMode = LyricsWordGlowMode.fromOrdinal(
@@ -152,19 +160,59 @@ fun SettingsScreen(
             }
         }
         item {
+            SettingsGroupRow(titleRes = R.string.desktop_lyrics, summaryRes = R.string.desktop_description,
+                icon = Icons.Default.Subtitles, expanded = openGroup == SettingsGroup.DesktopLyrics,
+                onToggle = { toggle(SettingsGroup.DesktopLyrics) })
+        }
+        if (openGroup == SettingsGroup.DesktopLyrics) { item { DesktopLyricsPreferences() } }
+        item {
+            SettingsGroupRow(
+                titleRes = R.string.card_settings,
+                summaryRes = R.string.card_settings_summary,
+                icon = Icons.Default.Style,
+                expanded = openGroup == SettingsGroup.Cards,
+                onToggle = { toggle(SettingsGroup.Cards) },
+            )
+        }
+        if (openGroup == SettingsGroup.Cards) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SettingsActionRow(
+                        icon = Icons.Default.Style,
+                        labelRes = R.string.card_settings_entry,
+                        onClick = onOpenCardStudio,
+                    )
+                    // Off by default: a card is something the owner asks for. Turning
+                    // this on is what makes the player open on one without a tap.
+                    SettingsActionRow(
+                        icon = Icons.Default.Wallpaper,
+                        labelRes = R.string.card_cover_by_default,
+                        onClick = { onCardCoverByDefaultChange(!state.cardCoverByDefault) },
+                        valueRes = if (state.cardCoverByDefault) {
+                            R.string.setting_on
+                        } else {
+                            R.string.setting_off
+                        },
+                    )
+                    Text(
+                        text = stringResource(R.string.card_cover_by_default_summary),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                }
+            }
+        }
+        item {
             SettingsGroupRow(
                 titleRes = R.string.settings_library,
                 summaryRes = R.string.settings_library_summary,
                 icon = Icons.Default.FolderOpen,
-                expanded = libraryOpen,
-                onToggle = {
-                    libraryOpen = !libraryOpen
-                    appearanceOpen = false
-                    lyricsOpen = false
-                },
+                expanded = openGroup == SettingsGroup.Library,
+                onToggle = { toggle(SettingsGroup.Library) },
             )
         }
-        if (libraryOpen) {
+        if (openGroup == SettingsGroup.Library) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     SettingsActionRow(
@@ -338,13 +386,20 @@ private fun SettingsGroupRow(
     }
 }
 
-/** One immediate action inside an open group. */
+/**
+ * One immediate action inside an open group.
+ *
+ * [valueRes] is for the rows that hold a setting rather than performing one -- the row
+ * is still a tap target, but what it currently says has to be on it, or the only way to
+ * learn the state would be to change it.
+ */
 @Composable
 private fun SettingsActionRow(
     icon: ImageVector,
     labelRes: Int,
     onClick: () -> Unit,
     enabled: Boolean = true,
+    valueRes: Int? = null,
 ) {
     val alpha = if (enabled) 1f else 0.38f
     OutlinedCard(
@@ -369,7 +424,19 @@ private fun SettingsActionRow(
                 text = stringResource(labelRes),
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
                 style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
             )
+            if (valueRes != null) {
+                Text(
+                    text = stringResource(valueRes),
+                    color = if (enabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
         }
     }
 }
@@ -386,10 +453,12 @@ private fun AppearanceSettingsSection(
     onUiAccentPaletteChange: (Int) -> Unit,
     onMotionPercentChange: (Int) -> Unit,
     onUiScalePercentChange: (Int) -> Unit,
+    onToolClusterStyleChange: (Int) -> Unit,
     onResetAppearanceDefaults: () -> Unit,
 ) {
     val selectedPreset = UiStylePreset.fromOrdinal(state.uiStylePresetOrdinal)
     val selectedAccent = UiAccentPalette.fromOrdinal(state.uiAccentPaletteOrdinal)
+    val selectedToolCluster = ToolClusterStyle.fromOrdinal(state.toolClusterStyleOrdinal)
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(
             text = stringResource(R.string.appearance_description),
@@ -468,6 +537,29 @@ private fun AppearanceSettingsSection(
                 }
             }
         }
+        SettingsSectionTitle(R.string.tool_cluster_style)
+        Text(
+            text = stringResource(R.string.tool_cluster_style_description),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        OutlinedCard(shape = RoundedCornerShape(16.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ToolClusterStyle.entries.forEach { style ->
+                    ToolClusterStyleChoice(
+                        style = style,
+                        selected = style == selectedToolCluster,
+                        onClick = { onToolClusterStyleChange(style.ordinal) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
         AppearancePercentControl(
             title = stringResource(R.string.ui_motion_strength),
             description = stringResource(R.string.ui_motion_description),
@@ -493,6 +585,54 @@ private fun AppearanceSettingsSection(
             )
         }
     }
+}
+
+/**
+ * One of the tool cluster's presentations, as a name rather than a preview.
+ *
+ * The cluster only ever sits over artwork on the player or on the wall, so a swatch
+ * here would be a picture of something the owner cannot see this page anyway; the four
+ * names are what the button is called where it lives.
+ */
+@Composable
+private fun ToolClusterStyleChoice(
+    style: ToolClusterStyle,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (selected) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainer
+                },
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(style.labelResource()),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (selected) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            maxLines = 1,
+        )
+    }
+}
+
+private fun ToolClusterStyle.labelResource(): Int = when (this) {
+    ToolClusterStyle.Frosted -> R.string.tool_cluster_style_frosted
+    ToolClusterStyle.Outline -> R.string.tool_cluster_style_outline
+    ToolClusterStyle.Solid -> R.string.tool_cluster_style_solid
+    ToolClusterStyle.Minimal -> R.string.tool_cluster_style_minimal
 }
 
 @Composable

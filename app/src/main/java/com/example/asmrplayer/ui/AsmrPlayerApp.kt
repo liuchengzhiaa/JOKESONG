@@ -3,11 +3,11 @@ package com.example.asmrplayer.ui
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,8 +58,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.asmrplayer.R
 import com.example.asmrplayer.core.media.PlaybackState
+import com.example.asmrplayer.core.media.RepeatMode
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
+import com.example.asmrplayer.core.settings.ToolClusterStyle
 import com.example.asmrplayer.feature.focuswall.FocusCoverWall
 import com.example.asmrplayer.feature.focuswall.FocusWallStyle
 import com.example.asmrplayer.feature.focuswall.FocusWallViewportState
@@ -71,12 +73,13 @@ import com.example.asmrplayer.feature.library.LibraryGrid
 import com.example.asmrplayer.feature.library.LibraryLayoutMode
 import com.example.asmrplayer.feature.library.LibraryLayoutSwitcher
 import com.example.asmrplayer.feature.library.LibraryUiState
-import com.example.asmrplayer.feature.subtitles.SubtitleDetailState
 import com.example.asmrplayer.feature.subtitles.LuminousTuning
-import com.example.asmrplayer.feature.subtitles.PendoloTuning
-import com.example.asmrplayer.feature.subtitles.TemperaTuning
 import com.example.asmrplayer.feature.subtitles.LyricsVisualizerMode
 import com.example.asmrplayer.feature.subtitles.LyricsWordGlowMode
+import com.example.asmrplayer.feature.subtitles.PendoloTuning
+import com.example.asmrplayer.feature.subtitles.SubtitleDetailState
+import com.example.asmrplayer.feature.subtitles.TemperaTuning
+import com.example.asmrplayer.ui.card.CardStudioScreen
 
 private data class Destination(
     val label: Int,
@@ -107,6 +110,8 @@ fun AsmrPlayerApp(
     onUiStylePresetChange: (Int) -> Unit,
     onUiAccentPaletteChange: (Int) -> Unit,
     onUiScalePercentChange: (Int) -> Unit,
+    onToolClusterStyleChange: (Int) -> Unit,
+    onCardCoverByDefaultChange: (Boolean) -> Unit,
     onGlobalVinylPositionChange: (Int, Int) -> Unit,
     onLyricsVisualizerModeChange: (Int) -> Unit,
     onLyricsBackgroundChange: (Int?) -> Unit,
@@ -124,10 +129,31 @@ fun AsmrPlayerApp(
     onSeekBy: (Long) -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
+    onRepeatModeChange: (RepeatMode) -> Unit,
+    onSleepTimerChange: (Int) -> Unit,
+    onMetadataSaved: (String, com.example.asmrplayer.core.metadata.TagSaveResult) -> Unit = { _, _ -> },
 ) {
+    MetadataRecoveryPrompt(onRecovered = onRefresh)
     var selectedDestination by rememberSaveable { mutableIntStateOf(0) }
     var fullPlayerItemId by rememberSaveable { mutableStateOf<String?>(null) }
+    var playerSection by rememberSaveable(fullPlayerItemId) { mutableIntStateOf(0) }
     var showSubtitleDetail by rememberSaveable { mutableStateOf(false) }
+    var showCardStudio by rememberSaveable { mutableStateOf(false) }
+    // What the studio starts a new card from, captured when it is opened rather than
+    // read while it is on screen. Opened from the player it seeds from that song;
+    // opened from Settings it seeds from nothing, because the studio reached from
+    // Settings is a browsing session and not a song's page. Reading a live item instead
+    // would let the last song ever opened in the player leak into that.
+    var studioSeedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var studioSeedItem by remember { mutableStateOf<LibraryItem?>(null) }
+    // Whether the studio was opened to make one specific card or to browse them. The
+    // song's own page opens it to make one, and goes straight to the form; Settings
+    // opens it to browse, and gets the room.
+    var studioStartAtCompose by rememberSaveable { mutableStateOf(false) }
+    // Bumped when the studio finishes a card. The player reads its own song's card once
+    // per item, and a card made while that page is still open is exactly the change it
+    // could not otherwise see.
+    var cardRevision by remember { mutableIntStateOf(0) }
     val layoutMode = LibraryLayoutMode.fromOrdinal(libraryState.libraryLayoutOrdinal)
 
     val itemById = remember(libraryState.items) { libraryState.items.associateBy(LibraryItem::id) }
@@ -163,6 +189,10 @@ fun AsmrPlayerApp(
     val playerQueue = remember(libraryState.items) {
         libraryState.items.filter { it.type == LibraryItemType.Audio }
     }
+    // The captured item is the exact object that was open; the id finds it again after a
+    // configuration change, when only saveable state survives.
+    val studioItem = studioSeedItem
+        ?: studioSeedId?.let { id -> itemById[id] ?: retainedNowPlayingItem?.takeIf { it.id == id } }
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val destinations = listOf(
         Destination(R.string.library) { Icon(Icons.Default.LibraryMusic, null) },
@@ -191,11 +221,10 @@ fun AsmrPlayerApp(
                 layoutMode == LibraryLayoutMode.FoliaWall) &&
             libraryState.focusedItemId == mediaId
     }
-    val requestedSubtitleItemId = if (showSubtitleDetail) {
-        fullPlayerItem?.id
-    } else {
-        focusedPlayingWallItemId
-    }
+    // The full player is another lyric surface now: its header carries the line being
+    // sung and the line after it. It asks for the same document the scene does, so the
+    // two never disagree and the file is parsed once.
+    val requestedSubtitleItemId = fullPlayerItem?.id ?: focusedPlayingWallItemId
     LaunchedEffect(requestedSubtitleItemId) {
         if (requestedSubtitleItemId != null) {
             onOpenSubtitleDetail(requestedSubtitleItemId)
@@ -213,7 +242,7 @@ fun AsmrPlayerApp(
         // The lyric renderer is the whole window. Its chrome applies transient
         // system-bar insets to itself, so Scaffold must not reserve another opaque
         // strip above and below the stage while that route is open.
-        contentWindowInsets = if (showSubtitleDetail || fullPlayerItem != null) {
+        contentWindowInsets = if (showSubtitleDetail || showCardStudio || fullPlayerItem != null) {
             WindowInsets(0, 0, 0, 0)
         } else {
             ScaffoldDefaults.contentWindowInsets
@@ -222,7 +251,7 @@ fun AsmrPlayerApp(
             // The lyric scene owns its small translucent back/title overlay. Keeping
             // the app bar here would make it a player page with a visualizer below,
             // rather than the full-screen scene promised by phase 5.
-            if (!showSubtitleDetail && fullPlayerItem == null) CenterAlignedTopAppBar(
+            if (!showSubtitleDetail && !showCardStudio && fullPlayerItem == null) CenterAlignedTopAppBar(
                 title = {
                     Text(
                         text = if (selectedDestination == 0) {
@@ -272,7 +301,7 @@ fun AsmrPlayerApp(
             )
         },
         bottomBar = {
-            if (fullPlayerItem == null && !(isLandscape && selectedDestination == 0)) {
+            if (fullPlayerItem == null && !showCardStudio && !(isLandscape && selectedDestination == 0)) {
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f),
                     tonalElevation = 0.dp,
@@ -345,10 +374,19 @@ fun AsmrPlayerApp(
                         onNext = onNext.takeIf { playbackState.hasNext },
                     )
                 } else {
-                    PlayerDetail(
-                        item = playerItem,
+                      PlayerDetail(
+                          item = playerItem,
+                          onMetadataSaved = { id, saved ->
+                              retainedNowPlayingItem = retainedNowPlayingItem?.let {
+                                  if (it.id == id) it.copy(artworkUri = saved.artworkUri, documentUri = saved.documentUri) else it
+                              }
+                              onMetadataSaved(id, saved)
+                          },
                         queueItems = playerQueue,
                         playbackState = playbackState,
+                        subtitles = subtitleState,
+                        onRepeatModeChange = onRepeatModeChange,
+                        onSleepTimerChange = onSleepTimerChange,
                         onTogglePlayPause = onTogglePlayPause,
                         onPrevious = onPrevious.takeIf { playbackState.hasPrevious },
                         onNext = onNext.takeIf { playbackState.hasNext },
@@ -358,7 +396,21 @@ fun AsmrPlayerApp(
                             fullPlayerItemId = selected.id
                             onPlayItem(selected)
                         },
-                        onArtworkSwipeLeft = { showSubtitleDetail = true },
+                        onOpenLyrics = { showSubtitleDetail = true },
+                        onMakeCard = {
+                            studioSeedItem = playerItem
+                            studioSeedId = playerItem.id
+                            studioStartAtCompose = true
+                            showCardStudio = true
+                        },
+                        toolClusterStyle = ToolClusterStyle.fromOrdinal(
+                            libraryState.toolClusterStyleOrdinal,
+                        ),
+                        motionPercent = libraryState.motionPercent,
+                        cardCoverByDefault = libraryState.cardCoverByDefault,
+                        cardRevision = cardRevision,
+                        initialPage = playerSection,
+                        onPageChange = { playerSection = it },
                     )
                 }
               }
@@ -415,7 +467,17 @@ fun AsmrPlayerApp(
                     onUiAccentPaletteChange = onUiAccentPaletteChange,
                     onMotionPercentChange = onMotionPercentChange,
                     onUiScalePercentChange = onUiScalePercentChange,
+                    onToolClusterStyleChange = onToolClusterStyleChange,
                     onLyricsWordGlowModeChange = onLyricsWordGlowModeChange,
+                    onOpenCardStudio = {
+                        // Deliberately no seed: the room reached from Settings is about
+                        // the collection, not about whatever happens to be playing.
+                        studioSeedItem = null
+                        studioSeedId = null
+                        studioStartAtCompose = false
+                        showCardStudio = true
+                    },
+                    onCardCoverByDefaultChange = onCardCoverByDefaultChange,
                     onResetAppearanceDefaults = onResetAppearanceDefaults,
                 )
               } else {
@@ -452,6 +514,27 @@ fun AsmrPlayerApp(
                             .padding(12.dp),
                     )
                 }
+            }
+
+            // Above the player rather than beside it: the studio is opened from the
+            // player's own tool cluster, and the captured seed is what keeps it on
+            // screen while the player underneath animates away.
+            AnimatedVisibility(
+                visible = showCardStudio,
+                modifier = Modifier.fillMaxSize(),
+                enter = fadeIn(tween(routeMotionMillis)),
+                exit = fadeOut(tween(routeMotionMillis / 2)),
+                label = "card studio",
+            ) {
+                // A null item is a real state here, not a missing one: this is the
+                // collection room, and the owner may reach it with nothing playing.
+                CardStudioScreen(
+                    item = studioItem,
+                    onClose = { showCardStudio = false },
+                    modifier = Modifier.fillMaxSize(),
+                    startAtCompose = studioStartAtCompose,
+                    onCardCreated = { cardRevision++ },
+                )
             }
         }
     }
@@ -654,6 +737,9 @@ private fun LibraryContent(
                     onAutoFocusPlayingChange = onWallAutoFocusPlayingChange,
                     onPosterTintStrengthChange = onWallPosterTintStrengthChange,
                     onMotionPercentChange = onMotionPercentChange,
+                    toolClusterStyle = ToolClusterStyle.fromOrdinal(
+                        state.toolClusterStyleOrdinal,
+                    ),
                     onActivate = { item ->
                         if (item.type == LibraryItemType.Folder) {
                             onOpenFolder(item)
@@ -694,6 +780,9 @@ private fun LibraryContent(
                     onAutoFocusPlayingChange = onWallAutoFocusPlayingChange,
                     onPosterTintStrengthChange = onWallPosterTintStrengthChange,
                     onMotionPercentChange = onMotionPercentChange,
+                    toolClusterStyle = ToolClusterStyle.fromOrdinal(
+                        state.toolClusterStyleOrdinal,
+                    ),
                     onActivate = { item ->
                         if (item.type == LibraryItemType.Folder) {
                             onOpenFolder(item)

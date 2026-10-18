@@ -1,0 +1,8 @@
+# Vendored third-party viewer (RuiC-card-skill, MIT -- see LICENSE).
+#
+# These files are shipped exactly as the upstream skill publishes them, so git
+# must not touch their line endings: the repository sets core.autocrlf=true,
+# which would otherwise rewrite every LF on checkout and make "vendored
+# unmodified" impossible to verify. Scoped to this directory on purpose --
+# nothing outside the vendored viewer is affected.
+* -text

@@ -9,6 +9,12 @@ planning or editing. The working tree may intentionally contain verified Codex
 work that has not been committed yet; preserve it and continue from the recorded
 state instead of assuming a clean checkout.
 
+Product/repository branding is **JOKESONG**. The owner has standing instructions to
+sync each completed code update, its tested APK and its changelog to the configured
+private GitHub repository. Follow AGENTS' delivery rules and `docs/RELEASING.md`;
+update CHANGELOG/HANDOFF/TASKS, never upload secrets/private media, and report failed
+or pending delivery honestly. Browser sign-in is not CLI authentication.
+
 When working as a delegated implementation agent:
 
 1. Work only on the task named in `docs/TASKS.md` or in the invocation prompt.

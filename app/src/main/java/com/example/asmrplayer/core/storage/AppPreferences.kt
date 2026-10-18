@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.asmrplayer.core.settings.ToolClusterStyle
 import com.example.asmrplayer.core.settings.UiAccentPalette
 import com.example.asmrplayer.core.settings.UiStylePreset
 import com.example.asmrplayer.feature.subtitles.LuminousTuning
@@ -35,6 +36,7 @@ internal fun resolveLyricsWordGlowModeOrdinal(
 
 /** Process-durable defaults and global presentation choices. */
 data class AppSettings(
+    val desktopLyrics: com.example.asmrplayer.core.overlay.DesktopLyricsSettings = com.example.asmrplayer.core.overlay.DesktopLyricsSettings(),
     val libraryLayoutOrdinal: Int = DefaultLibraryLayoutOrdinal,
     val wallZoomPercent: Int = 100,
     val wallDensityPercent: Int = 100,
@@ -48,6 +50,25 @@ data class AppSettings(
     val uiStylePresetOrdinal: Int = UiStylePreset.Balanced.ordinal,
     val uiAccentPaletteOrdinal: Int = UiAccentPalette.Ocean.ordinal,
     val uiScalePercent: Int = 100,
+    /**
+     * Presentation of every collapsible tool cluster. Kept as a raw ordinal because
+     * storage owns no UI type, and read back through the enum's own `fromOrdinal` so a
+     * value this build does not know shows the default rather than nothing.
+     */
+    val toolClusterStyleOrdinal: Int = ToolClusterStyle.Default.ordinal,
+    /**
+     * Whether the full player opens on a song's card instead of its cover.
+     *
+     * Off by default, and it is a default rather than a rule: a song whose card is
+     * showing can always be switched back to its artwork from the player's tools, and
+     * with this off the switch is the only way the card ever appears. Both directions
+     * are deliberate -- an install that predates cards must not start showing them, and
+     * a card is a thing the owner asks for rather than a thing that happens to him.
+     */
+    val cardCoverByDefault: Boolean = false,
+    val playerCoverPercent: Int = 100,
+    val playerTitlePercent: Int = 100,
+    val playerLyricsPercent: Int = 100,
     /** Normalized position of the draggable global record within its safe viewport. */
     val globalVinylXPerMille: Int = 0,
     val globalVinylYPerMille: Int = 1_000,
@@ -127,6 +148,26 @@ class AppPreferences(private val context: Context) {
                 uiAccentPaletteOrdinal = preferences[UiAccentPaletteKey]
                     ?: UiAccentPalette.Ocean.ordinal,
                 uiScalePercent = (preferences[UiScaleKey] ?: 100).coerceIn(85, 120),
+                toolClusterStyleOrdinal = ToolClusterStyle.fromOrdinal(
+                    preferences[ToolClusterStyleKey] ?: ToolClusterStyle.Default.ordinal,
+                ).ordinal,
+                cardCoverByDefault = preferences[CardCoverByDefaultKey] ?: false,
+                playerCoverPercent = (preferences[PlayerCoverKey] ?: 100).coerceIn(70, 115),
+                desktopLyrics = com.example.asmrplayer.core.overlay.DesktopLyricsSettings(
+                    enabled = preferences[DesktopEnabledKey] ?: false,
+                    fontSizeSp = preferences[DesktopFontKey] ?: 20,
+                    lineCount = preferences[DesktopLinesKey] ?: 2,
+                    wordByWord = preferences[DesktopWordsKey] ?: false,
+                    textArgb = preferences[DesktopTextKey] ?: 0xFFFFFFFF.toInt(),
+                    highlightArgb = preferences[DesktopHighlightKey] ?: 0xFF9CD9FF.toInt(),
+                    backgroundPercent = preferences[DesktopBackgroundKey] ?: 25,
+                    locked = preferences[DesktopLockedKey] ?: false,
+                    bold = preferences[DesktopBoldKey] ?: true,
+                    xPerMille = preferences[DesktopXKey] ?: 500,
+                    yPerMille = preferences[DesktopYKey] ?: 200,
+                ).clamped(),
+                playerTitlePercent = (preferences[PlayerTitleKey] ?: 100).coerceIn(75, 140),
+                playerLyricsPercent = (preferences[PlayerLyricsKey] ?: 100).coerceIn(75, 150),
                 globalVinylXPerMille = (preferences[GlobalVinylXKey] ?: 0)
                     .coerceIn(0, 1_000),
                 globalVinylYPerMille = (preferences[GlobalVinylYKey] ?: 1_000)
@@ -230,6 +271,14 @@ class AppPreferences(private val context: Context) {
         it[UiStylePresetKey] = UiStylePreset.Custom.ordinal
     }
 
+    suspend fun setToolClusterStyle(ordinal: Int) = edit {
+        it[ToolClusterStyleKey] = ToolClusterStyle.fromOrdinal(ordinal).ordinal
+    }
+
+    suspend fun setCardCoverByDefault(enabled: Boolean) = edit {
+        it[CardCoverByDefaultKey] = enabled
+    }
+
     suspend fun setGlobalVinylPosition(xPerMille: Int, yPerMille: Int) = edit {
         it[GlobalVinylXKey] = xPerMille.coerceIn(0, 1_000)
         it[GlobalVinylYKey] = yPerMille.coerceIn(0, 1_000)
@@ -314,13 +363,52 @@ class AppPreferences(private val context: Context) {
         }
     }
 
+    suspend fun setPlayerSizing(cover: Int, title: Int, lyrics: Int) = edit {
+        it[PlayerCoverKey] = cover.coerceIn(70, 115)
+        it[PlayerTitleKey] = title.coerceIn(75, 140)
+        it[PlayerLyricsKey] = lyrics.coerceIn(75, 150)
+    }
+
     suspend fun resetDefaults() = edit { it.clear() }
+
+    suspend fun setDesktopLyrics(value: com.example.asmrplayer.core.overlay.DesktopLyricsSettings) = edit {
+        val v = value.clamped()
+        it[DesktopEnabledKey] = v.enabled
+        it[DesktopFontKey] = v.fontSizeSp
+        it[DesktopLinesKey] = v.lineCount
+        it[DesktopWordsKey] = v.wordByWord
+        it[DesktopTextKey] = v.textArgb
+        it[DesktopHighlightKey] = v.highlightArgb
+        it[DesktopBackgroundKey] = v.backgroundPercent
+        it[DesktopLockedKey] = v.locked
+        it[DesktopBoldKey] = v.bold
+        it[DesktopXKey] = v.xPerMille
+        it[DesktopYKey] = v.yPerMille
+    }
+
+    suspend fun setDesktopLyricsPosition(x: Int, y: Int) = edit {
+        it[DesktopXKey] = x.coerceIn(0, 1000)
+        it[DesktopYKey] = y.coerceIn(0, 1000)
+    }
+
+    suspend fun setDesktopLyricsEnabled(enabled: Boolean) = edit { it[DesktopEnabledKey] = enabled }
 
     private suspend inline fun edit(crossinline block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         context.appPreferences.edit { block(it) }
     }
 
     private companion object {
+        val DesktopEnabledKey = booleanPreferencesKey("desktop_lyrics_enabled")
+        val DesktopFontKey = intPreferencesKey("desktop_lyrics_font_sp")
+        val DesktopLinesKey = intPreferencesKey("desktop_lyrics_lines")
+        val DesktopWordsKey = booleanPreferencesKey("desktop_lyrics_words")
+        val DesktopTextKey = intPreferencesKey("desktop_lyrics_text_argb")
+        val DesktopHighlightKey = intPreferencesKey("desktop_lyrics_highlight_argb")
+        val DesktopBackgroundKey = intPreferencesKey("desktop_lyrics_background_percent")
+        val DesktopLockedKey = booleanPreferencesKey("desktop_lyrics_locked")
+        val DesktopBoldKey = booleanPreferencesKey("desktop_lyrics_bold")
+        val DesktopXKey = intPreferencesKey("desktop_lyrics_x")
+        val DesktopYKey = intPreferencesKey("desktop_lyrics_y")
         val LibraryLayoutKey = intPreferencesKey("library_layout")
         val WallZoomKey = intPreferencesKey("wall_zoom_percent")
         val WallDensityKey = intPreferencesKey("wall_density_percent")
@@ -334,6 +422,11 @@ class AppPreferences(private val context: Context) {
         val UiStylePresetKey = intPreferencesKey("ui_style_preset")
         val UiAccentPaletteKey = intPreferencesKey("ui_accent_palette")
         val UiScaleKey = intPreferencesKey("ui_scale_percent")
+        val ToolClusterStyleKey = intPreferencesKey("ui_tool_cluster_style")
+        val PlayerCoverKey = intPreferencesKey("player_cover_percent")
+        val PlayerTitleKey = intPreferencesKey("player_title_percent")
+        val PlayerLyricsKey = intPreferencesKey("player_lyrics_percent")
+        val CardCoverByDefaultKey = booleanPreferencesKey("card_cover_by_default")
         val GlobalVinylXKey = intPreferencesKey("global_vinyl_x_per_mille")
         val GlobalVinylYKey = intPreferencesKey("global_vinyl_y_per_mille")
         val LyricsVisualizerKey = intPreferencesKey("lyrics_visualizer_mode")

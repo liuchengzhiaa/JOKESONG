@@ -1,6 +1,6 @@
 # Repository instructions
 
-This repository contains an offline Android ASMR player. Read the smallest relevant
+This repository contains JOKESONG, an offline Android audio player. Read the smallest relevant
 set of files before changing code:
 
 - `docs/PRODUCT_SPEC.md` for product behavior and acceptance criteria.
@@ -35,6 +35,29 @@ set of files before changing code:
   current implementation, exact verification results, known blockers and the
   safest next action. Keep `docs/TASKS.md` aligned with it. This is the shared
   continuity layer between Codex and Claude; chat history is not.
+
+## Delivery and GitHub synchronization
+
+- Product/repository name is **JOKESONG**. Keep the existing Android application ID
+  and signing compatibility; a branding change is not a package/data migration.
+- The owner explicitly requests source, APK and documentation synchronization after
+  each completed material code update. Update `CHANGELOG.md`, `docs/HANDOFF.md` and
+  `docs/TASKS.md`, verify the change, review the upload set, commit and push to the
+  configured private JOKESONG repository, then publish the tested APK as a Release
+  attachment. This rule also applies when the owner resumes with Claude manually.
+- Publish completed slices, not each keystroke. Documentation-only updates need a
+  Git commit/push but do not require another identical APK. Never claim upload or
+  publication succeeded until the remote commit/release assets are verified.
+- Never commit/upload tokens, passwords, signing private keys, `.env`, machine-local
+  configuration, tool/auth caches, or private media/card exports. APK/AAB binaries
+  belong in Release attachments, not Git history. Use the normal authenticated CLI,
+  never embed tokens in source, command URLs, release notes or scripts.
+- Keep package ID/certificate compatible and increase versionCode for each new APK.
+  Do not force-push, rewrite history, overwrite existing release assets or change
+  repository visibility without a separate explicit request.
+- If auth, network, tests or destination blocks delivery, retain local work and record
+  exact pending steps in HANDOFF. Do not label an unpublished build as published.
+  See `docs/RELEASING.md` for the local-build/private-release workflow.
 
 ## Verification
 

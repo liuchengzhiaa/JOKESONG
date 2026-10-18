@@ -1,5 +1,36 @@
 # Architecture
 
+## Desktop lyrics boundary (2026-10-11)
+
+- `core/overlay/DesktopLyricsController` is owned/closed by PlaybackService, with
+  its own main-thread coroutine scope and Player listener. It never starts another
+  foreground service or another player. The Activity is not the timing owner.
+- PlaybackConnection transports the scanner's existing per-item matched subtitle
+  URI/format/version through MediaMetadata extras. Service uses TimedTextReader's
+  bounded SAF read and the common parser off-main once per current item/version;
+  clears old document immediately and cancels stale loads on transitions.
+- Settings reuse the sole AppPreferences DataStore; independent DesktopLyricsSettings
+  is clamped on load/write. No Activity visibility subscription: D-039 keeps the same
+  system window/ticker inside and outside the app. MainActivity visibility hooks removed.
+  LyricColorHsv is pure JVM and converts UI H/S/V controls to the existing opaque ARGB
+  schema. Palette drafts update locally; release/preset/reset writes to DataStore.
+- Settings UI remains Compose. Only the system overlay is a small native Canvas View:
+  it has no Activity ViewTree owners and must not instantiate a separate Compose player.
+  Holds at most four StaticLayouts/timelines, rebuilds on line/width changes, polls
+  at 4Hz or 20Hz for active word sweep. No ticker while disabled;
+  paused word sweep does not invalidate unchanged text. No blur/images in this window.
+- WindowManager TYPE_APPLICATION_OVERLAY requires explicit SYSTEM_ALERT_WINDOW grant.
+  Window alpha is capped at min(0.75, platform maximum on API31+) to respect locked
+  touch-through; background alpha alone would not meet Android's rule. See
+  https://developer.android.com/about/versions/12/behavior-changes-all#untrusted-touch-events.
+  Position is normalized, clamped to screen bars/cutouts, persisted only on drag end.
+  Window metrics are cached until configuration changes rather than queried at 20Hz.
+  Screen-off receiver immediately removes the window; keyguard/permission/queue are
+  rechecked while backgrounded. Remove window, unregister receiver and cancel jobs
+  before releasing the service's player.
+- No text document or playback state is persisted in overlay settings. Missing,
+  unreadable or untimed lyrics yield no window, rather than stale lyrics or fake times.
+
 ## Technology baseline
 
 - Kotlin with Android Gradle Plugin 9.4 built-in Kotlin support
@@ -244,8 +275,11 @@ known `LibraryItem` presentation snapshot.
 renders one adaptive portrait/landscape player. There is no presentation registry:
 the artwork region has no top chrome, and the lower control surface is the one home
 for media information, transport and secondary panels. New player features belong in
-that shared control layer. A horizontal left swipe on artwork is the sole transition
-to timed lyrics; a tap has no lyric-navigation meaning.
+that shared control layer. A Compose HorizontalPager owns cover and ordinary lyric pages; swiping beyond lyrics
+opens the existing immersive route. The shell retains the section when that route closes.
+`PlayerPresentation.kt` owns bounded intrinsic fit, left-aligned lyric following and
+shared sizing controls. AppPreferences persists sizing percentages on slider release.
+A tap on artwork has no lyric-navigation meaning.
 
 `ui/FoliaSeekBar.kt` is the shared seek primitive for the focus wall, full player and
 immersive lyric transport. It draws a one-pixel visual line and a tiny head, while the
@@ -270,6 +304,234 @@ persistence.
 Privacy aliases must be applied before constructing `MediaItem.MediaMetadata` that
 can escape to system or external controllers.
 
+### App-specific state on the session
+
+A Media3 session carries two extra channels beyond the player itself, and this app uses both
+for the sleep timer, because its two directions have different shapes:
+
+- **`SessionCommand` for asking.** A sleep timer has to survive the screen locking, so it
+  cannot live in `PlaybackConnection` -- that disconnects on `ON_STOP` by design. The service
+  owns the deadline; the UI asks it to arm or cancel with `sendCustomCommand`. Custom commands
+  are *not* available to a controller by default: `MediaSession.Callback.onConnect` has to grant
+  the command, and it must do so by adding to `availableSessionCommands` from the accepted
+  result builder rather than by constructing a set, or the session loses every standard command
+  and the UI looks like it has no controls.
+- **Session extras for reading.** `MediaSession.setSessionExtras` is the only session state a
+  controller can read on connect without a round trip, so it is what tells a UI that arrived
+  late that a timer is already running. It is republished whenever the timer changes, and
+  `MediaController.Listener.onExtrasChanged` is what makes a *paused* player's UI notice --
+  the periodic position ticker only runs during playback.
+
+Anything a `Player` already models belongs on the player instead, and repeat is the example:
+`PlaybackState.repeatMode` is read straight back off `Player.repeatMode`, so there is no second
+copy to go stale and nothing to republish.
+
+### One lyric document per surface
+
+The wall, the full player and the immersive scene all read the same parsed subtitle document,
+requested once by `AsmrPlayerApp` from the item the player is on, falling back to the focused
+wall item. The player page is a lyric surface too -- its banner and its two-line block are the
+same document -- so there is no second parse and no way for two surfaces to disagree about which
+line is being sung. State belonging to a track that is no longer playing is ignored rather than
+displayed: `SubtitleDetailState.describes(itemId)` is the check.
+
+## The card workshop
+
+A card is three PNG layers, one JSON document, and one geometry file. The layers are
+generated on the device from a cover the library already has
+(`core/card/CardLayerFactory.kt`); the geometry is a constant; the JSON is written by
+`CardConfig`. Nothing about a card is fetched.
+
+### The viewer engine is vendored and hosted; Android owns its presentation
+
+The reference viewer is a static Three.js page in `app/src/main/assets/card/` and runs
+in a `WebView`. Its GLB, layer shader, finish uniforms, depth controls and export path
+remain the reference engine. Reimplementing that scene in Compose would have been a
+different product; fidelity was the requirement, so Three.js still renders the card.
+
+The shell is deliberately three-mode, and one document serves all of them. A normal URL
+retains the complete atelier page for desktop comparison; Android loads the same
+document with `?embedded=1`, which adds an `app-embedded` class before first paint. That
+mode makes the WebGL stage full-window, uses a transparent canvas over the app's dark
+tinted background, hides desktop-only masthead/footer furniture, and turns the
+title/material/depth controls into a frosted, collapsed overlay. The reliable back
+action is Compose-native and sits above the WebView with safe-area padding.
+Presentation changes therefore do not fork the render engine or card format.
+
+`?bare=1` adds `app-bare` on top of that, and exists for the one surface where the card
+is not a page about itself: the full player's artwork slot, where the card *is* the
+cover. The save button, the artwork bar and the controls toggle are hidden outright
+rather than collapsed, because a cover that offers to export itself is offering
+something the owner did not ask it for. The class has to be added by the inline
+bootstrap before the stylesheet link, exactly like `app-embedded`: a class applied after
+first paint would show the save button over the artwork for a frame, which is the kind
+of thing that reads as a rendering fault rather than as a loading order.
+`CardViewerAssetContractTest.bareModeHidesTheShellChromeBeforeTheFirstFrame` asserts
+both halves of that -- the ordering in the document and that the stylesheet actually
+names the chrome it hides -- because the class existing and doing nothing looks
+identical from the phone.
+
+The slot's **shape** is Kotlin's business and not the page's. `resize()` fits the card to
+whatever viewport it is given, so a square slot shows about 58% of a 2:3 card's width and
+spends the rest on the page's own near-black background -- which is the black frame the
+owner reported, and which no CSS change would fix without forking the vendored bundle. The
+player instead gives the card a 2:3 box (`Modifier.artworkSized`), read from
+`CardLayerGeometry.CanvasAspect` so the slot, the compose form's preview and the warehouse
+tile all size against the canvas the layers were built on.
+
+The bundle is nonetheless **patched**, and that is a maintenance fact rather than a
+detail. `app.bundle.js` carries local edits in one region of its `app.js` section: the
+embedded bootstrap and its viewport measurement from 31086, `resize()` at 31677, and the
+gesture and collapsed-control state from 31814 to 31980. The file's own line endings are
+a usable index to them -- the vendored original is CRLF and every line the adaptation
+added or rewrote is LF, so nothing before the `// app.js` banner at 31085 is touched. An
+edit that preserved CRLF would not show up that way, so `docs/HANDOFF.md`'s description
+of the change remains the authority and the endings are only a cross-check. The reference
+is MIT, so editing it is permitted; re-vendoring it is what needs those ranges read
+first, because nothing else records them.
+
+Do not size this embedded shell with `svh`, `dvh`, `vh` or percentage height alone.
+The owner's System WebView exposes the correct `window.innerHeight` while resolving the
+document's CSS viewport-height units and percentage chain to zero inside the edge-to-edge
+Android view. `syncEmbeddedViewport()` therefore publishes measured pixel values as
+`--embedded-viewer-height`, `--embedded-controls-height` and
+`--embedded-depth-height` before `init()` constructs Three.js, and updates them from
+both window and `visualViewport` resize events. CSS consumes those variables; `resize()`
+then receives a non-zero stage. This is load-bearing compatibility code, not a styling
+preference.
+
+The same rule covers the safe area. The page draws its own glass actions, workbench and
+depth panel, and those are the only controls in the app that Compose does not position.
+CSS cannot discover where this device's status bar is: `env(safe-area-inset-*)` is a
+browser convenience a WebView is not required to resolve, and Android System WebView
+reports zero for it in an edge-to-edge app. `CardViewerScreen` therefore measures
+`WindowInsets.safeDrawing` -- deliberately the same inset the Compose back control above
+the WebView already uses, so the two rows of controls cannot drift apart -- and publishes
+it as `--safe-top/right/bottom/left` on `document.documentElement`, re-publishing on every
+page state because the properties do not survive a document. The stylesheet combines the
+host property with `env()` through `max()`, so whichever source knows wins and neither
+being available leaves the constant that was there before. The page is told where the
+edges are; it is never asked.
+
+The embedded gesture owns a continuous `-PI..PI` horizontal target rather than the
+reference viewer's small tilt clamp. Pointer movement updates that target one-to-one;
+crossing `PI/2` changes the reported face, and pointer release settles to 0 or `PI`.
+The drag itself never triggers a layout pass or rebuilds textures. Vertical pitch keeps
+a smaller bounded range. The control overlay is excluded from pointer input while
+collapsed and carries matching accessibility expanded/hidden state.
+
+The page is served by interception, and that is the only architecture available. The
+app holds **no `INTERNET` permission**, so it cannot open a loopback socket for a local
+server; and `file://` cannot work because the page loads its four binaries with
+`fetch` and `TextureLoader`, which refuse a non-CORS scheme. `shouldInterceptRequest`
+answers every request instead, from a virtual origin
+(`https://appassets.androidplatform.net/cards/<id>/`) that never leaves the process.
+
+Three properties of that host are load-bearing:
+
+- **Routing is an allow-list of known relative paths, not a path join.** `..` is
+  therefore *unmatched* rather than *rejected*, which is a structural difference: there
+  is no traversal to sanitise. The one path segment treated as data is the card id, and
+  it is validated separately.
+- **One URL prefix per card.** The WebView's cache key differs per card, so one card's
+  texture request can never be answered with another's image; everything also carries
+  `Cache-Control: no-store`.
+- **An intercepted request never returns null.** `shouldInterceptRequest` fires for the
+  top-level document as well, and a null there means the real network -- which, with no
+  permission, is a blank page with no explanation. Unknown paths get an explicit 404.
+
+The viewer's save button clicks an anchor holding a `data:` URL that is never attached
+to the DOM, so `CardSaveBridge` overrides `HTMLAnchorElement.prototype.click` on the
+page rather than listening for clicks at the document, and moves the payload across the
+Javascript bridge in bounded chunks.
+
+### Gestures are injected, and they pre-empt the page's own
+
+`CardGesture` is the second injected script. The page's own zoom is reachable only from
+a `wheel` listener, and a WebView never delivers a wheel event, so a two-finger pinch
+is translated into the wheel events the page already handles rather than into a CSS
+transform -- the page's zoom divides the camera frustum and re-renders, so magnifying
+costs no sharpness, and there is only ever one zoom implementation.
+
+Every listener it installs is on `document` in the **capture** phase. That is not a
+style choice: the page's own handlers are on `#stage`, and a listener on the same
+element is queued behind the ones already registered there, so it could not stop them.
+A capture listener on an ancestor runs first and can. The script therefore ends the
+page's drag with a synthetic `pointerup` before it starts magnifying -- the page tracks
+"a finger is down" in a single flag shared by all pointers, so without this the second
+finger would keep turning the card -- and stops the events the page would have read.
+
+`CardGesture.MinZoom`/`MaxZoom` duplicate the vendored bundle's wheel clamp, because a
+Kotlin constant cannot read a JavaScript one. `CardGestureTest` asserts the two agree by
+reading the clamp out of `app.bundle.js`, so a drift between them fails the build rather
+than being discovered as a pinch that stops moving partway.
+
+### Cards are files, not rows
+
+`filesDir/cards/<cardId>/` holds `card-config.json`, `assets/{subject,background,text}.png`,
+`preview.png` (the flat picture of the card face, written when it is built),
+`card.png` (the capture the viewer's own save produces) and `meta.json`. A new Room
+entity would have meant a schema version bump with no migration mechanism in the
+repository, for an index that the filesystem already is. Keeping it on disk also makes
+"deleting a card only removes what this app made" true by construction: `AGENTS.md`'s
+rule that deletion means removing an index entry rather than user media holds without
+any code being written for it.
+
+`CardSummary.thumbnail` is `card.png` when it exists and `preview.png` otherwise, so a
+card always has a face. The preview is a quarter of the card's pixels (512x768) drawn
+from the same three layers the viewer loads, and it is deliberately not a substitute
+for the capture: what it shows is the card lying still, with no foil, tilt or lighting.
+
+`meta.json` holds four keys -- `mediaId`, `pinned`, `source`, `createdAtMillis` -- and
+is the file a future version will add keys to, so `CardMeta.parse` is the one reader in
+the package that falls back on every field rather than failing. `mediaId` is the
+`LibraryItem.id` (the document URI's identity, not the title), which is what makes
+`CardRepository.findForMedia` answer "does this song already have a card?" -- the
+question the full player asks before showing a card in its cover slot.
+
+The collection room is a view over that directory, and holds no state of its own. Its
+shelves, its search and its sort are all recomputed from the listing on every read
+(`CardShelves.shelve`), so there is no index that can disagree with the files -- a card
+deleted by a future version, or by the owner through a file manager, simply stops
+appearing. The one property the owner can change about a card after it is made is
+pinning, and pinning is a key in `meta.json` rather than a list somewhere else, for the
+same reason. Batch operations are the single-card operations applied in a loop through
+the same repository methods, which keeps one implementation of "delete a card" and keeps
+the delete confined to directories this app created.
+
+`CardStudioScreen` owns three pages of its own (the room, the compose form, the viewer)
+as one internal `rememberSaveable` enum, following `FocusCoverWall`'s `WallPanelPage`
+rather than adding routes to the app's hand-written navigation. The app passes it one
+nullable seed -- the item the studio was opened from -- captured when it is opened rather
+than read live, so a session started from Settings (where nothing is playing, and where
+the room is about the collection rather than about the current song) cannot be seeded by
+whatever was last open in the player. Alongside the seed it passes `startAtCompose`, which
+is the other half of "why was this opened": a song's page opens the form and Settings opens
+the room (D-032). The two travel together because they are decided at the same moment, and
+neither can be read later off the seed -- `startAtCompose` is true precisely when the seed
+is a song that has no card yet, which is a fact the studio cannot see from the item alone.
+
+`CardStudioScreen` reports a finished card back up through `onCardCreated` rather than
+being read from. The player caches its own song's card per item, so a card made while that
+page is still mounted is exactly the change it cannot otherwise see; the app answers by
+bumping `cardRevision`, which is a key on the player's `LaunchedEffect`. Nothing else about
+the card's state crosses the boundary -- the studio stays the only thing that knows what
+the room contains.
+
+The player's cover choice is held as a nullable `Boolean` keyed to the item, not as a
+`Boolean` derived from the preference, so that "the owner has not said anything about this
+song on this visit" is a value the UI can be in. Folding that with the song's `hasCard` and
+with `cardCoverByDefault` is `showsCardCover` in `PlayerDetail.kt`: a pure top-level
+function taking three plain values, deliberately not a `CardSummary?`, so the fold is a
+unit test without a card on disk (`CardCoverChoiceTest`). Reading the preference into the
+composable and letting it decide there would put the interesting case -- a choice
+outranking the setting in both directions -- somewhere no test can reach it.
+
+The one place a card leaves the app is `CardExporter`, which inserts its own entry into
+`Pictures/白相/` through MediaStore. That is an app creating and then owning a row,
+which needs no permission from API 29; the app never reads, enumerates or deletes from
+the picture library, so there is nothing to grant and nothing to revoke.
+
 ## Transactional tag writes
 
 Tag writing operates through a provider capability check and explicit job state.
@@ -278,7 +540,47 @@ re-opened and validated, then swapped only when the provider supports a safe
 replacement sequence. A failed or interrupted job is recoverable on next launch.
 
 No implementation may claim atomic replacement when the underlying document
-provider cannot provide it; such providers are read-only for metadata editing.
+provider cannot provide it. D-040 explicitly authorizes a **recoverable, non-atomic**
+two-rename sequence for primary internal ExternalStorageProvider documents only.
+This supersedes the former blanket strict-atomic/read-only clause, not the duty to
+refuse unsupported providers. Ordinary SAF write/rename flags alone are insufficient.
+
+`core/metadata/AudioTagEditor` serializes all edits/recovery with one process mutex.
+`SafTagDocuments` validates persisted read/write grants, parent/name binding, provider
+flags, regular seekable FD/size and space for one full sibling plus 64 MiB. It never
+reconstructs a `/storage` path; native writable FDs are restricted to generated stage
+documents. TagLib 1.0.6 owns duplicated detached FDs; original FDs stay read-only.
+Native parsing/mutation runs on IO, with max 16 MiB container metadata, 16 pictures /
+8 MiB total, selected cover sampled to 1024px and at most 4 MiB JPEG. Unknown tags,
+unchanged multi-values and non-front art are retained and verified. MP4 has no front/
+back picture types, so the first cover is the replaceable one.
+
+`AudioPayload` is independent, JVM-testable and streaming (128 KiB / Long offsets):
+MP3 audio region, FLAC STREAMINFO + audio, MP4 mdat, WAV fmt + data. `AudioProbe` uses
+Android MediaExtractor to compare codec setup and first/last packets. Both must agree
+before a source-affecting rename. Unsupported layouts fail closed. Whole-file hashes
+also guard source changes and final install/recovery; no exclusive cross-app lock is
+claimed. Do not concurrently edit the same file in another app.
+The first writer refuses DRM/encrypted samples and containers with more than one
+track; it does not claim to verify other tracks or DRM auxiliary offsets.
+
+`MetadataTransaction` persists an AtomicFile journal in noBackupFilesDir **before**
+create/rename/cleanup work, including both UUID artifact names. Commit pauses
+cancellation before backup/install/verify. Recovery checks original/backup hashes,
+rolls back uncommitted installs, cleans only verified owned artifacts, and refuses
+third-party conflicts. Source audio is not permanently duplicated. Root UI offers
+recovery even if the original filename is temporarily absent. The scanner hides
+only strict generated artifact names. One bounded old-tag/art snapshot is retained
+privately; it is marked committed with a digest but has no undo UI yet.
+
+The Activity ViewModel holds one editor session/draft across rotation, not one VM per
+track. Late/cancelled loads cannot retarget a new editor. Physical filename remains
+unchanged. Successful save refreshes actual detail tags, artwork version and bounded
+folder snapshots in place (focus/viewport retained); the affected current Media3
+item is stopped/replaced/prepared at its prior position with queue/lyric extras kept.
+An unrelated playing item is not stopped. Playback resumes manually after editing.
+Native device tests and provider failure injection are separate from JVM transaction
+tests; a compiled instrumentation APK is not evidence that device writes passed.
 
 ## Testing strategy
 
@@ -295,3 +597,22 @@ provider cannot provide it; such providers are read-only for metadata editing.
 - Compose tests for focus-versus-playing state and navigation semantics.
 - Macrobenchmarks for cold library launch, scrolling, thumbnail loading and focus
   wall gestures at representative scale.
+
+### Player tonal field (2026-10-11)
+CoverFacts now retains rawPaletteArgbs alongside the unchanged balanced wall palette.
+The single bounded decode produces both; no full-size background decode or per-frame
+colour extraction. PlayerBackdrop uses the raw dominant family as a vertical tonal
+field. Intrinsic dimensions use the same cached facts, never file metadata guesses.
+
+### Lazy audio artwork (2026-10-11 follow-up)
+SafDirectoryScanner previously assigned currentFolderArtwork to every audio. It now
+builds a versioned private content URI per retained track, with optional strict-basename
+sidecar/folder fallback. Directory enumeration does not call MediaMetadataRetriever.
+AudioArtworkProvider (not exported, read-only) extracts embedded art on image request;
+validates image bounds and caches original image bytes privately. Max 8 MiB/image,
+64 MiB/192 disk entries, 192 in-process negative results; source size/mtime and source
+URI isolate cache entries. All file writes/deletes are confined to the provider's own
+cacheDir/track-artwork-v1, never SAF media. Native retriever returns an embedded byte
+array before its size can be checked (a known API memory limitation); oversized artwork
+is rejected and falls back, not decoded at full size. CoverFacts retains a separate
+playerToneArgb derived from mid-tone chromatic coarse buckets; wall palette stays unchanged.
