@@ -4961,3 +4961,32 @@ black vs colourful covers, rapid cuts and lyric paging. If still square, compare
 actual source bitmap dimensions/padding and displayed artwork URI before assuming
 layout failure. Device validation and existing crash/native-license/library indexing
 follow-ups remain open. This is reference-driven reconstruction, not Salt source port.
+
+
+### v0.1.6 delivery receipt — verified (2026-10-18)
+
+Publisher completed from reviewed clean commit
+`a67ef1c69f3426472a727afd69a7c5cc3d078ac7`, rerunning the full verification command
+in **14s** with up-to-date outputs (557 JVM tests, lint 0/28, app/test APKs).
+Source master and v0.1.6 tag independently read back at that exact SHA.
+Release https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.6 was published
+at **2026-10-18 19:16:31 Asia/Shanghai** (`2026-10-18T11:16:31Z`), marked latest.
+Public visibility, old releases/tags/assets and signer were retained unchanged.
+
+Publisher and separate anonymous API checks compared remote size/SHA256 with local
+ignored `build/jokesong-release/v0.1.6/` files:
+- `JOKESONG.apk`: 88,259,483 bytes,
+  `98c994ec47c40e225b1fe2b769cd66e2b222a913042c67abc8bf293b3efd9e46`.
+- `JOKESONG-build.json`: 665 bytes,
+  `1a7fd4a5879cd2b58013159814eed96851d1c67f3d1b1da409ccaae0dc44f12c`.
+- `SHA256SUMS.txt`: 79 bytes,
+  `a5db32a1e337642c69e012c1fb07f38cca5b5efeb4907f719c2269738c3cfc3e`.
+
+Anonymous latest APK HEAD followed to HTTP **200**, length 88,259,483. Source,
+implementation records and APK are delivered; owner screenshots/local previews and
+compiler caches were excluded. This receipt-only commit needs no duplicate APK.
+Phone installation/visual/decoder/FPS acceptance remains pending. Next: owner
+cover-installs v0.1.6 and compares the same media/cover source, dimensions/padding,
+colourful/black/neutral backdrops, percentages/rotation and rapid cuts. Neither
+pixel-perfect Salt reproduction nor the original phone's square-cover root cause
+is certified; use that runtime evidence before another algorithm change.

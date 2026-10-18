@@ -750,7 +750,8 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Narrow 25 tests; final 75 suites / 557 tests pass, lint 0 errors / 28 warnings;
       app/test APKs built, package/signer and 0.1.6 / code 7 independently verified.
 - [x] Synthetic and reference-colour-only local previews inspected; private screenshots not staged.
-- [ ] Reviewed source/docs push, v0.1.6 Release and anonymous asset/source verification.
+- [x] Reviewed source/docs pushed; v0.1.6 published, source/tag and three attachment digests
+      independently verified; anonymous latest APK HTTP 200. Delivery receipt in HANDOFF.
 - [ ] Owner phone checks identical portrait/wide/square source art, cold/failing palette load,
       percentages/rotation, dark vs colourful covers, rapid cuts and ordinary-lyrics paging.
       Android generated-image decoder test compiled only; no phone FPS or exact Salt match claimed.
