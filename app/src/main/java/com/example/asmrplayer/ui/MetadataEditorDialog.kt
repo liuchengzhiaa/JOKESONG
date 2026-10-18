@@ -30,7 +30,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun MetadataEditorDialog(item: LibraryItem, onDismiss: () -> Unit,
-    onBeforeSave: () -> Unit, onSaved: (TagSaveResult) -> Unit) {
+    onBeforeSave: () -> Unit, onSaved: (TagSaveResult) -> Unit, coverOnly: Boolean = false) {
     val model: MetadataEditViewModel = viewModel(key = "metadata-editor")
     val state by model.state.collectAsStateWithLifecycle()
     val session = rememberSaveable { java.util.UUID.randomUUID().toString() }
@@ -55,7 +55,7 @@ internal fun MetadataEditorDialog(item: LibraryItem, onDismiss: () -> Unit,
         Surface(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(stringResource(R.string.metadata_edit), style = MaterialTheme.typography.titleLarge)
+                    Text(stringResource(if (coverOnly) R.string.audio_cover_edit else R.string.metadata_edit), style = MaterialTheme.typography.titleLarge)
                     TextButton(onClick = onDismiss, enabled = !state.busy) { Text(stringResource(R.string.metadata_close)) }
                 }
                 if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -68,7 +68,7 @@ internal fun MetadataEditorDialog(item: LibraryItem, onDismiss: () -> Unit,
                 if (state.saved != null) Text(stringResource(if (state.pending) R.string.metadata_saved_cleanup else R.string.metadata_saved))
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(state.snapshot?.fileName ?: item.title, style = MaterialTheme.typography.bodySmall)
-                    Text(stringResource(R.string.metadata_notice), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(if (coverOnly) R.string.audio_cover_notice else R.string.metadata_notice), style = MaterialTheme.typography.bodySmall)
                     if (state.cover != CoverEdit.RemoveFront) AsyncImage(model = state.previewUri ?: item.artworkUri,
                         contentDescription = stringResource(R.string.metadata_cover), contentScale = ContentScale.Fit,
                         modifier = Modifier.fillMaxWidth().height(170.dp))
@@ -80,15 +80,15 @@ internal fun MetadataEditorDialog(item: LibraryItem, onDismiss: () -> Unit,
                             Text(stringResource(R.string.metadata_remove_cover))
                         }
                     }
-                    EditableTagKeys.forEach { key ->
+                    if (!coverOnly) EditableTagKeys.forEach { key ->
                         OutlinedTextField(value = state.fields[key].orEmpty(), onValueChange = { model.field(key, it) },
                             label = { Text(stringResource(tagLabel(key))) }, singleLine = key != "COMMENT",
                             enabled = state.snapshot != null && !state.busy && !state.pending && state.saved == null,
                             modifier = Modifier.fillMaxWidth())
                     }
                 }
-                Button(onClick = { onBeforeSave(); model.save() }, modifier = Modifier.fillMaxWidth(),
-                    enabled = state.snapshot != null && !state.loading && !state.busy && !state.pending && state.saved == null) {
+                Button(onClick = { onBeforeSave(); model.save(coverOnly = coverOnly) }, modifier = Modifier.fillMaxWidth(),
+                    enabled = state.snapshot != null && !state.loading && !state.busy && !state.pending && state.saved == null && (!coverOnly || state.cover != CoverEdit.Keep)) {
                     Text(stringResource(R.string.metadata_save_file))
                 }
             }

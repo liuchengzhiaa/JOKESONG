@@ -529,6 +529,17 @@ deleting and searching a selection of cards *are* built; batch here means batch
 
 ## Metadata editing
 
+Audio entries also expose a long-press 设置封面 entry in all five library layouts.
+It opens the existing transactional editor in cover-only mode: choose/preview or
+remove embedded front cover, then explicitly save to the actual audio file.
+Do not submit hidden tag fields or call the text-tag writer for this operation;
+retain title/artist/unknown/multi-value tags and all existing format/provider/
+integrity restrictions. This differs deliberately from a folder's app-private
+presentation override. Capture the target across rotation/queue changes, pause only
+that target if currently playing, and refresh its artwork/queue after success with
+no folder rescan. Cancel/close before saving never changes the file. The complete
+metadata editor remains available in song details.
+
 First implementation (2026-10-18, D-040): details-page tool menu → 编辑歌曲信息.
 Single-track title, artist/voice actor, album, album artist, track/disc, date/year,
 genre, comment and embedded front cover are written to the actual audio file, not

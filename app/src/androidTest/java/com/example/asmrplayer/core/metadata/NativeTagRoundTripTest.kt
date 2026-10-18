@@ -41,6 +41,8 @@ class NativeTagRoundTripTest {
                 assertEquals("声优", properties["ARTIST"]!!.single())
                 assertTrue(TagLib.savePictures(fd.dup().detachFd(), arrayOf(Picture(art, "Front Cover", "Front Cover", "image/jpeg"))))
                 assertArrayEquals(art, TagLib.getPictures(fd.dup().detachFd()).single().data)
+                val afterCover = TagLib.getMetadata(fd.dup().detachFd(), false)!!.propertyMap
+                assertEquals(properties.mapValues { it.value.toList() }, afterCover.mapValues { it.value.toList() })
             }
             assertEquals(originalHash, streamDigest(original.inputStream()))
             assertEquals(audio, FileInputStream(staged).use { payloadDigest(AudioFile(it.channel), "wav") })

@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="audio_cover_edit">设置音频封面</string>
+    <string name="audio_cover_notice">仅更换或移除这首音频的内嵌封面，不修改标题、作者等标签。选择图片后点击保存才会写入真实音频文件。保存时暂停本曲目，完成后可手动继续；安全检查不通过时拒绝写入。</string>
     <string name="folder_cover_title">文件夹封面</string>
     <string name="folder_cover_set">设置封面</string>
     <string name="folder_cover_reset">恢复自动封面</string>

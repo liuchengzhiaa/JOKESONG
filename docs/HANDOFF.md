@@ -4819,3 +4819,55 @@ patch retry; published release notes already contain exactly one correct section
 Only documentation changes follow the tested source commit, so no identical APK
 republish or tag rewrite is needed. Next owner action is download/cover-install
 and the acceptance list above; Claude can continue from this receipt and D-045.
+
+
+## Audio long-press cover editing (2026-10-18)
+
+Owner requests the same long-press cover access on audio items. Implementation is
+**0.1.5 / code 6** (same application ID and signer), D-046. This is an entry point to
+the previously authorized real-file metadata writer, not a private audio-cover alias.
+
+- All five layout callbacks are now `onItemLongClick`, available only with a document
+  URI. Folder long press keeps its existing private-copy dialog; audio long press
+  captures id/document/title/artwork in saveable state and opens MetadataEditorDialog
+  with `coverOnly=true`. There is no new double-click handler, scene/layout change,
+  player, broad permission or eager metadata scan.
+- The cover-only editor hides text fields, shows a real-file notice, shares the
+  `Download/mihon/local` picker hint and requires explicit save after selecting or
+  removing front cover. No-op save is disabled in both UI/model. Cancelling the
+  picker/closing before save writes nothing. Full details metadata editing stays.
+- `metadataFieldsForSave` submits an empty map in cover-only mode. AudioTagEditor
+  skips `savePropertyMap` for empty text edits, still compares original properties
+  after cover mutation, and retains all original provider/grant/format/space,
+  sibling-stage/payload/probe/hash/journal/recovery safeguards. Unsupported/unsafe
+  writes are refused, never silently turned into presentation-only changes.
+- Only the captured target is paused when it is current and playing. Existing
+  onMetadataSaved patches snapshot and retained player artwork and refreshes Media3
+  queue/notification metadata without a rescan. Successful cleanup closes only the
+  cover-only editor; cleanup-pending success retains recovery controls. Removing
+  embedded front cover may still display the existing sibling/folder fallback.
+
+Verification:
+- Narrow AudioCoverEditPolicyTest + MetadataTransactionTest + FolderCoverProjectionTest
+  + FocusWallInteractionTest: **31 tests**, no failures/errors/skips.
+- Full `./gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest lintDebug
+  assembleDebug assembleDebugAndroidTest` passed in **2m42s**. Independent XML totals
+  **74 suites / 543 tests**, no failures/errors/skips; lint **0 errors / 28 warnings**.
+  TEMP=TMP=C:\jtmp; GRADLE_USER_HOME=C:\Users\LiuDeZhou\.gradle.
+- Three new pure policy tests cover ignored hidden fields, untouched multi-value /
+  unknown / oversized existing tags, and unchanged full-editor behavior. The generated
+  native WAV fixture additionally asserts tag-map equality after savePictures; it
+  compiles in the instrumentation APK but **was not device-executed**. No phone was
+  installed/launched and no real user media was edited during development.
+- APK `../.asmrplayer-build/app/outputs/apk/debug/app-debug.apk`: 88,149,304 bytes,
+  built `2026-10-18T10:12:32.9467372Z`, SHA256
+  `814944692cacc72015c4e5cbfbe1afddf02510eaa0dd4c9bc583bf50e4e3a74d`.
+  aapt2/apksigner independently confirm com.example.asmrplayer / 0.1.5 / code 6
+  and unchanged pinned signer. Publication is pending until the receipt below.
+
+Safest next action: review/stage only source/tests/docs, run publisher and independently
+verify source/tag/assets + login-free latest download; append actual receipt. Owner
+then checks long press in each layout, selection/cancel/save/remove, rotation/queue
+retarget prevention, current-vs-other-track pause, refreshed covers and restart on
+copied/generated disposable media. Existing native licence, crash and paged-library
+follow-ups remain open; none are claimed resolved by this entry-point change.

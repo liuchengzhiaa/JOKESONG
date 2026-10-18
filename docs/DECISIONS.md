@@ -1052,3 +1052,16 @@ in existing Room artwork metadata. It does not write tags, create cover files in
 the library, change per-track covers or act as a privacy alias. All five library
 layouts expose the same long-press dialog; tap/focus, pan and playback are unchanged.
 Shared picker initial URI remains a provider hint, not guaranteed navigation.
+
+
+## D-046 — Audio long press uses the real embedded-cover editor (2026-10-18)
+
+Owner asks for the same long-press cover access on audio entries. Reuse D-040's
+existing validated transactional file writer in a cover-only editor, not D-045's
+folder presentation override. All five library layouts share item long press;
+folders keep their existing private override/reset dialog. Audio cover selection
+uses the shared mihon/local picker hint and requires explicit save before changing
+the real file. Hide text fields, submit no text edits, skip text-tag rewrite and
+verify original properties unchanged. All supported-provider/format, recovery,
+current-track pause and cache/session refresh rules remain in force. Unsupported
+or unsafe writes stay refused, not replaced with a silent database-only cover.

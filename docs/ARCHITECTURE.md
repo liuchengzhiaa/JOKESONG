@@ -564,6 +564,17 @@ two-rename sequence for primary internal ExternalStorageProvider documents only.
 This supersedes the former blanket strict-atomic/read-only clause, not the duty to
 refuse unsupported providers. Ordinary SAF write/rename flags alone are insufficient.
 
+Library long press uses the same MetadataEditorDialog/MetadataEditViewModel in
+cover-only mode, capturing id/document/title/artwork independently of playback.
+`metadataFieldsForSave` returns no text edits in that mode and AudioTagEditor skips
+savePropertyMap for an empty field set. Expected original properties are still
+verified after the cover mutation, along with normal payload/probe/journal checks.
+No-op cover saves are disabled. Success uses the existing onMetadataSaved path to
+patch bounded snapshots, retained player art and Media3 queue without rescan; only
+a fully completed save closes this cover-only editor automatically. Recovery-pending
+success keeps its recovery controls. Folder covers remain a separate private-copy
+repository and the ordinary full metadata form retains its original behavior.
+
 `core/metadata/AudioTagEditor` serializes all edits/recovery with one process mutex.
 `SafTagDocuments` validates persisted read/write grants, parent/name binding, provider
 flags, regular seekable FD/size and space for one full sibling plus 64 MiB. It never

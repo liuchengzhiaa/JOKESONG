@@ -60,14 +60,14 @@ class MetadataEditViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun removeCover() { if (!mutable.value.busy) mutable.value = mutable.value.copy(cover = CoverEdit.RemoveFront, previewUri = null, saved = null) }
-    fun save() {
+    fun save(coverOnly: Boolean = false) {
         val s = mutable.value; val snapshot = s.snapshot ?: return
-        if (s.busy || s.pending) return
+        if (s.busy || s.pending || (coverOnly && s.cover == CoverEdit.Keep)) return
         mutable.value = s.copy(busy = true, error = null, saved = null)
         savedDelivered = false
         viewModelScope.launch {
             try {
-                val saved = editor.save(s.uri, snapshot, s.fields, s.cover) { phase -> mutable.value = mutable.value.copy(phase = phase) }
+                val saved = editor.save(s.uri, snapshot, metadataFieldsForSave(s.fields, coverOnly), s.cover) { phase -> mutable.value = mutable.value.copy(phase = phase) }
                 mutable.value = mutable.value.copy(saved = saved, pending = saved.cleanupPending)
                 // The same dialog cannot accidentally re-save the stale pre-edit snapshot.
             } catch (e: Exception) {

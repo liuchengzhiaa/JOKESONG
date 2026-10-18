@@ -16,6 +16,10 @@ data class TagEditSnapshot(val fileName: String, val values: Map<String, List<St
     fun text(key: String) = values[key].orEmpty().joinToString("; ")
 }
 
+/** Cover-only entry points must never submit hidden text fields as tag edits. */
+internal fun metadataFieldsForSave(fields: Map<String, String>, coverOnly: Boolean): Map<String, String> =
+    if (coverOnly) emptyMap() else fields
+
 internal fun editedProperties(before: Map<String, List<String>>, fields: Map<String, String>): Map<String, List<String>> {
     val result = before.toMutableMap()
     fields.forEach { (key, value) ->

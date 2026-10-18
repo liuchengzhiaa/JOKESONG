@@ -727,3 +727,16 @@ order because each layer consumes the stable model built by the one before it:
 - [ ] Owner phone checks long press (focused/unfocused), cancelled picker, save/replace/reset,
       same-name folders, refresh/restart, all five layouts and retained focus/viewport.
       Android repository tests compiled only; SAF image decode/copy not device-executed.
+
+
+## Current slice — audio long-press cover editing (2026-10-18)
+- [x] Item long-press dispatch in all five layouts; folder private override behavior retained.
+- [x] Cover-only existing metadata editor, shared SAF picker hint, explicit real-file save/removal.
+- [x] No hidden tag edits or text-tag writer; unchanged-tag verification and original transaction safeguards.
+- [x] Captured target across rotation/queue changes; existing snapshot/queue/artwork refresh without rescan.
+- [x] Narrow 31 tests; full 74 suites / 543 JVM tests pass, lint 0 errors / 28 warnings;
+      app/test APK built; unchanged package/signer and 0.1.5 / code 6 verified.
+- [ ] Source/docs push, v0.1.5 Release publication and anonymous asset/source verification.
+- [ ] Owner phone checks audio long press, cancel/replace/remove/save, target stability during
+      queue changes/rotation, current/other-track pause behavior and refreshed covers in all layouts.
+      Native/SAF checks are compiled only; use disposable copied/generated media for acceptance.

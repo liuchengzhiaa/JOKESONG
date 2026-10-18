@@ -462,6 +462,12 @@ fun AsmrPlayerApp(
                     onRefresh = onRefresh,
                     onOpenFolder = onOpenFolder,
                     onSetFolderCover = onSetFolderCover,
+                    onMetadataSaved = { id, saved ->
+                        retainedNowPlayingItem = retainedNowPlayingItem?.let {
+                            if (it.id == id) it.copy(artworkUri = saved.artworkUri, documentUri = saved.documentUri) else it
+                        }
+                        onMetadataSaved(id, saved)
+                    },
                     onOpenPlayer = {
                         showSubtitleDetail = false
                         fullPlayerItemId = it.id
@@ -580,6 +586,7 @@ private fun LibraryContent(
     onRefresh: () -> Unit,
     onOpenFolder: (LibraryItem) -> Unit,
     onSetFolderCover: suspend (String, android.net.Uri?) -> Boolean,
+    onMetadataSaved: (String, com.example.asmrplayer.core.metadata.TagSaveResult) -> Unit,
     onOpenPlayer: (LibraryItem) -> Unit,
     onOpenLyrics: (LibraryItem) -> Unit,
     onFocusedItemChange: (String?) -> Unit,
@@ -601,11 +608,40 @@ private fun LibraryContent(
 ) {
     var coverFolderUri by rememberSaveable { mutableStateOf<String?>(null) }
     var coverFolderTitle by rememberSaveable { mutableStateOf("") }
-    val editFolderCover: (LibraryItem) -> Unit = { item ->
-        if (item.type == LibraryItemType.Folder && item.documentUri != null) {
-            coverFolderTitle = item.title
-            coverFolderUri = item.documentUri
+    var audioCoverId by rememberSaveable { mutableStateOf<String?>(null) }
+    var audioCoverUri by rememberSaveable { mutableStateOf("") }
+    var audioCoverTitle by rememberSaveable { mutableStateOf("") }
+    var audioCoverArtwork by rememberSaveable { mutableStateOf<String?>(null) }
+    val editLibraryCover: (LibraryItem) -> Unit = { item ->
+        if (item.documentUri != null) {
+            if (item.type == LibraryItemType.Folder) {
+                coverFolderTitle = item.title
+                coverFolderUri = item.documentUri
+            } else {
+                audioCoverUri = item.documentUri
+                audioCoverTitle = item.title
+                audioCoverArtwork = item.artworkUri
+                audioCoverId = item.id
+            }
         }
+    }
+    audioCoverId?.let { targetId ->
+        MetadataEditorDialog(
+            item = LibraryItem(
+                id = targetId, title = audioCoverTitle, subtitle = "",
+                type = LibraryItemType.Audio, paletteSeed = targetId.hashCode(),
+                documentUri = audioCoverUri, artworkUri = audioCoverArtwork,
+            ),
+            coverOnly = true,
+            onDismiss = { audioCoverId = null },
+            onBeforeSave = {
+                if (playbackState.isCurrent(targetId) && playbackState.isPlaying) onTogglePlayPause()
+            },
+            onSaved = { saved ->
+                onMetadataSaved(targetId, saved)
+                if (!saved.cleanupPending) audioCoverId = null
+            },
+        )
     }
     coverFolderUri?.let { folder ->
         FolderCoverDialog(
@@ -754,7 +790,7 @@ private fun LibraryContent(
                     onPrevious = onPrevious,
                     onNext = onNext,
                     onOpenLyrics = onOpenLyrics,
-                    onFolderLongClick = editFolderCover,
+                    onItemLongClick = editLibraryCover,
                     layoutMode = layoutMode,
                     onLayoutModeChange = onLayoutModeChange,
                     onDensityChange = onWallDensityChange,
@@ -800,7 +836,7 @@ private fun LibraryContent(
                     onPrevious = onPrevious,
                     onNext = onNext,
                     onOpenLyrics = onOpenLyrics,
-                    onFolderLongClick = editFolderCover,
+                    onItemLongClick = editLibraryCover,
                     layoutMode = layoutMode,
                     onLayoutModeChange = onLayoutModeChange,
                     onDensityChange = onWallDensityChange,
@@ -832,7 +868,7 @@ private fun LibraryContent(
                     items = state.items,
                     playbackState = playbackState,
                     onOpen = openItem,
-                    onFolderLongClick = editFolderCover,
+                    onItemLongClick = editLibraryCover,
                     onPlay = onPlayItem,
                     onTogglePlayPause = onTogglePlayPause,
                 )
@@ -841,7 +877,7 @@ private fun LibraryContent(
                     items = state.items,
                     playbackState = playbackState,
                     onOpen = openItem,
-                    onFolderLongClick = editFolderCover,
+                    onItemLongClick = editLibraryCover,
                     onPlay = onPlayItem,
                     onTogglePlayPause = onTogglePlayPause,
                 )
@@ -850,7 +886,7 @@ private fun LibraryContent(
                     items = state.items,
                     playbackState = playbackState,
                     onOpen = openItem,
-                    onFolderLongClick = editFolderCover,
+                    onItemLongClick = editLibraryCover,
                     onPlay = onPlayItem,
                     onTogglePlayPause = onTogglePlayPause,
                 )

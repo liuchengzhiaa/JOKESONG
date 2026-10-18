@@ -213,7 +213,7 @@ fun FocusCoverWall(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onOpenLyrics: (LibraryItem) -> Unit,
-    onFolderLongClick: (LibraryItem) -> Unit,
+    onItemLongClick: (LibraryItem) -> Unit,
     layoutMode: LibraryLayoutMode,
     onLayoutModeChange: (LibraryLayoutMode) -> Unit,
     onDensityChange: (Int) -> Unit,
@@ -274,7 +274,7 @@ fun FocusCoverWall(
                 onPrevious = onPrevious,
                 onNext = onNext,
                 onOpenLyrics = onOpenLyrics,
-                onFolderLongClick = onFolderLongClick,
+                onItemLongClick = onItemLongClick,
                 onCardClick = { item ->
                     when (resolveCardTap(focusedItemId, item.id)) {
                         // A tap on any other card moves focus to it. Nothing else
@@ -837,7 +837,7 @@ private fun FocusWallCanvas(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onOpenLyrics: (LibraryItem) -> Unit,
-    onFolderLongClick: (LibraryItem) -> Unit,
+    onItemLongClick: (LibraryItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val configuration = LocalConfiguration.current
@@ -1186,8 +1186,8 @@ private fun FocusWallCanvas(
                         },
                         motionPercent = motionPercent,
                         onClick = { onCardClick(item) },
-                        onLongClick = if (item.type == LibraryItemType.Folder) {
-                            { onFolderLongClick(item) }
+                        onLongClick = if (item.documentUri != null) {
+                            { onItemLongClick(item) }
                         } else null,
                         onPlayPause = { onPlayPause(item) },
                         onSeekTo = onSeekTo,
@@ -1481,7 +1481,7 @@ private fun FocusCoverCard(
             .border(borderWidth.dp, borderColor, shape)
             .clip(shape)
             // No double-click handler: a normal tap still focuses immediately.
-            // Folder long press exposes artwork actions without activating navigation.
+            // Item long press exposes artwork actions without activating navigation.
             // Binding onDoubleClick as well would
             // make Compose hold every single tap back for the double-tap timeout
             // before delivering it, which is felt as lag on the wall's main

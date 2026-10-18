@@ -58,7 +58,7 @@ class AudioTagEditor(private val context: Context) {
         var committedHash = ""
         val cleanupComplete = MetadataTransaction(store).execute(plan, rewriteAndValidate = { stage ->
             check(properties(store, stage) == snapshot.values && pictures(store, stage).contentEquals(pictures)) { "SOURCE_CHANGED" }
-            check(native { TagLib.savePropertyMap(store.fd(stage, true).use { it.dup().detachFd() },
+            if (fields.isNotEmpty()) check(native { TagLib.savePropertyMap(store.fd(stage, true).use { it.dup().detachFd() },
                 HashMap(expected.mapValues { it.value.toTypedArray() })) }) { "TAG_WRITE_FAILED" }
             if (cover != CoverEdit.Keep) check(native { TagLib.savePictures(store.fd(stage, true).use { it.dup().detachFd() }, changed) }) { "ARTWORK_WRITE_FAILED" }
             check(properties(store, stage) == expected) { "TAG_VERIFY_FAILED" }
