@@ -1082,3 +1082,32 @@ cropping to a guessed subject. Existing code already attempted intrinsic sizing;
 without the actual failing media/device we cannot establish why that phone appeared
 square. Salt's internal algorithm has not been inspected; this is reference-driven
 visual reconstruction, not a claimed identical-source/pixel-perfect port.
+
+
+## D-048 — Folder covers are portable files, resolved bottom-up (2026-10-18)
+
+Owner explicitly supersedes D-044's any-direct-image/first-track rule and D-045's
+private presentation-only folder covers. Prefer an exact case-insensitive `cover`
+image; otherwise find the first naturally ordered direct audio with embedded art;
+otherwise recurse through child folders naturally/depth-first, generate their cover
+and copy it upward through the successful chain. Non-cover image names no longer
+have folder priority. Existing disk cover is never automatically overwritten.
+
+Long-press selection copies the source's actual bytes/format to a real `cover` in
+the target directory. Existing manual private copies are migration inputs only,
+considered after disk cover but before automatic audio selection; retain them.
+Actual covers travel with the media directory across phones/reinstalls. A new phone
+still needs its own SAF root grant. Audio tags/aliases are not changed by this rule.
+
+Use on-demand off-main, bounded metadata pages and cooperative traversal/time limits,
+not eager 10k-folder artwork generation. Exhaustion and permission failure must not
+be cached as a definitive empty subtree. An unwritable automatic destination may
+show its discovered source without falsely claiming persistence. Writes initially
+support only the local system storage provider with granted create/rename operations.
+Manual source images are bounded to 8 MiB, validated without full-size decode, staged
+and read-back verified. A durable journal and retained old-image backup protect
+explicit replacement; two SAF renames are recoverable, NOT atomic. Keep failed
+recovery information rather than overwriting conflicting files. No user-media delete.
+Remove the old private-reset UI; do not reinterpret it as deleting a real cover.
+If more than one cover exists, show one deterministically but refuse ambiguous
+manual replacement until the user tidies the duplicates outside the app.

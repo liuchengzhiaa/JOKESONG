@@ -6,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
@@ -64,13 +63,8 @@ internal fun FolderCoverDialog(
             }
         },
         dismissButton = {
-            Row {
-                TextButton(enabled = !busy, onClick = { save(null) }) {
-                    Text(stringResource(R.string.folder_cover_reset))
-                }
-                TextButton(enabled = !busy, onClick = onDismiss) {
-                    Text(stringResource(R.string.metadata_close))
-                }
+            TextButton(enabled = !busy, onClick = onDismiss) {
+                Text(stringResource(R.string.metadata_close))
             }
         },
     )

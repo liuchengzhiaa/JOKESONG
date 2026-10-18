@@ -15,8 +15,8 @@ class FolderArtworkSelectionTest {
     @Test fun `a direct folder image remains preferred regardless of audio arrival order`() {
         val selection = FolderArtworkSelection()
         selection.audio(FolderArtworkEntry("01.mp3", "audio"))
-        selection.image(FolderArtworkEntry("cover2.jpg", "second"))
-        selection.image(FolderArtworkEntry("cover1.jpg", "first"))
+        selection.image(FolderArtworkEntry("other.jpg", "second"))
+        selection.image(FolderArtworkEntry("COVER.jpg", "first"))
         assertEquals("first", selection.image?.uri)
         assertEquals("audio", selection.firstAudio?.uri)
     }

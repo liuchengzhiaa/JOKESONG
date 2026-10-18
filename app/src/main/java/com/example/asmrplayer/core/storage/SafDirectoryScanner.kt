@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.provider.DocumentsContract
 import com.example.asmrplayer.core.artwork.audioArtworkUri
 import com.example.asmrplayer.core.artwork.folderArtworkUri
+import com.example.asmrplayer.core.artwork.isFolderCoverArtifact
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
 import com.example.asmrplayer.core.model.NaturalNameComparator
@@ -72,7 +73,7 @@ class SafDirectoryScanner(
                 ensureActive()
                 val documentId = cursor.getString(documentIdColumn) ?: continue
                 val displayName = cursor.getString(displayNameColumn)?.takeIf(String::isNotBlank) ?: continue
-                if (com.example.asmrplayer.core.metadata.isMetadataArtifactName(displayName)) continue
+                if (com.example.asmrplayer.core.metadata.isMetadataArtifactName(displayName) || isFolderCoverArtifact(displayName)) continue
                 val mimeType = cursor.getString(mimeTypeColumn)
                 val isDirectory = mimeType == DocumentsContract.Document.MIME_TYPE_DIR
                 if (!isDirectory && SupportedArtwork.isSupported(displayName, mimeType)) {
@@ -148,7 +149,7 @@ class SafDirectoryScanner(
                         queryDirectFolder(treeUri, childFolderUri)
                     }
                     item.copy(
-                        artworkUri = probe?.artworkUri,
+                        artworkUri = folderArtworkUri(treeUri.toString(), item.documentUri!!, scanVersion),
                         childFolderCount = probe?.childFolderCount ?: 0,
                         audioCount = probe?.audioCount ?: 0,
                     )

@@ -4990,3 +4990,96 @@ cover-installs v0.1.6 and compares the same media/cover source, dimensions/paddi
 colourful/black/neutral backdrops, percentages/rotation and rapid cuts. Neither
 pixel-perfect Salt reproduction nor the original phone's square-cover root cause
 is certified; use that runtime evidence before another algorithm change.
+
+
+## Portable recursive folder covers — verified, delivery pending (2026-10-18)
+
+Owner confirms exact cover -> first direct audio WITH artwork -> recursive child
+cover, copying into each ancestor and making manual choice a real cover file.
+D-048 supersedes D-044/D-045 folder artwork behavior. Version 0.1.7 / code 8; same
+application ID/signing. Audio embedded-cover edits and their transaction scope stay.
+
+Implemented:
+- Pure FolderCoverResolver/FolderCoverStore; exact basename cover check, natural
+  audio search across pages (not only first track), then natural DFS and bottom-up
+  install. Existing disk cover wins; legacy private explicit choice migrates only
+  if no cover. No generic image fallback. No eager whole-library task.
+- SAF candidate pages hold 32 entries via heap, row streaming checkpoints, cycle
+  detection and per-request limits: depth 24, 256 folders, 256 audio, 100k cursor rows,
+  15s cooperative elapsed time (including folder-lock wait). Budget/errors do not
+  enter a negative folder cache. Refresh retries; giant empty subtrees may exceed
+  budget and remain unresolved. There is no resumable full-library backfill job.
+- All folders, including first 48 summary probes, use the lazy endpoint. Separate
+  folder lock from track extraction monitor. Repository projects versioned endpoint
+  IDs on raw cached listings; manual save keeps focus/pan and does not rescan media.
+- Manual image copies original encoded bytes, <=8 MiB, actual MIME extension,
+  bounds + <=128px software decode rejecting partials; sibling stage/fsync/hash.
+  Local ExternalStorageProvider only, persisted read/write grant, create/rename
+  support and scope checks. Automatic write refusal displays discovered source
+  WITHOUT persistence; manual refusal is visible and never labelled saved.
+- Pure CoverInstallTransaction + per-folder AtomicFile journal: preserve old cover
+  as hidden UUID backup, promote verified stage, verify promoted bytes. Next access
+  recovers interrupted rename or finalises verified commit. Not atomic SAF replace;
+  conflicts retain journal/copies. Backups and abandoned hidden stages retained,
+  never used by scanner/cover selection. No user-media deletes or new permissions.
+- Old private Room rows/copies retained and accepted only in owned canonical paths;
+  read one exact folder lazily, not all overrides. No schema change. Disk cover wins
+  over old private choice. No reset-to-automatic action: cannot reset a real file
+  by dropping a private assignment. Dialog explains copy/backup/read-write need.
+
+First targeted run: FolderCoverResolverTest/CoverInstallTransactionTest/
+FolderArtworkSelectionTest, 32 tests passed (1m44s). Subsequently tightened recovery
+for corrupt promoted targets/pre-move same-name originals, and added generated-image
+Android validation fixture. Final full verification is recorded below. Android tests are
+compile-only; no connected phone/real user media access or runtime SAF write claim.
+
+Known limits: native embeddedPicture allocates before its inherited 8MiB guard;
+provider/native calls cannot be forcibly interrupted by cooperative deadline. Coil
+may not propagate CancellationSignal on every stream-open path. Retained backups/
+stages take disk space; no automatic deletion/sweeper. Journals are private to the
+installation; copy media only after completed operations. Multiple cover files
+resolve deterministically but manual replacement refuses ambiguity. New phone must
+copy actual directories and regrant SAF, not merely install APK. Existing old manual
+mapping migration requires its original folder document URI still match. Device
+acceptance uses disposable generated/copied media, not the owner's originals.
+
+Safest next step: finish tests/build, inspect changes/signer/version/metadata invariants,
+review upload set, commit/publish v0.1.7 with tools/publish-release.ps1, verify remote
+SHA/assets + anonymous latest APK, then record actual receipt. Do not claim published
+until read-back succeeds; do not automatically install or mutate phone media.
+
+
+### Final verification before v0.1.7 publication
+
+- Final command: `./gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest
+  lintDebug assembleDebug assembleDebugAndroidTest`, TEMP=TMP=C:\jtmp,
+  GRADLE_USER_HOME=C:\Users\LiuDeZhou\.gradle. **BUILD SUCCESSFUL in 3m44s**;
+  XML independently reports **77 suites / 587 tests**, zero failures/errors/skips.
+  Lint **0 errors / 28 warnings**. Earlier full pass was 4m11s, before the final
+  pure projection/recovery-identity changes; final outputs include those changes.
+- Pure resolver/transaction tests cover existing priority, private migration,
+  later-audio natural ordering, audio vs child priority, empty siblings, each level
+  of backfill, >32 paging, cycles/depth/row/audio/folder limits, cancellation,
+  read-only display fallback and no repeated extraction after cover creation.
+  Transaction tests inject both rename failures/process-death points, same-extension
+  recovery, corrupt stage/target, name conflicts and retained old backups/journals.
+  Updated projection tests assert identity/version isolation and no audio override.
+- Android tests compile URI/private-path ownership and generated PNG validation
+  fixtures only; **not device-executed**. No actual SAF copy/rename recovery, provider
+  fidelity, native extraction/OOM, phone FPS or cross-phone acceptance is certified.
+- Journal identity now uses authority + document ID, independent of which ancestor
+  SAF tree was granted, so a new valid grant can recover the same folder. Each access
+  still validates active scope/read-write permissions; never reconstructs storage paths.
+- App APK 88,348,479 bytes, built 2026-10-18T13:46:18Z; SHA256
+  `8c5651752f409ce4d8dabd2a024e499ef910fc6b2ac898d8be997b3641e8e302`.
+  aapt2/apksigner independently confirm com.example.asmrplayer / 0.1.7 / code 8
+  and pinned certificate `d834b2397f96c78efa5cf0b2dfa29ff56a92583d7c1402ecfdbbe9c993859152`.
+- Source/diff/upload set reviewed: code, tests, resources and product/architecture/
+  decisions/tasks/handoff/changelog only. No user image/media, host attachments,
+  generated exports, keys, caches, local settings or APK binaries enter Git.
+
+Next: commit reviewed slice, publish with standard script, read back exact source/tag,
+asset digests and anonymous APK availability, then append receipt. No publication
+claim yet. Owner should grant directory read/write access and test a disposable tree
+first (empty first track, later embedded art, nested child cover, manual replacements,
+restart and read-only failure); copy completed actual directories for phone migration.

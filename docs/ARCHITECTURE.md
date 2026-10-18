@@ -100,24 +100,40 @@ Never mutate canonical metadata to implement privacy presentation.
 
 ### Artwork-driven presentation
 
-- `FolderCoverRepository` stores manual folder covers as bounded (1024px longest
-  edge) private PNG copies, with UUID filenames and Room `artwork_entries` metadata
-  (`manual_folder` source kind). Existing schema is unchanged. It queries only the
-  current listing's folder URIs in chunks of at most 400, never loads all overrides.
-  Writes/decode run on IO; fully write/fsync the new private image before atomically
-  changing the DB reference. Failed/cancelled precommit work removes its candidate;
-  postcommit old-copy cleanup is best effort and cannot report a false save failure.
-  Cancellation is deferred through DB commit/cleanup, not through image decoding.
-  A hard process kill may leave an unreferenced private copy; no media recovery is
-  needed, and automatic orphan sweeping is deferred. Only owned canonical paths
-  may be opened/deleted. Unavailable copies fall back to automatic artwork.
-- Folder snapshots retain automatic artwork. Scan and memory-restore publication
-  project manual folder covers separately; saving/restoring projects the current
-  snapshot without SAF rescan or discarding focus/viewport. Audio metadata, song
-  artwork and provider fallbacks remain independent. Picker target folder URI/title
-  is captured with saveable UI state; decode errors are recoverable in its dialog.
-  `coverImagePickerIntent` is shared with the song editor, with temporary read grant
-  only: successful copying needs no retained image grant or new storage permission.
+- Folder covers follow D-048's disk-first `cover` / direct embedded audio / recursive
+  child policy. `FolderCoverResolver` is a pure bounded DFS and `FolderCoverStore`
+  boundary; `SafFolderCoverStore` performs scoped SAF metadata paging, embedded-art
+  reads through the existing private track endpoint, legacy lookup and image copy.
+  Candidate pages retain at most 32 entries in a natural-order heap; visited identities
+  and depth/audio/folder/cursor/time budgets bound one visible-folder request. Budget
+  exits are errors, not definitive negatives. No recursive scan runs in Compose or
+  the initial directory enumerator. Provider/native calls are only cooperatively
+  cancellable; Coil may not forward a CancellationSignal on every image-open path.
+- Every folder uses the lazy `/folder` endpoint, including the initial 48 metadata
+  summaries. `FolderCoverRepository.project` adds a stable per-instance/replacement
+  artwork revision to raw snapshots, never overrides from an app-private file.
+  Raw snapshots/focus/pan stay intact; audio metadata callbacks remain separate.
+- `FolderCoverFiles` serializes folder lookup/writes with a dedicated lock; it does
+  not hold AudioArtworkProvider's track-cache monitor. Source audio is never modified.
+  Private legacy copies are accepted only inside the canonical owned folder-covers
+  directory, queried lazily for the exact visible folder URI when disk cover is absent.
+  Retain old Room rows/copies, even after migration; no schema change or global DB load.
+- `SafFolderCoverStore.save` streams at most 8 MiB of original encoded image through
+  an app-cache file, validates actual format/bounds and a <=128px software ImageDecoder
+  result (reject partial decode), then writes/fsyncs/read-back-hashes a sibling stage.
+  Actual MIME determines the cover extension. Unknown/cloud providers refuse writes;
+  local ExternalStorageProvider requires a persisted read/write tree grant and flags.
+  Image writes do not broaden the audio-tag editor's stricter provider scope.
+- `CoverInstallTransaction` records an AtomicFile journal before renaming an existing
+  cover to a hidden UUID backup and promoting the validated stage. This is recoverable,
+  not atomic. Next folder access finalises a verified promotion or restores the backup;
+  conflicts/corruption retain the journal and copies rather than guessing/deleting.
+  Retain backups and interrupted hidden stages; exclude them from all artwork/scans.
+  No automatic backup/orphan sweep. Manual replacement refuses multiple cover images.
+  Removing an app assignment can no longer reset a real disk cover, so remove that
+  action instead of deleting user images. Failed writes have explicit dialog text.
+- The shared song/folder `coverImagePickerIntent` keeps its temporary read grant and
+  mihon/local start hint; no broad storage permission or retained source-image grant.
 
 - The focus wall's selected item is the authority for the ambient palette. Media3
   playback identity stays independent and does not recolour the wall by itself.
@@ -572,8 +588,8 @@ verified after the cover mutation, along with normal payload/probe/journal check
 No-op cover saves are disabled. Success uses the existing onMetadataSaved path to
 patch bounded snapshots, retained player art and Media3 queue without rescan; only
 a fully completed save closes this cover-only editor automatically. Recovery-pending
-success keeps its recovery controls. Folder covers remain a separate private-copy
-repository and the ordinary full metadata form retains its original behavior.
+success keeps its recovery controls. Folder covers use D-048's separate real-cover
+image repository; the ordinary full metadata form retains its original behavior.
 
 `core/metadata/AudioTagEditor` serializes all edits/recovery with one process mutex.
 `SafTagDocuments` validates persisted read/write grants, parent/name binding, provider
@@ -682,11 +698,10 @@ playerToneArgb derived from mid-tone chromatic coarse buckets; wall palette stay
   max heap (4–64 MiB), no unbounded weak-reference index; fetch concurrency 4, decode 2.
   This limits cache/in-flight pressure, not the memory of currently visible bitmaps or
   an oversized native embeddedPicture allocation; the known native limitation remains.
-- `readDirectFolderArtwork` streams direct child metadata with constant-space natural
-  image/first-audio selection. Initial 48 summary probes remain; other folder art uses
-  a versioned private `/folder` endpoint and bounded target/negative caches. No audio
-  is opened during directory enumeration, no recursive crawl, no writes to media.
-  Main scanner requests size/modified columns that its version logic already consumes.
+- `readDirectFolderArtwork` remains a direct metadata-only summary probe. All
+  folder artwork now uses D-048's lazy resolver, not an initial-probe shortcut.
+  No audio is opened during directory enumeration. Main scanner requests size/modified
+  columns used by its version logic and skips hidden cover transaction artifacts.
 - Settings → Library can explicitly copy numeric runtime/last-three self-process
   ApplicationExitInfo facts (API30+), library count/layout/zoom/density and build ID.
   No descriptions, process names, media paths/names, trace streams or automatic upload.

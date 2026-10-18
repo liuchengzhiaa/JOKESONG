@@ -724,7 +724,8 @@ order because each layer consumes the stable model built by the one before it:
       App/test APKs built, package/version and unchanged signer independently verified (0.1.4 / code 5).
 - [x] Reviewed source/docs pushed; v0.1.4 published, exact tag/source SHA and all three
       attachment digests verified; anonymous latest APK HTTP 200. Receipt in HANDOFF.
-- [ ] Owner phone checks long press (focused/unfocused), cancelled picker, save/replace/reset,
+- [ ] Historical v0.1.4 private-reset acceptance superseded by D-048; check legacy migration,
+      long press (focused/unfocused), cancelled picker and save/replace instead.
       same-name folders, refresh/restart, all five layouts and retained focus/viewport.
       Android repository tests compiled only; SAF image decode/copy not device-executed.
 
@@ -755,3 +756,16 @@ order because each layer consumes the stable model built by the one before it:
 - [ ] Owner phone checks identical portrait/wide/square source art, cold/failing palette load,
       percentages/rotation, dark vs colourful covers, rapid cuts and ordinary-lyrics paging.
       Android generated-image decoder test compiled only; no phone FPS or exact Salt match claimed.
+
+
+## Current slice — portable recursive folder covers (2026-10-18)
+- [x] Replace folder-private presentation overrides with exact disk cover priority.
+- [x] Lazy natural-order direct-audio search, recursive children and bottom-up real cover copies.
+- [x] Manual byte-preserving cover copy, sibling stage/fsync/hash, recoverable rename journal and retained backups.
+- [x] Lazy legacy migration, read-only truthful display fallback, old reset removed; no audio tag edits/new permission.
+- [x] Bounded natural paging/traversal, independent folder/audio locks and hidden artifact exclusion.
+- [x] Final 77 suites / 587 JVM tests pass, lint 0 errors / 28 warnings; app/test APKs
+      built, unchanged package/signer and v0.1.7 / code 8 independently verified.
+- [ ] Review/upload source/docs and publish v0.1.7 / code 8; verify remote SHA/assets/anonymous download.
+- [ ] Owner phone disposable-tree checks: actual cover files, later-track artwork, nested backfill,
+      manual replace/recovery, read-only/regranted roots, update/restart/phone-copy and wall responsiveness.

@@ -55,27 +55,51 @@ subtitle support, direct metadata editing and a distinctive focus-cover wall.
 
 ### Folder artwork
 
-For a folder, inspect direct children in natural filename order:
+Folder covers are real files in their own media directory, not app-private assignments.
 
-An explicit manual folder cover takes priority over this automatic selection. Long
-press a folder in either wall, grid or list, choose 设置封面, then pick an image with
-the same SAF picker/start hint as the song metadata editor (`Download/mihon/local`).
-The provider may choose a different initial directory. Store a bounded private copy
-and persist its assignment to that exact folder document URI; never change audio
-tags or write/delete images in the media directory. 恢复自动封面 removes only the
-app's override. Cancelling or failing selection retains the prior cover. Overrides
-survive refresh/restart, remain separate for same-named folders, and do not replace
-individual songs' own artwork. Clearing app data/uninstalling removes these copies.
+1. Prefer a direct supported image whose basename is `cover`, case-insensitively
+   (`cover.jpg`, `cover.png`, etc.). Other image names do not take priority.
+2. With no cover, inspect direct audio in natural filename order until finding
+   embedded artwork, then copy its actual encoded image into this folder as `cover`
+   with the correct extension. A first track without artwork does not end the search.
+3. If no direct audio has artwork, visit child folders in natural depth-first order,
+   applying these same rules. Copy the successful child's cover into its parent,
+   repeating up the chain. Do not overwrite an existing cover automatically.
+4. Otherwise show a neutral placeholder. No other track receives this image as its
+   embedded cover; audio tags and privacy aliases remain independent.
 
-1. Use the first supported direct image file.
-2. With no direct image, use the embedded artwork of the first direct audio file
-   in natural filename order. Do not eagerly open every audio looking for a cover.
-3. Otherwise show the neutral empty-artwork treatment. Recursive artwork lookup
-   through child-only folders remains planned, not part of the current implementation.
+Long press a folder in any library layout to choose a cover using the existing
+SAF picker hint (`Download/mihon/local`, which the provider may ignore). Copy the
+chosen image byte-for-byte into that folder, never move/change the chosen original.
+Support readable JPEG/PNG/WebP/BMP/HEIF/AVIF images up to 8 MiB; validation decodes
+only a small image. Existing covers are renamed to hidden `.jokesong-cover-...`
+backups during explicit manual replacement and never automatically deleted. Refuse
+ambiguous replacement if multiple cover files exist. The previous private-only
+reset action is removed: there is no hidden app assignment to reset or permission
+to delete actual cover files. Choose a different image to replace it.
 
-The initial bounded folder-summary probes are not an artwork availability limit:
-folders beyond those probes resolve artwork lazily when displayed. Refresh renews
-lazy folder lookup identities without rescanning on pan or layout switches.
+Before promotion, validate the image and read back/hash the sibling staging file.
+An app-private durable journal supports recovery on next access; SAF's two renames
+are not atomic. A failed/uncertain operation retains the original/backup and recovery
+information. Permission/provider failures are not reported as successful saving.
+Writes require a persisted read/write tree grant and the system local storage
+provider's create/rename support; cloud/other providers remain read-only. During
+automatic lookup an unwritable folder may still display the found source, but it
+has NOT acquired a persistent cover. Old app-private manual copies migrate lazily
+only when no disk cover exists, and are retained as migration/recovery inputs.
+
+Only displayed folders trigger this background work. Metadata-only summary probes
+never extract audio or recursively generate covers. Each lookup pages candidates
+32 at a time, with a 24-level depth, 256-folder, 256-audio, 100,000-cursor-row and
+15-second cooperative budget; budget/permission errors are not cached as permanent
+no-art results. Native retriever/provider calls cannot be forcibly interrupted.
+Use Refresh to retry an incomplete lookup. This is not an eager full-library job
+or a guarantee to complete arbitrarily large/deep empty subtrees in one request.
+Manual cover changes refresh artwork identities without discarding wall focus/pan.
+
+A normal APK update keeps app data, and actual cover files survive reinstalls and
+phone changes when the whole media directory is copied. On a new phone the user
+must grant library access again. Merely installing the APK does not transfer media.
 
 Audio items use their own embedded artwork and then fall back to their folder art.
 

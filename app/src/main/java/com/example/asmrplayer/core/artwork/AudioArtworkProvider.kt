@@ -7,10 +7,10 @@ import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import android.os.CancellationSignal
 import android.provider.DocumentsContract
 import android.util.LruCache
 import androidx.core.net.toUri
-import com.example.asmrplayer.core.storage.readDirectFolderArtwork
 import java.io.File
 import java.io.FileNotFoundException
 import java.security.MessageDigest
@@ -38,8 +38,6 @@ class AudioArtworkProvider : ContentProvider() {
     }
     private val gate = Any()
     private val missing = LruCache<String, Boolean>(192)
-    private val folderTargets = LruCache<String, String>(192)
-    private val missingFolders = LruCache<String, Boolean>(192)
     override fun onCreate(): Boolean = true
     override fun getType(uri: Uri): String = "image/*"
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? = null
@@ -47,9 +45,17 @@ class AudioArtworkProvider : ContentProvider() {
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = throw UnsupportedOperationException("Read only")
     override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int = throw UnsupportedOperationException("Read only")
 
-    override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor = synchronized(gate) {
+    override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor = openFile(uri, mode, null)
+
+    override fun openFile(uri: Uri, mode: String, signal: CancellationSignal?): ParcelFileDescriptor {
+        signal?.throwIfCanceled()
         if (mode != "r" || uri.authority != Authority) throw FileNotFoundException("Invalid artwork request")
-        if (uri.path == "/folder") return@synchronized openFolderArtwork(uri)
+        // Do not hold the audio cache monitor while walking/writing folder covers.
+        if (uri.path == "/folder") return openFolderArtwork(uri, signal)
+        return openTrackArtwork(uri, mode)
+    }
+    private fun openTrackArtwork(uri: Uri, mode: String): ParcelFileDescriptor = synchronized(gate) {
+        if (mode != "r" || uri.authority != Authority) throw FileNotFoundException("Invalid artwork request")
         if (uri.path != "/track") throw FileNotFoundException("Invalid artwork request")
         val ctx = context ?: throw FileNotFoundException("Artwork provider unavailable")
         val audio = uri.getQueryParameter("audio")?.let(Uri::parse)
@@ -99,38 +105,27 @@ class AudioArtworkProvider : ContentProvider() {
         ctx.contentResolver.openFileDescriptor(fallback, "r") ?: throw FileNotFoundException("Fallback artwork unavailable")
     }
 
-    /** Runs only for a displayed folder, never all folders in the root at once. */
-    private fun openFolderArtwork(uri: Uri): ParcelFileDescriptor {
+    /** Runs on demand, serialised independently of audio reads; errors are not negative-cached. */
+    private fun openFolderArtwork(uri: Uri, signal: CancellationSignal?): ParcelFileDescriptor {
         val ctx = context ?: throw FileNotFoundException("Artwork provider unavailable")
-        val key = uri.toString()
-        if (missingFolders.get(key) == true) throw FileNotFoundException("Folder has no direct artwork")
-        var target = folderTargets.get(key)
-        if (target == null) {
-            val tree = uri.getQueryParameter("tree")?.let(Uri::parse)
-            val folder = uri.getQueryParameter("folder")?.let(Uri::parse)
-            if (tree == null || folder == null || tree.scheme != "content" ||
-                folder.scheme != "content" || !DocumentsContract.isTreeUri(tree) ||
-                tree.authority != folder.authority || tree.authority == Authority
-            ) throw FileNotFoundException("Invalid folder source")
-            target = try {
-                readDirectFolderArtwork(ctx.contentResolver, tree, folder).artworkUri
-            } catch (_: SecurityException) {
-                throw FileNotFoundException("Folder artwork permission unavailable")
-            } catch (_: IllegalArgumentException) {
-                throw FileNotFoundException("Folder artwork source unavailable")
-            }
-            if (target == null) {
-                missingFolders.put(key, true)
-                throw FileNotFoundException("Folder has no direct artwork")
-            }
-            folderTargets.put(key, target)
-        }
+        val tree = uri.getQueryParameter("tree")?.let(Uri::parse)
+        val folder = uri.getQueryParameter("folder")?.let(Uri::parse)
+        if (tree == null || folder == null || tree.scheme != "content" ||
+            folder.scheme != "content" || !DocumentsContract.isTreeUri(tree) ||
+            tree.authority != folder.authority || tree.authority == Authority
+        ) throw FileNotFoundException("Invalid folder source")
+        val target = try {
+            FolderCoverFiles.resolve(ctx, tree, folder, signal)
+        } catch (cancelled: android.os.OperationCanceledException) { throw cancelled }
+          catch (error: Exception) { throw FileNotFoundException("Folder cover unavailable: ${error.message}").apply { initCause(error) } }
+            ?: throw FileNotFoundException("Folder has no artwork")
+        signal?.throwIfCanceled()
         val source = target.toUri()
-        return if (source.authority == Authority && source.path == "/track") {
-            openFile(source, "r")
-        } else {
-            ctx.contentResolver.openFileDescriptor(source, "r")
-                ?: throw FileNotFoundException("Folder artwork unavailable")
+        if (source.scheme == "file") {
+            val owned = ownedLegacyCover(ctx, target) ?: throw FileNotFoundException("Invalid legacy cover")
+            return ParcelFileDescriptor.open(owned, ParcelFileDescriptor.MODE_READ_ONLY)
         }
+        return ctx.contentResolver.openFileDescriptor(source, "r", signal)
+            ?: throw FileNotFoundException("Folder artwork unavailable")
     }
 }

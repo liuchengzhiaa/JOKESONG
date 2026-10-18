@@ -1,11 +1,9 @@
 package com.example.asmrplayer.core.artwork
 
+import android.provider.DocumentsContract
 import androidx.core.net.toUri
-import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.example.asmrplayer.core.database.AsmrDatabase
-import com.example.asmrplayer.core.database.ArtworkEntity
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
 import java.io.File
@@ -14,57 +12,43 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Disposable app-cache fixtures only; no SAF media tree or real user image is opened. */
+/** URI/private-path checks only; never writes a user SAF tree. */
 @RunWith(AndroidJUnit4::class)
 class FolderCoverRepositoryTest {
-    @Test fun savedOverrideSurvivesRepositoryRecreationAndResetRestoresAutomaticArt() = runBlocking {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val db = Room.inMemoryDatabaseBuilder(context, AsmrDatabase::class.java).build()
-        val dir = File(context.cacheDir, "folder-cover-test-${java.util.UUID.randomUUID()}").apply { mkdirs() }
-        val image = File(dir, "test.png").apply { writeBytes(byteArrayOf(1, 2, 3)) }
-        val uri = "content://generated/folder"
-        val folder = LibraryItem(uri, "work", "", LibraryItemType.Folder, paletteSeed = 1,
-            documentUri = uri, artworkUri = "automatic")
-        try {
-            db.libraryDao().upsertArtwork(listOf(ArtworkEntity("manual-folder:$uri", uri,
-                "manual_folder", image.toUri().toString(), "image/png", null, null, "test", 1)))
-            val repository = FolderCoverRepository(context, db.libraryDao(), dir)
-            assertEquals(image.toUri().toString(), repository.project(listOf(folder)).single().artworkUri)
-            val recreated = FolderCoverRepository(context, db.libraryDao(), dir)
-            assertEquals(image.toUri().toString(), recreated.project(listOf(folder)).single().artworkUri)
-            // Refuse file:// input; a failed selection preserves the old row and file.
-            try { recreated.set(uri, image.toUri()); fail("Must require a SAF content URI") }
-            catch (_: IllegalArgumentException) { }
-            assertTrue(image.exists())
-            recreated.set(uri, null)
-            assertFalse(image.exists())
-            assertEquals("automatic", recreated.project(listOf(folder)).single().artworkUri)
-        } finally {
-            db.close()
-            image.delete()
-            dir.delete()
-        }
+    @Test fun folderProjectionUsesLazyDiskLookupAndLeavesAudioUnchanged() = runBlocking {
+        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+        val uri = DocumentsContract.buildDocumentUriUsingTree(
+            "content://com.android.externalstorage.documents/tree/primary%3AMusic".toUri(), "primary:Music/work").toString()
+        val folder = LibraryItem(uri, "work", "", LibraryItemType.Folder, paletteSeed = 1, documentUri = uri, artworkUri = null)
+        val audio = folder.copy(id = "audio", type = LibraryItemType.Audio, artworkUri = "audio-art")
+        val repo = FolderCoverRepository(ctx)
+        val projected = repo.project(listOf(folder, audio))
+        assertEquals(audio, projected[1])
+        assertEquals(uri, projected[0].artworkUri!!.toUri().getQueryParameter("folder"))
+        assertEquals("/folder", projected[0].artworkUri!!.toUri().path)
+        // No reset now: a real cover cannot be removed by deleting an app-private assignment.
+        try { repo.set(uri, null); fail() } catch (_: IllegalArgumentException) { }
+        try { repo.set(uri, "file:///test.png".toUri()); fail() } catch (_: IllegalArgumentException) { }
     }
-
-    @Test fun foreignFileReferenceIsNeverOpenedOrDeleted() = runBlocking {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val db = Room.inMemoryDatabaseBuilder(context, AsmrDatabase::class.java).build()
-        val dir = File(context.cacheDir, "folder-cover-test-${java.util.UUID.randomUUID()}").apply { mkdirs() }
-        val outside = File.createTempFile("generated-unowned-", ".png", context.cacheDir)
-        val uri = "content://generated/folder"
-        val folder = LibraryItem(uri, "work", "", LibraryItemType.Folder, paletteSeed = 1,
-            documentUri = uri, artworkUri = "automatic")
+    @Test fun onlyCanonicalOwnedLegacyPathsAreAccepted() {
+        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+        val owned = File(ctx.filesDir, "folder-covers/test.png")
+        assertEquals(owned.canonicalFile, ownedLegacyCover(ctx, owned.toUri().toString()))
+        assertNull(ownedLegacyCover(ctx, File(ctx.cacheDir, "outside.png").toUri().toString()))
+        assertNull(ownedLegacyCover(ctx, File(ctx.filesDir, "folder-covers/../outside.png").toUri().toString()))
+    }
+    @Test fun generatedImagesValidateAtBoundedSizeAndInvalidImageIsRejected() {
+        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+        val fixture = File.createTempFile("generated-cover-", ".png", ctx.cacheDir)
         try {
-            db.libraryDao().upsertArtwork(listOf(ArtworkEntity("manual-folder:$uri", uri,
-                "manual_folder", outside.toUri().toString(), "image/png", null, null, "test", 1)))
-            val repository = FolderCoverRepository(context, db.libraryDao(), dir)
-            assertEquals("automatic", repository.project(listOf(folder)).single().artworkUri)
-            repository.set(uri, null)
-            assertTrue(outside.exists())
-        } finally {
-            db.close()
-            outside.delete()
-            dir.delete()
-        }
+            val bitmap = android.graphics.Bitmap.createBitmap(1800, 600, android.graphics.Bitmap.Config.ARGB_8888)
+            try { fixture.outputStream().use { assertTrue(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)) } }
+            finally { bitmap.recycle() }
+            val original = fixture.readBytes()
+            assertEquals("image/png", validateFolderCoverImage(fixture))
+            assertArrayEquals(original, fixture.readBytes())
+            fixture.writeBytes(byteArrayOf(1, 2, 3))
+            try { validateFolderCoverImage(fixture); fail() } catch (_: Exception) { }
+        } finally { fixture.delete() }
     }
 }

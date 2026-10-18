@@ -1,6 +1,7 @@
 package com.example.asmrplayer.core.storage
 
 import com.example.asmrplayer.core.model.NaturalNameComparator
+import com.example.asmrplayer.core.artwork.isNamedFolderCover
 
 internal data class FolderArtworkEntry(val name: String, val uri: String, val version: String = "")
 
@@ -11,7 +12,9 @@ internal class FolderArtworkSelection {
     var firstAudio: FolderArtworkEntry? = null
         private set
 
-    fun image(candidate: FolderArtworkEntry) { image = earlier(image, candidate) }
+    fun image(candidate: FolderArtworkEntry) {
+        if (isNamedFolderCover(candidate.name)) image = earlier(image, candidate)
+    }
     fun audio(candidate: FolderArtworkEntry) { firstAudio = earlier(firstAudio, candidate) }
 
     private fun earlier(current: FolderArtworkEntry?, next: FolderArtworkEntry): FolderArtworkEntry {

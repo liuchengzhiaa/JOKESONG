@@ -3,7 +3,7 @@ package com.example.asmrplayer.core.storage
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.DocumentsContract
-import com.example.asmrplayer.core.artwork.audioArtworkUri
+import com.example.asmrplayer.core.artwork.isFolderCoverArtifact
 import com.example.asmrplayer.core.metadata.isMetadataArtifactName
 
 internal data class DirectFolderArtwork(
@@ -41,7 +41,7 @@ internal fun readDirectFolderArtwork(
         while (cursor.moveToNext()) {
             onRow()
             val label = cursor.getString(name)?.takeIf(String::isNotBlank) ?: continue
-            if (isMetadataArtifactName(label)) continue
+            if (isMetadataArtifactName(label) || isFolderCoverArtifact(label)) continue
             val type = cursor.getString(mime)
             if (type == DocumentsContract.Document.MIME_TYPE_DIR) { folders++; continue }
             val image = SupportedArtwork.isSupported(label, type)
@@ -58,9 +58,7 @@ internal fun readDirectFolderArtwork(
         }
     }
     return DirectFolderArtwork(
-        artworkUri = selection.image?.uri ?: selection.firstAudio?.let {
-            audioArtworkUri(audio = it.uri, fallback = null, version = it.version)
-        },
+        artworkUri = selection.image?.uri,
         childFolderCount = folders,
         audioCount = audios,
     )
