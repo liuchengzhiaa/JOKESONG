@@ -791,7 +791,8 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Reuse positive document URIs and source digest; keep live conflict/safe-write checks.
 - [x] Early progress and skip irrelevant legacy queries; no display-policy or permissions change.
 - [x] assembleDebug compiled v0.1.9 / code 10, same package/signer; no tests/Lint per owner.
-- [ ] Publish explicitly untested phone-acceptance APK, source/docs and integrity receipt.
+- [x] Published explicitly untested v0.1.9 APK and source/docs; source/tag and asset
+      digests verified, anonymous version APK HTTP 200; test fields null/skipped.
 - [ ] Owner phone speed/stop/rerun/large-folder acceptance; no FPS/throughput claim from desktop tests.
 - [ ] JVM/Lint/instrumentation verification explicitly skipped for this release at owner's request;
       run normal full verification next time, including new catalog tests, before claiming them passed.

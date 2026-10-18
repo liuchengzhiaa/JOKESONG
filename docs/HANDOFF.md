@@ -5281,3 +5281,28 @@ Source/upload set reviewed: code, unexecuted test fixtures, docs only. Private i
 media, scratch DB, derived quick publisher, machine settings/keys/caches excluded.
 Next: commit and compile-only one-off release, then upload integrity receipt. Device
 runtime/SQLite behavior, actual speed and SAF side effects are pending owner testing.
+
+
+### v0.1.9 compile-only delivery receipt (2026-10-19)
+
+Published source/tag `b40929fee2c0a8e089049440ed674756e6d6d738` using the ignored
+compile-only publisher; repeat assembleDebug was up-to-date in 11s. Release
+https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.9 published at
+**2026-10-19 00:19:40 Asia/Shanghai** (`2026-10-18T16:19:40Z`), marked latest.
+Independent remote master/tag read-back matches source. PUBLIC destination and old
+releases/assets unchanged. User requested no tests: JVM/Lint/device checks SKIPPED,
+not passed. No test APK built. Manifest JVM/Lint fields independently confirmed null.
+
+Publisher plus separate anonymous upload checks matched local ignored release files:
+- `JOKESONG.apk`: 88,469,839 bytes,
+  `02a732a992f87fc9682a07350bd2ff61abccc7bdcd684b105a69fae4301e2895`.
+- `JOKESONG-build.json`: 790 bytes,
+  `a23bd7fcc6595ef775dfa083a51c3232d9a823a980286adaa77bd7213aacdc84`.
+- `SHA256SUMS.txt`: 79 bytes,
+  `cce358505afcd0aa400c374f5ae54fce2f386f57a18cfb929e9a9f5faf7fe470`.
+Anonymous version-specific APK HEAD returns HTTP 200, length 88,469,839.
+Delivery integrity/package/signature only, NOT feature/performance verification.
+Source/docs/APK uploaded; private media/DB/cache/derived publisher/keys excluded.
+Receipt-only commit requires no duplicate APK. Next: owner installs 0.1.9 and tests
+explicit batch speed, stop/rerun, preservation and failures on phone. Follow-up agent
+must run standard full checks/new catalog fixtures before any validation claim.
