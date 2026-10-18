@@ -4642,3 +4642,71 @@ APK are therefore delivered; the follow-up receipt-only commit is not another AP
 Owner phone installation/visual acceptance remains pending; no device was operated.
 Next: download/cover-install and check the acceptance list above before broadening
 this UI slice. Keep the unrelated native licence review open.
+
+## Compact header, folder fallback and large-wall work (2026-10-18)
+
+Owner requests removing the left up icon, slightly increasing compact header type/
+icons, first-audio art when a folder has no image, and addressing large-wall lag/exits.
+Implementation is **0.1.3 / code 4**, unchanged application ID and signing certificate;
+D-044, PRODUCT_SPEC and ARCHITECTURE describe the changed contract.
+
+- Header scale is 0.55 (35.2 dp height / 12.1 sp title at default metrics), 20 dp
+  action glyphs; no navigationIcon. System Back/up, insets and corner layout tools stay.
+- `FolderArtworkSelection` retains only the earliest natural direct image/audio.
+  Image wins; otherwise the first audio supplies its lazy embedded-art URI. Shared
+  `readDirectFolderArtwork` never opens audio or recurses during enumeration. Initial
+  48 folder-summary probes remain, but other folders get a lazy private `/folder`
+  artwork endpoint instead of permanently blank covers. Its target/negative caches
+  have 192 entries; refresh changes lazy folder lookup versions. Scanner now requests
+  the size/mtime columns already consumed by its track-version logic. Summary counts
+  beyond the initial probes, recursive indexing and the 500 retained-item cap are not
+  changed by this slice; do not claim a complete 40,000-track app index.
+- `FocusWallScene` constructs geometry, ID map, bounds and two-axis spatial index on
+  Dispatchers.Default. Cancelled computations cannot publish stale results. Prior
+  same-folder geometry may remain during reflow; another folder's scene is filtered.
+  Palette changes no longer reflow geometry except FullCover's decoded aspect.
+- View queries inspect local two-axis buckets, preserve original order and still
+  expand by maximum half-size before exact culling. Huge sparse queries scan finite
+  populated buckets, not billions of empty cells. Bounds are cached per scene.
+- Continuous pan/zoom/distance alpha are read inside the existing graphicsLayer,
+  rather than captured into each poster's per-frame subcomposition. Decode resolution,
+  prefetch margins, geometry, z-order, gradients and discrete animations remain.
+- `JokesongApplication` provides one shared Coil loader: strong cache 1/8 max heap
+  (4–64 MiB), weak-reference index off, fetch concurrency 4 and decode concurrency 2.
+  This bounds cache/in-flight pressure, not every visible bitmap/native allocation.
+- Settings → 资料库 → 复制运行诊断（不含文件信息） explicitly copies build/SDK, heap
+  cap, numeric library/layout/zoom/density and up to 3 own-process exit records on
+  API30+. API29 reports unavailable history. No descriptions, process/media names,
+  paths, trace streams, file report, new permission or automatic upload. Clipboard
+  failure is handled; coroutine cancellation is preserved; labels are resources.
+
+Verification/evidence:
+- Narrow tests ran first. Final new suites: folder selection 4, memory policy 3,
+  index/scene 6. Existing interaction checks also passed. A synthetic 40,000-grid
+  query examines <80 candidates; real Folia 40,000 placements query examines <1,000,
+  matches brute force, and both scene engines match their established exact geometry.
+  These are JVM operation-count/equivalence assertions, not phone FPS profiling.
+- Final `./gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest
+  lintDebug assembleDebug assembleDebugAndroidTest`: **BUILD SUCCESSFUL in 2m34s**;
+  **72 suites / 536 tests**, 0 failures/errors/skipped; lint **0 errors / 28 warnings**.
+  `TEMP=TMP=C:\jtmp`, `GRADLE_USER_HOME=C:\Users\LiuDeZhou\.gradle`.
+  Initial lint caught Context.getString in the new composable; fixed with stringResource,
+  fixed a new KTX warning and repeated the complete command. No lint suppression.
+- APK `../.asmrplayer-build/app/outputs/apk/debug/app-debug.apk`: 89,385,739 bytes,
+  built 2026-10-18 16:21:57 host local time. aapt2 verifies JOKESONG / 0.1.3 / code 4,
+  `com.example.asmrplayer`; apksigner matches the pinned certificate. SHA256:
+  `ac81e6b0b375e60e26cf562ca844b799edc3786b337c34d175501ccb27e2df80`.
+  App/test APKs compiled; instrumentation and SAF/native artwork round trips were
+  **not device-executed**. Read-only adb device listing returned **no devices**.
+  No phone launch/install or user-media mutation; no crash log or measured phone FPS.
+- Work stopped at an automatic approval review usage-limit error before committing/
+  publishing. Owner explicitly resumed; current code/artifacts were retained and
+  XML/APK checks re-read. No v0.1.3 upload is claimed before the receipt below.
+
+Safest next action: commit reviewed source/docs, run publisher, verify remote source,
+tag and assets, and append receipt. Owner then refreshes the folder and tests direct
+image / no-image first-audio / first-audio without art / folders beyond position 48;
+pan/focus large walls in both orientations. If an exit recurs, copy runtime diagnostics.
+Native embeddedPicture allocates before its 8 MiB check: this slice does not remove
+that known API limitation or prove all crashes fixed. Native licence review and
+recursive/paged-library work remain open. Reference photos stay ignored/local.

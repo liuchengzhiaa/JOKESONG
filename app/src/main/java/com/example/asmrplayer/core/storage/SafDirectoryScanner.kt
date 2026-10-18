@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
 import com.example.asmrplayer.core.artwork.audioArtworkUri
+import com.example.asmrplayer.core.artwork.folderArtworkUri
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
 import com.example.asmrplayer.core.model.NaturalNameComparator
@@ -57,6 +58,7 @@ class SafDirectoryScanner(
         var currentFolderArtwork: ArtworkCandidate? = null
         val trackArtworkCandidates = mutableListOf<ArtworkCandidate>()
         val artworkVersions = mutableMapOf<String, String>()
+        val scanVersion = System.currentTimeMillis().toString()
         val timedTextCandidates = mutableListOf<TimedTextCandidate>()
 
         queryChildren(childrenUri)?.use { cursor ->
@@ -151,7 +153,11 @@ class SafDirectoryScanner(
                         audioCount = probe?.audioCount ?: 0,
                     )
                 }
-                else -> item
+                else -> item.copy(
+                    // Only visible covers query these folders. The old 48-probe
+                    // limit must not mean that all remaining folders have no cover.
+                    artworkUri = folderArtworkUri(treeUri.toString(), item.documentUri!!, scanVersion),
+                )
             }
         }
 
@@ -207,39 +213,9 @@ class SafDirectoryScanner(
             cursor.getString(cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME))
         } ?: ""
 
-    private suspend fun queryDirectFolder(treeUri: Uri, folderUri: Uri): FolderProbe {
-        val documentId = DocumentsContract.getDocumentId(folderUri)
-        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId)
-        var candidate: ArtworkCandidate? = null
-        var childFolderCount = 0
-        var audioCount = 0
-        queryChildren(childrenUri)?.use { cursor ->
-            val idColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-            val nameColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-            val mimeColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
-            while (cursor.moveToNext()) {
-                currentCoroutineContext().ensureActive()
-                val name = cursor.getString(nameColumn)?.takeIf(String::isNotBlank) ?: continue
-                val mimeType = cursor.getString(mimeColumn)
-                if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
-                    childFolderCount++
-                    continue
-                }
-                if (SupportedAudio.isSupported(name, mimeType)) {
-                    audioCount++
-                    continue
-                }
-                if (!SupportedArtwork.isSupported(name, mimeType)) continue
-                val childId = cursor.getString(idColumn) ?: continue
-                val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, childId)
-                candidate = earlierArtwork(candidate, ArtworkCandidate(name, uri.toString()))
-            }
-        }
-        return FolderProbe(
-            artworkUri = candidate?.documentUri,
-            childFolderCount = childFolderCount,
-            audioCount = audioCount,
-        )
+    private suspend fun queryDirectFolder(treeUri: Uri, folderUri: Uri): DirectFolderArtwork {
+        val coroutineContext = currentCoroutineContext()
+        return readDirectFolderArtwork(contentResolver, treeUri, folderUri) { coroutineContext.ensureActive() }
     }
 
     private fun earlierArtwork(
@@ -256,18 +232,14 @@ class SafDirectoryScanner(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
             DocumentsContract.Document.COLUMN_DISPLAY_NAME,
             DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_SIZE,
+            DocumentsContract.Document.COLUMN_LAST_MODIFIED,
         )
         val NameProjection = arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
 
         data class ArtworkCandidate(
             val displayName: String,
             val documentUri: String,
-        )
-
-        data class FolderProbe(
-            val artworkUri: String?,
-            val childFolderCount: Int,
-            val audioCount: Int,
         )
 
         val DisplayComparator = Comparator<LibraryItem> { left, right ->

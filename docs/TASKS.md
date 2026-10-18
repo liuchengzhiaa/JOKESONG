@@ -702,3 +702,15 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Source/docs pushed; v0.1.2 / code 3 published, source/tag and all asset digests
       verified; latest APK responds HTTP 200 without login.
 - [ ] Owner phone acceptance: header readability/actions, five-way switching, wall gestures/return retention.
+
+## Current slice — folder artwork and large-wall stability (2026-10-18)
+- [x] Remove left up icon, raise compact header type/height to 55%, action glyphs to 20 dp.
+- [x] Direct-image / first-natural-audio cover fallback, lazy covers beyond 48 summary probes.
+- [x] Scene construction off-main, two-axis spatial query and drawing-layer continuous pan/alpha.
+- [x] Shared bounded Coil cache/fetch/decode work, original resolution/effects retained.
+- [x] Owner-initiated numeric exit diagnostics in Settings → Library, no file information/uploads.
+- [x] Final verification: 72 suites / 536 tests, lint 0 errors / 28 warnings;
+      app/test APKs built and app package/version/signer verified. No phone connected for reproduction.
+- [ ] Review/push source and documentation, publish/verify v0.1.3 / versionCode 4.
+- [ ] Owner checks fallback after refreshing directory and stresses large-wall pan/focus.
+      If exit recurs, copy runtime diagnostics. Actual native allocation/exit cause remains unproven.

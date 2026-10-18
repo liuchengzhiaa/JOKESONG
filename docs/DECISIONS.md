@@ -1021,3 +1021,23 @@ of the former Material top bar. Preserve system-bar insets, global accent/theme
 scaling, separate 48 dp wide action targets, and refresh/root/back actions. Do not
 shrink unrelated destinations, player chrome or bottom navigation. Keep real
 scanning/error/truncation status; remove the permanently reserved presentation row.
+
+## D-044 — Readable compact chrome, folder covers and bounded wall work (2026-10-18)
+
+Owner removes the library's left up arrow and asks for slightly larger type/icons.
+Use 55% of the former Material height/type (35.2 dp / 12.1 sp), 20 dp action glyphs,
+preserving system Back/up navigation and all other D-043 space-saving behavior.
+This explicitly supersedes D-043's 2/5 size, not the relocated layout controls.
+
+Owner specifies direct folder image first, then the first naturally sorted direct
+audio's embedded cover when there is no image. That replaces the old spec's
+embedded-first search-through-audio wording. Never eagerly decode all tracks or
+remove the availability of artwork after the first 48 summary probes; remaining
+folder covers are lazy. Recursive child-folder discovery remains deferred.
+
+Large-folder lag/exit is reported by owner, not yet independently reproduced. Keep
+the exact established geometry, gestures, effects and decode resolution. Move scene
+construction off-main, use two-axis culling and layer-only continuous appearance,
+and bound shared image-cache/in-flight work. No FPS or crash-free guarantee follows
+from JVM tests. Add an owner-initiated, local-only numeric exit diagnostic to obtain
+evidence without USB; no automatic report, media metadata or new permissions.

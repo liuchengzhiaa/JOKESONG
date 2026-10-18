@@ -57,11 +57,15 @@ subtitle support, direct metadata editing and a distinctive focus-cover wall.
 
 For a folder, inspect direct children in natural filename order:
 
-1. Use the embedded artwork of the first audio file that has artwork.
-2. Otherwise use the first supported image file.
-3. If the folder contains only child folders, recursively use the first child
-   folder that resolves artwork.
-4. Otherwise show the neutral empty-artwork treatment.
+1. Use the first supported direct image file.
+2. With no direct image, use the embedded artwork of the first direct audio file
+   in natural filename order. Do not eagerly open every audio looking for a cover.
+3. Otherwise show the neutral empty-artwork treatment. Recursive artwork lookup
+   through child-only folders remains planned, not part of the current implementation.
+
+The initial bounded folder-summary probes are not an artwork availability limit:
+folders beyond those probes resolve artwork lazily when displayed. Refresh renews
+lazy folder lookup identities without rescanning on pan or layout switches.
 
 Audio items use their own embedded artwork and then fall back to their folder art.
 
@@ -154,9 +158,10 @@ The five layouts are collected under the bottom-right tools button's Layout page
 it shows all five named choices and marks the active one. Lists and grid retain a
 matching bottom-right chooser so users can always switch back to either wall.
 No separate layout-switch row or gesture-instruction text reserves space above the
-wall. The library folder header's content height and title size are two fifths of
-the original app bar (25.6 dp / 8.8 sp with default Material metrics); system status
-bar insets remain intact, action targets retain independent 48 dp widths, and other
+wall. Following owner feedback, the library folder header's content height and title
+size are 55% of the original app bar (35.2 dp / 12.1 sp with default Material metrics),
+with 20 dp action glyphs and no left up-navigation icon. System Back still navigates
+up. System status bar insets remain intact, action targets retain independent 48 dp widths, and other
 destinations/player headers are unchanged. Scanning/error/truncation indicators
 still appear when relevant, rather than silently hiding real problems. The app
 remembers a global layout and permits per-folder overrides. Lists default

@@ -616,3 +616,29 @@ cacheDir/track-artwork-v1, never SAF media. Native retriever returns an embedded
 array before its size can be checked (a known API memory limitation); oversized artwork
 is rejected and falls back, not decoded at full size. CoverFacts retains a separate
 playerToneArgb derived from mid-tone chromatic coarse buckets; wall palette stays unchanged.
+
+### Large-wall follow-up (2026-10-18)
+- `FocusWallSceneRequest` captures immutable inputs on the UI thread. Scene geometry,
+  ID map, world bounds and `FocusWallSpatialIndex` are constructed on Dispatchers.Default
+  and published together. A cancelled producer cannot replace the newest request;
+  same-folder reflow can retain its prior scene, but another folder's scene is never shown.
+  Only FullCover uses decoded aspect as a layout input; palette arrival alone is not a reflow.
+- The two-axis centre-bucket index replaces the per-frame y-strip scan. Query bounds
+  still expand by maximum half-size before exact viewport intersection; result order
+  is preserved. Giant queries scan finite populated buckets rather than empty grid space.
+- Continuous pan/zoom/distance alpha are read inside each card's existing graphicsLayer,
+  not captured as per-frame subcomposition inputs. Discrete reflow/light animations,
+  resolution buckets, culling margins and draw order are unchanged; no extra GPU layer.
+- `JokesongApplication` supplies one shared Coil loader. Strong image cache uses 1/8
+  max heap (4–64 MiB), no unbounded weak-reference index; fetch concurrency 4, decode 2.
+  This limits cache/in-flight pressure, not the memory of currently visible bitmaps or
+  an oversized native embeddedPicture allocation; the known native limitation remains.
+- `readDirectFolderArtwork` streams direct child metadata with constant-space natural
+  image/first-audio selection. Initial 48 summary probes remain; other folder art uses
+  a versioned private `/folder` endpoint and bounded target/negative caches. No audio
+  is opened during directory enumeration, no recursive crawl, no writes to media.
+  Main scanner requests size/modified columns that its version logic already consumes.
+- Settings → Library can explicitly copy numeric runtime/last-three self-process
+  ApplicationExitInfo facts (API30+), library count/layout/zoom/density and build ID.
+  No descriptions, process names, media paths/names, trace streams or automatic upload.
+  This is a diagnosis aid, not an independent crash reproduction or a profiling result.

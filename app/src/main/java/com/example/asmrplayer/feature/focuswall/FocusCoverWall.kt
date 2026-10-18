@@ -162,7 +162,9 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * How quickly a released fling decays. Release is deliberately inertial and does
@@ -909,6 +911,7 @@ private fun FocusWallCanvas(
         val context = LocalContext.current.applicationContext
         val focusedArtworkUri = items.firstOrNull { it.id == focusedItemId }?.artworkUri
         val focusedCoverFacts by produceState<CoverFacts?>(null, focusedArtworkUri) {
+            value = null
             value = CoverAccentLoader.resolve(context, focusedArtworkUri)
         }
         // Focus is the wall's visual subject even when another audio keeps playing.
@@ -934,57 +937,29 @@ private fun FocusWallCanvas(
         }
         val posterTintColor = ambientPalette.firstOrNull()
             ?: MaterialTheme.colorScheme.primary
-        val placements = remember(
-            layoutItems,
-            viewportWidth,
-            viewportHeight,
-            orientation,
-            viewportState.densityPercent,
-            viewportState.focusShapeOrdinal,
-            viewportState.focusSizeOrdinal,
-            focusedItemId,
-            focusedCoverFacts,
-            style,
-            wallGapPx,
-        ) {
-            when (style) {
-                FocusWallStyle.Bento -> FocusWallLayoutEngine.layout(
-                    items = layoutItems,
-                    viewportWidth = viewportWidth,
-                    viewportHeight = viewportHeight,
-                    orientation = orientation,
-                    density = FocusWallDensity.Medium,
-                    densityScale = viewportState.densityScale,
-                    focusedItemId = focusedItemId,
-                    gapPx = wallGapPx,
-                )
-                FocusWallStyle.Folia -> FoliaWallLayoutEngine.layout(
-                    items = layoutItems,
-                    viewportWidth = viewportWidth,
-                    viewportHeight = viewportHeight,
-                    orientation = orientation,
-                    density = FocusWallDensity.Medium,
-                    densityScale = viewportState.densityScale,
-                    focusedItemId = focusedItemId,
-                    gapPx = wallGapPx,
-                    focusShape = viewportState.focusShape,
-                    focusSize = viewportState.focusSize,
-                    focusArtworkAspect = focusedCoverFacts?.aspect,
-                )
-            }
+        val sceneRequest = FocusWallSceneRequest(
+            contentKey, layoutItems, viewportWidth, viewportHeight, orientation,
+            viewportState.densityPercent, focusedItemId, wallGapPx, style,
+            viewportState.focusShape, viewportState.focusSize,
+            // Palette arrival changes light, not geometry. Only FullCover needs
+            // another layout once the source aspect is known.
+            focusedCoverFacts?.aspect.takeIf {
+                style == FocusWallStyle.Folia && viewportState.focusShape == FoliaFocusShape.FullCover
+            },
+        )
+        val producedScene by produceState<FocusWallScene?>(null, sceneRequest) {
+            value = withContext(Dispatchers.Default) { FocusWallScene(sceneRequest) }
         }
-        val placementById = remember(placements) { placements.associateBy(FocusWallPlacement::itemId) }
+        // Preserve the current scene during same-folder reflow, never paint the
+        // previous folder while its replacement is being calculated.
+        val scene = producedScene?.takeIf { it.request.contentKey == contentKey }
+        val placements = scene?.placements.orEmpty()
+        val placementById = scene?.placementById.orEmpty()
         val itemById = remember(items) { items.associateBy(LibraryItem::id) }
-        val maximumPlacementHalfSize = remember(placements) {
-            placements.fold(Size.Zero) { largest, placement ->
-                Size(
-                    width = max(largest.width, placement.width / 2f),
-                    height = max(largest.height, placement.height / 2f),
-                )
-            }
-        }
+        val maximumPlacementHalfSize = scene?.halfSize ?: Size.Zero
 
-        LaunchedEffect(focusedItemId, placements, motionPercent) {
+        LaunchedEffect(sceneRequest, scene, motionPercent) {
+            if (scene?.request != sceneRequest) return@LaunchedEffect
             val focused = focusedItemId?.let(placementById::get) ?: return@LaunchedEffect
             if (viewportState.restored) {
                 // Returning to a visited folder keeps the viewport it was left
@@ -1013,7 +988,7 @@ private fun FocusWallCanvas(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(placements, orientation, contentKey, motionPercent) {
-                    val worldBounds = wallWorldBounds(placements)
+                    val worldBounds = scene?.bounds
                     awaitEachGesture {
                         val firstDown = awaitFirstDown(requireUnconsumed = false)
                         activePanAnimation?.cancel()
@@ -1085,16 +1060,15 @@ private fun FocusWallCanvas(
             val horizontalBuffer = constraints.maxWidth * HorizontalPrefetchViewportFraction
             val minWorldX = (-constraints.maxWidth / 2f - panOffset.x - horizontalBuffer) / zoom
             val maxWorldX = (constraints.maxWidth / 2f - panOffset.x + horizontalBuffer) / zoom
-            val nearViewport = placementsNearWorldRect(
-                placements = placements,
+            val nearViewport = scene?.spatialIndex?.query(
                 // The index is centre-based. Extend the query by the largest card
                 // half-size so a large poster whose edge intersects the buffered
                 // viewport can never be discarded before the exact test below.
-                minCenterX = minWorldX - maximumPlacementHalfSize.width,
-                maxCenterX = maxWorldX + maximumPlacementHalfSize.width,
-                minCenterY = minWorldY - maximumPlacementHalfSize.height,
-                maxCenterY = maxWorldY + maximumPlacementHalfSize.height,
-            )
+                minX = minWorldX - maximumPlacementHalfSize.width,
+                maxX = maxWorldX + maximumPlacementHalfSize.width,
+                minY = minWorldY - maximumPlacementHalfSize.height,
+                maxY = maxWorldY + maximumPlacementHalfSize.height,
+            )?.placements.orEmpty()
             // Calculate screen geometry once per card and reuse it for culling,
             // z-order, alpha and placement. The old path repeated the same two
             // coordinate transforms and hypot calculation up to three times per
@@ -1135,18 +1109,6 @@ private fun FocusWallCanvas(
                 val item = itemById[placement.itemId] ?: return@mapNotNull null
                 val isFocused = placement.itemId == focusedItemId
                 val isCurrent = placement.itemId == currentMediaId
-                val normalVisualAlpha = when {
-                    isFocused -> 1f
-                    focusedItemId != null ->
-                        (0.48f + visibleCard.depthScale * 0.34f).coerceAtMost(0.78f)
-                    else -> 0.72f + visibleCard.depthScale * 0.28f
-                }
-                val lightsOutVisualAlpha = focusWallPosterAlpha(
-                    normalAlpha = normalVisualAlpha,
-                    lightsOut = style == FocusWallStyle.Folia && lightsOut,
-                    isFocused = isFocused,
-                    isCurrent = isCurrent,
-                )
                 val placeable = subcompose(placement.itemId) {
                     val cardAnimationMillis = wallMotionDuration(320, motionPercent)
                     val animatedCenterX by animateFloatAsState(
@@ -1173,14 +1135,12 @@ private fun FocusWallCanvas(
                     // follows the drag directly instead of restarting a 260 ms
                     // tween for every visible card on every pointer frame.
                     val animatedLightsOutFraction by animateFloatAsState(
-                        targetValue = if (lightsOutVisualAlpha < normalVisualAlpha) 1f else 0f,
+                        targetValue = if (style == FocusWallStyle.Folia && lightsOut && !isFocused && !isCurrent) 1f else 0f,
                         animationSpec = tween(
                             durationMillis = wallMotionDuration(260, motionPercent),
                         ),
                         label = "wallCardLightsOutFraction",
                     )
-                    val visualAlpha = normalVisualAlpha +
-                        (lightsOutVisualAlpha - normalVisualAlpha) * animatedLightsOutFraction
                     val activePlaybackState = if (isFocused && isCurrent) {
                         playbackStateProvider.value
                     } else {
@@ -1235,11 +1195,26 @@ private fun FocusWallCanvas(
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer {
-                                scaleX = zoom * animatedWidth / placement.width
-                                scaleY = zoom * animatedHeight / placement.height
-                                translationX = (animatedCenterX - placement.centerX) * zoom
-                                translationY = (animatedCenterY - placement.centerY) * zoom
-                                alpha = visualAlpha
+                                // Observe continuous pan/zoom only in the existing
+                                // layer, not in each poster's subcomposition.
+                                val liveZoom = viewportState.zoom
+                                val pan = viewportState.pan
+                                val depth = focusWallDepthScale(
+                                    placement.centerX * liveZoom + pan.x,
+                                    placement.centerY * liveZoom + pan.y,
+                                    constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat(),
+                                )
+                                val normal = when {
+                                    isFocused -> 1f
+                                    focusedItemId != null -> (0.48f + depth * 0.34f).coerceAtMost(0.78f)
+                                    else -> 0.72f + depth * 0.28f
+                                }
+                                val dimmed = focusWallPosterAlpha(normal, true, isFocused, isCurrent)
+                                scaleX = liveZoom * animatedWidth / placement.width
+                                scaleY = liveZoom * animatedHeight / placement.height
+                                translationX = (animatedCenterX - placement.centerX) * liveZoom
+                                translationY = (animatedCenterY - placement.centerY) * liveZoom
+                                alpha = normal + (dimmed - normal) * animatedLightsOutFraction
                                 // Flush ordinary posters match the packed Folia
                                 // reference and avoid one GPU shadow layer per card.
                                 shadowElevation = if (isFocused) 12.dp.toPx() else 0f

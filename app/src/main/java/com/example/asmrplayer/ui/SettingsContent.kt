@@ -226,6 +226,7 @@ fun SettingsScreen(
                         enabled = state.hasRoot && !state.isScanning,
                         onClick = onRefresh,
                     )
+                    RuntimeDiagnosticsButton(state)
                 }
             }
         }

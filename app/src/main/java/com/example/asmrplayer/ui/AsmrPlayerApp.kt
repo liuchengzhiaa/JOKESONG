@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -89,8 +88,8 @@ private data class Destination(
     val icon: @Composable () -> Unit,
 )
 
-/** The library header's visual height/type are two fifths of the original app bar. */
-private const val LibraryHeaderScale = 2f / 5f
+/** Still compact, but larger than the initial two-fifths treatment. */
+private const val LibraryHeaderScale = 0.55f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -168,7 +167,7 @@ fun AsmrPlayerApp(
     } else {
         Modifier
     }
-    val headerIconModifier = if (selectedDestination == 0) Modifier.size(16.dp) else Modifier
+    val headerIconModifier = if (selectedDestination == 0) Modifier.size(20.dp) else Modifier
 
     val itemById = remember(libraryState.items) { libraryState.items.associateBy(LibraryItem::id) }
     val nowPlayingItem = playbackState.mediaId?.let(itemById::get)
@@ -289,19 +288,6 @@ fun AsmrPlayerApp(
                             } else titleStyle
                         },
                     )
-                },
-                navigationIcon = {
-                    when {
-                        selectedDestination == 0 && libraryState.canNavigateUp -> {
-                            IconButton(onClick = onNavigateUp, modifier = headerActionModifier) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                    stringResource(R.string.navigate_up),
-                                    modifier = headerIconModifier,
-                                )
-                            }
-                        }
-                    }
                 },
                 actions = {
                     if (selectedDestination == 0 && libraryState.hasRoot) {
