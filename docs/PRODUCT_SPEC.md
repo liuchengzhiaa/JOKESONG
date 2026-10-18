@@ -55,51 +55,55 @@ subtitle support, direct metadata editing and a distinctive focus-cover wall.
 
 ### Folder artwork
 
-Folder covers are real files in their own media directory, not app-private assignments.
+Folder-cover DISPLAY has exactly one rule: read a supported image directly inside
+that folder whose basename is `cover`, case-insensitively. If absent, show the neutral
+placeholder. Never extract audio artwork, read old private assignments, recurse,
+create files or recover journals while loading/displaying a folder. Display does
+not wait for the folder-write/batch lock. Other image names are not cover sources.
 
-1. Prefer a direct supported image whose basename is `cover`, case-insensitively
-   (`cover.jpg`, `cover.png`, etc.). Other image names do not take priority.
-2. With no cover, inspect direct audio in natural filename order until finding
-   embedded artwork, then copy its actual encoded image into this folder as `cover`
-   with the correct extension. A first track without artwork does not end the search.
-3. If no direct audio has artwork, visit child folders in natural depth-first order,
-   applying these same rules. Copy the successful child's cover into its parent,
-   repeating up the chain. Do not overwrite an existing cover automatically.
-4. Otherwise show a neutral placeholder. No other track receives this image as its
-   embedded cover; audio tags and privacy aliases remain independent.
+Settings → Library → 递归处理文件夹封面 is a separate explicitly confirmed operation
+on the entire granted root, including the root itself. Visit ALL descendants even
+if a parent already has a cover. Preserve every existing cover; for an uncovered
+folder migrate its old explicit private choice if present, otherwise use the first
+naturally ordered direct audio with embedded artwork, otherwise copy a successful
+child cover upward. Continue processing remaining siblings after finding a source.
+Folders with no usable artwork anywhere below them remain empty; failures are
+counted separately from missing artwork, not reported as successful persistence.
 
-Long press a folder in any library layout to choose a cover using the existing
-SAF picker hint (`Download/mihon/local`, which the provider may ignore). Copy the
-chosen image byte-for-byte into that folder, never move/change the chosen original.
-Support readable JPEG/PNG/WebP/BMP/HEIF/AVIF images up to 8 MiB; validation decodes
-only a small image. Existing covers are renamed to hidden `.jokesong-cover-...`
-backups during explicit manual replacement and never automatically deleted. Refuse
-ambiguous replacement if multiple cover files exist. The previous private-only
-reset action is removed: there is no hidden app assignment to reset or permission
-to delete actual cover files. Choose a different image to replace it.
+Show visited/generated/existing/missing/failed counts and a stop action. The task
+survives settings navigation and rotation through LibraryViewModel, not process
+death. Keep the app open; after interruption rerun safely, skipping saved covers.
+Work is off-main, with 32-candidate pages and bounded identity tracking, not a tree
+or bitmap list. No 15-second / 256-folder / 256-audio per-display limits apply to
+this explicit operation. A 50k-folder / 128-depth / 250k-audio / 100M-metadata-row
+safety ceiling aborts an exceptional run as incomplete rather than claiming success.
+Native/provider calls and a short rename transaction are cooperatively cancellable.
+The task is not a foreground service or a scheduled persistent background job.
 
-Before promotion, validate the image and read back/hash the sibling staging file.
-An app-private durable journal supports recovery on next access; SAF's two renames
-are not atomic. A failed/uncertain operation retains the original/backup and recovery
-information. Permission/provider failures are not reported as successful saving.
-Writes require a persisted read/write tree grant and the system local storage
-provider's create/rename support; cloud/other providers remain read-only. During
-automatic lookup an unwritable folder may still display the found source, but it
-has NOT acquired a persistent cover. Old app-private manual copies migrate lazily
-only when no disk cover exists, and are retained as migration/recovery inputs.
+Long press an audio in any library layout to choose 设置音频封面 or 设为当前文件夹封面.
+The former retains the existing real audio-tag editor. The latter extracts THIS
+track's embedded artwork, validates its captured direct parent, and writes that
+folder's cover; no inherited folder-image fallback or audio-tag change. With no
+embedded artwork, show an actionable failure rather than inventing another track's
+image. Existing folder cover can be explicitly replaced, retaining the old backup.
+Capture track and directory identities when long-pressed, not when saving finishes.
 
-Only displayed folders trigger this background work. Metadata-only summary probes
-never extract audio or recursively generate covers. Each lookup pages candidates
-32 at a time, with a 24-level depth, 256-folder, 256-audio, 100,000-cursor-row and
-15-second cooperative budget; budget/permission errors are not cached as permanent
-no-art results. Native retriever/provider calls cannot be forcibly interrupted.
-Use Refresh to retry an incomplete lookup. This is not an eager full-library job
-or a guarantee to complete arbitrarily large/deep empty subtrees in one request.
-Manual cover changes refresh artwork identities without discarding wall focus/pan.
+Long-press folder image selection still copies actual image bytes into that folder,
+using the shared SAF picker hint (`Download/mihon/local`). Do not move the selected
+original. Support validated JPEG/PNG/WebP/BMP/HEIF/AVIF up to 8 MiB with bounded
+validation decode; actual MIME determines extension. Manual replacement refuses
+multiple cover files. Preserve old images as hidden `.jokesong-cover-...` backups.
+The old private-reset action stays removed: do not interpret reset as image deletion.
 
-A normal APK update keeps app data, and actual cover files survive reinstalls and
-phone changes when the whole media directory is copied. On a new phone the user
-must grant library access again. Merely installing the APK does not transfer media.
+Retain the sibling stage/fsync/read-back hash/AtomicFile journal and recoverable
+(not atomic) two-rename writer. Recovery runs ONLY during explicit batch/manual
+operations now. An interrupted manual replacement may need one of those operations
+to restore its old backup; browsing itself must not write. Require the local system
+storage provider, persisted read/write tree grant and create/rename support. No broad
+storage permission, no audio-file writes from folder operations, no user-media delete.
+
+Normal APK updates retain app data; actual `cover` files survive reinstalls and phone
+changes when the media directory is copied. A new phone still needs a SAF grant.
 
 Audio items use their own embedded artwork and then fall back to their folder art.
 

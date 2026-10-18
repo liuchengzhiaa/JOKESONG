@@ -10,6 +10,7 @@ import android.os.ParcelFileDescriptor
 import android.os.CancellationSignal
 import android.provider.DocumentsContract
 import android.util.LruCache
+import com.example.asmrplayer.core.storage.readDirectFolderArtwork
 import androidx.core.net.toUri
 import java.io.File
 import java.io.FileNotFoundException
@@ -105,7 +106,7 @@ class AudioArtworkProvider : ContentProvider() {
         ctx.contentResolver.openFileDescriptor(fallback, "r") ?: throw FileNotFoundException("Fallback artwork unavailable")
     }
 
-    /** Runs on demand, serialised independently of audio reads; errors are not negative-cached. */
+    /** Direct cover metadata only. Never joins processing/writing or holds its lock. */
     private fun openFolderArtwork(uri: Uri, signal: CancellationSignal?): ParcelFileDescriptor {
         val ctx = context ?: throw FileNotFoundException("Artwork provider unavailable")
         val tree = uri.getQueryParameter("tree")?.let(Uri::parse)
@@ -115,16 +116,15 @@ class AudioArtworkProvider : ContentProvider() {
             tree.authority != folder.authority || tree.authority == Authority
         ) throw FileNotFoundException("Invalid folder source")
         val target = try {
-            FolderCoverFiles.resolve(ctx, tree, folder, signal)
+            // Display is strictly read-only: no folder-write lock, journal, DB, audio or recursion.
+            val root = DocumentsContract.getTreeDocumentId(tree)
+            require(DocumentsContract.getTreeDocumentId(folder) == root)
+            readDirectFolderArtwork(ctx.contentResolver, tree, folder) { signal?.throwIfCanceled() }.artworkUri
         } catch (cancelled: android.os.OperationCanceledException) { throw cancelled }
           catch (error: Exception) { throw FileNotFoundException("Folder cover unavailable: ${error.message}").apply { initCause(error) } }
             ?: throw FileNotFoundException("Folder has no artwork")
         signal?.throwIfCanceled()
         val source = target.toUri()
-        if (source.scheme == "file") {
-            val owned = ownedLegacyCover(ctx, target) ?: throw FileNotFoundException("Invalid legacy cover")
-            return ParcelFileDescriptor.open(owned, ParcelFileDescriptor.MODE_READ_ONLY)
-        }
         return ctx.contentResolver.openFileDescriptor(source, "r", signal)
             ?: throw FileNotFoundException("Folder artwork unavailable")
     }

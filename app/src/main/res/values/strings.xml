@@ -2,6 +2,19 @@
 <resources>
     <string name="audio_cover_edit">设置音频封面</string>
     <string name="audio_cover_notice">仅更换或移除这首音频的内嵌封面，不修改标题、作者等标签。选择图片后点击保存才会写入真实音频文件。保存时暂停本曲目，完成后可手动继续；安全检查不通过时拒绝写入。</string>
+    <string name="folder_cover_batch_title">递归处理文件夹封面</string>
+    <string name="folder_cover_batch_notice">平时只读取当前文件夹的 cover 图片。本操作统一处理整个已授权资料库：已有 cover 不覆盖，缺少时从音频内嵌封面或子目录回填。请保持应用开启；中断后可再次执行。</string>
+    <string name="folder_cover_batch_confirm">将为整个资料库中缺少封面的文件夹生成 cover 图片，逐一处理所有子目录，已有 cover 保持不变。无可用音频封面的目录可能留空。需要本地目录读写权限；不会修改音频或删除图片。</string>
+    <string name="folder_cover_batch_start">开始处理</string>
+    <string name="folder_cover_batch_cancel">停止／取消</string>
+    <string name="folder_cover_batch_running">正在处理，可离开此设置页</string>
+    <string name="folder_cover_batch_completed">本次遍历结束，请检查失败数量；失败项可重新执行</string>
+    <string name="folder_cover_batch_cancelled">已停止，已生成的封面保留，可再次执行</string>
+    <string name="folder_cover_batch_failed">处理未完成，已生成封面保留；请检查权限后重试</string>
+    <string name="folder_cover_batch_counts">已访问 %1$d · 新生成 %2$d · 已有 %3$d · 无封面 %4$d · 失败 %5$d</string>
+    <string name="audio_as_folder_cover">设为当前文件夹封面</string>
+    <string name="audio_as_folder_cover_notice">使用这首音频的内嵌封面保存为所在文件夹的 cover；已有文件夹封面会替换并保留备份，不修改音频。</string>
+    <string name="audio_as_folder_cover_failed">未能保存：音频可能没有内嵌封面，或目标目录不可写。可先设置音频封面，再重试。</string>
     <string name="folder_cover_title">文件夹封面</string>
     <string name="folder_cover_set">设置封面</string>
     <string name="folder_cover_notice">将图片复制到此文件夹并命名为 cover（保留实际图片格式），不修改音频或选中的原图。替换前的封面保留为隐藏备份。复制整个文件夹到新手机可保留封面。需先授予资料库目录读写权限。</string>

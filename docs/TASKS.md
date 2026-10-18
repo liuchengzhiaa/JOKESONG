@@ -770,3 +770,16 @@ order because each layer consumes the stable model built by the one before it:
       attachment digests verified; anonymous latest APK HTTP 200. Receipt in HANDOFF.
 - [ ] Owner phone disposable-tree checks: actual cover files, later-track artwork, nested backfill,
       manual replace/recovery, read-only/regranted roots, update/restart/phone-copy and wall responsiveness.
+
+
+## Current slice — direct-cover browsing and explicit batch generation (2026-10-18)
+- [x] Folder display reads only its direct named cover; no audio/legacy/recursion/write/lock.
+- [x] Settings → Library confirmed whole-root batch, all descendants/siblings, existing covers preserved.
+- [x] Progress and counts, stop/rerun, separate ViewModel lifetime and root-change cancellation/join.
+- [x] Audio long-press chooser: embedded-cover editor OR set embedded image as captured direct folder cover.
+- [x] Keep stage/hash/backup/journal writer, explicit-only recovery and no audio writes/new permissions.
+- [x] Final 77 suites / 589 JVM tests pass, lint 0 errors / 28 warnings; app/test APKs
+      built, version 0.1.8 / code 9 and pinned package/signer verified.
+- [ ] Review/upload source/docs, publish and verify source/tag/assets/anonymous latest APK.
+- [ ] Phone: compare first wall load; run batch with covered parent/uncovered descendants, stop/rerun,
+      read-only errors and all five layouts' audio actions. Keep app open while processing.

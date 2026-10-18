@@ -7,6 +7,8 @@ import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.asmrplayer.core.artwork.FolderCoverRepository
+import com.example.asmrplayer.core.artwork.FolderCoverBatchState
+import com.example.asmrplayer.core.artwork.FolderCoverBatchStatus
 import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
 import com.example.asmrplayer.core.settings.ToolClusterStyle
@@ -36,6 +38,7 @@ import com.example.asmrplayer.feature.subtitles.TemperaTuning
 import com.example.asmrplayer.feature.subtitles.clamped
 import java.util.ArrayDeque
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -129,6 +132,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private val folderStack = ArrayDeque<Uri>()
     private var treeUri: Uri? = null
     private var scanJob: Job? = null
+    private var coverBatchJob: Job? = null
+    private val mutableCoverBatch = MutableStateFlow(FolderCoverBatchState())
+    val coverBatch = mutableCoverBatch.asStateFlow()
     private var wallZoomPersistJob: Job? = null
     private var subtitleJob: Job? = null
 
@@ -167,6 +173,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
         viewModelScope.launch {
             rootPreferences.rootUri.collectLatest { persistedRoot ->
+                if (treeUri != persistedRoot) coverBatchJob?.cancel()
                 scanJob?.cancel()
                 folderStack.clear()
                 folderSnapshots.clear()
@@ -196,6 +203,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             val previousRoot = treeUri
             val persisted = persistPermission(uri)
             if (persisted) {
+                if (previousRoot != uri) coverBatchJob?.cancelAndJoin()
                 rootPreferences.setRootUri(uri)
                 if (previousRoot != null && previousRoot != uri) {
                     releasePermission(previousRoot)
@@ -241,6 +249,42 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             false
         }
     }
+
+    suspend fun setAudioAsFolderCover(folderUri: String, audioUri: String): Boolean = try {
+        val saved = folderCovers.setFromAudio(folderUri, audioUri)
+        if (saved) folderStack.peekLast()?.let(::loadFolder)
+        saved
+    } catch (cancelled: CancellationException) { throw cancelled }
+      catch (_: Exception) { false }
+
+    /** Explicit, cancellable whole-root operation. Navigation/rotation do not restart it. */
+    fun startFolderCoverBatch() {
+        if (coverBatchJob?.isActive == true) return
+        val root = treeUri ?: return
+        mutableCoverBatch.value = FolderCoverBatchState(status = FolderCoverBatchStatus.Running)
+        coverBatchJob = viewModelScope.launch {
+            var latest = com.example.asmrplayer.core.artwork.FolderCoverBatchCounts()
+            var lastPublished = 0L
+            try {
+                val result = folderCovers.processTree(root) { counts ->
+                    latest = counts
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    if (now - lastPublished >= 200) {
+                        mutableCoverBatch.value = FolderCoverBatchState(FolderCoverBatchStatus.Running, counts)
+                        lastPublished = now
+                    }
+                }
+                mutableCoverBatch.value = FolderCoverBatchState(FolderCoverBatchStatus.Completed, result)
+            } catch (cancelled: CancellationException) {
+                mutableCoverBatch.value = FolderCoverBatchState(FolderCoverBatchStatus.Cancelled, latest)
+            } catch (_: Exception) {
+                mutableCoverBatch.value = FolderCoverBatchState(FolderCoverBatchStatus.Failed, latest)
+            } finally {
+                if (treeUri == root) folderStack.peekLast()?.let(::loadFolder)
+            }
+        }
+    }
+    fun cancelFolderCoverBatch() { coverBatchJob?.cancel() }
 
     /** Explicit refresh: drop the snapshot and scan the folder again. */
     fun refresh() {

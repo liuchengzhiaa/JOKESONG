@@ -100,24 +100,32 @@ Never mutate canonical metadata to implement privacy presentation.
 
 ### Artwork-driven presentation
 
-- Folder covers follow D-048's disk-first `cover` / direct embedded audio / recursive
-  child policy. `FolderCoverResolver` is a pure bounded DFS and `FolderCoverStore`
-  boundary; `SafFolderCoverStore` performs scoped SAF metadata paging, embedded-art
-  reads through the existing private track endpoint, legacy lookup and image copy.
-  Candidate pages retain at most 32 entries in a natural-order heap; visited identities
-  and depth/audio/folder/cursor/time budgets bound one visible-folder request. Budget
-  exits are errors, not definitive negatives. No recursive scan runs in Compose or
-  the initial directory enumerator. Provider/native calls are only cooperatively
-  cancellable; Coil may not forward a CancellationSignal on every image-open path.
-- Every folder uses the lazy `/folder` endpoint, including the initial 48 metadata
-  summaries. `FolderCoverRepository.project` adds a stable per-instance/replacement
-  artwork revision to raw snapshots, never overrides from an app-private file.
-  Raw snapshots/focus/pan stay intact; audio metadata callbacks remain separate.
-- `FolderCoverFiles` serializes folder lookup/writes with a dedicated lock; it does
-  not hold AudioArtworkProvider's track-cache monitor. Source audio is never modified.
-  Private legacy copies are accepted only inside the canonical owned folder-covers
-  directory, queried lazily for the exact visible folder URI when disk cover is absent.
-  Retain old Room rows/copies, even after migration; no schema change or global DB load.
+- Folder display follows D-049: AudioArtworkProvider `/folder` only calls the
+  direct metadata reader and opens a direct cover. It never invokes the writer,
+  Room/private migration, embedded extraction, recursion, journal recovery or the
+  FolderCoverFiles lock. This removes v0.1.7's write-before-display/head-of-line wait.
+- `FolderCoverBatch` is the pure, explicitly triggered root processor. It visits
+  every descendant even under covered parents, pages 32 natural-order candidates,
+  prefers direct embedded art, then successful child cover, and processes all
+  siblings. Old private manual images migrate ONLY in this operation, after disk
+  cover. No old per-display recursive resolver remains; common types/budgets are
+  in FolderCoverModels. Do not count an unpersisted source as generated artwork.
+- LibraryViewModel owns a separate batch StateFlow/job, independent of library
+  listing/position state. Progress is throttled to 200ms; UI offers confirmation,
+  counts and cancellation. Navigation/rotation retain the job; process death does
+  not. No new dependency/service/permission. Rerun is idempotent because saved
+  covers win. Root changes cancel/join processing before releasing the old grant.
+- During explicit work, only existing/recovery and actual install operations take
+  FolderCoverFiles' dedicated lock; never hold it across the whole traversal. Daily
+  folder reads do not acquire it at all. Track extraction retains its old bounded
+  cache/monitor and inherited native-allocation limitation.
+- `FolderCoverRepository.project` versions raw folder lookup IDs. Successful manual
+  save and batch termination re-project snapshots without losing focus/viewport or
+  scanning audio again. All folder layouts share captured-target long-press actions;
+  audio chooser offers the existing real-tag editor and a separate embedded-art-to-
+  parent-cover action. Verify the known local provider's direct-parent document ID,
+  same tree and provider child relation. Force a fresh source extraction key for an
+  explicit audio action, not a stale/missing image cache entry or inherited fallback.
 - `SafFolderCoverStore.save` streams at most 8 MiB of original encoded image through
   an app-cache file, validates actual format/bounds and a <=128px software ImageDecoder
   result (reject partial decode), then writes/fsyncs/read-back-hashes a sibling stage.
@@ -126,8 +134,9 @@ Never mutate canonical metadata to implement privacy presentation.
   Image writes do not broaden the audio-tag editor's stricter provider scope.
 - `CoverInstallTransaction` records an AtomicFile journal before renaming an existing
   cover to a hidden UUID backup and promoting the validated stage. This is recoverable,
-  not atomic. Next folder access finalises a verified promotion or restores the backup;
+  not atomic. Next explicit batch/manual access finalises a verified promotion or restores the backup;
   conflicts/corruption retain the journal and copies rather than guessing/deleting.
+  Recovery is explicit batch/manual-only now; display never enters the writer.
   Retain backups and interrupted hidden stages; exclude them from all artwork/scans.
   No automatic backup/orphan sweep. Manual replacement refuses multiple cover images.
   Removing an app assignment can no longer reset a real disk cover, so remove that

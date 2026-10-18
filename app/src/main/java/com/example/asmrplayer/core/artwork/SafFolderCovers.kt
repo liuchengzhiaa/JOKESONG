@@ -4,9 +4,7 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
-import android.os.CancellationSignal
 import android.os.ParcelFileDescriptor
-import android.os.SystemClock
 import android.provider.DocumentsContract as Docs
 import android.system.Os
 import android.util.AtomicFile
@@ -33,18 +31,7 @@ internal object FolderCoverFiles {
         while (!lock.tryLock(100, TimeUnit.MILLISECONDS)) checkpoint()
         try { checkpoint(); return block() } finally { lock.unlock() }
     }
-    fun resolve(context: Context, tree: Uri, folder: Uri, signal: CancellationSignal?): String? {
-        val deadline = SystemClock.elapsedRealtime() + 15_000
-        val checkpoint = {
-            signal?.throwIfCanceled()
-            check(SystemClock.elapsedRealtime() < deadline) { "COVER_TIME_BUDGET" }
-        }
-        return locked(checkpoint) {
-            val budget = CoverLookupBudget(checkpoint)
-            val store = SafFolderCoverStore(context, tree, budget)
-            FolderCoverResolver(store, budget).resolve(folder.toString())
-        }
-    }
+
 }
 
 internal class SafFolderCoverStore(
@@ -112,18 +99,22 @@ internal class SafFolderCoverStore(
         val file = ownedLegacyCover(context, row?.sourceUri)
         return file?.takeIf { it.isFile }?.toUri()?.toString()
     }
+    fun audioDocument(uri: String): CoverDocument {
+        val audio = uri.toUri()
+        require(audio.scheme == "content" && audio.authority == tree.authority && Docs.getTreeDocumentId(audio) == root)
+        return resolver.query(audio, columns, null, null, null)?.use { c ->
+            check(c.moveToFirst()) { "COVER_AUDIO_MISSING" }
+            CoverDocument(uri, c.getString(1), "${c.getLong(3)}:${c.getLong(4)}")
+        } ?: error("COVER_AUDIO_MISSING")
+    }
     override fun embedded(audio: CoverDocument): String? {
+        budget.audio()
         val uri = audioArtworkUri(audio.uri, null, audio.version)
         // The track provider has a bounded positive/negative cache; fallback is explicitly absent.
         return try { resolver.openFileDescriptor(uri.toUri(), "r")?.use { uri } }
         catch (_: FileNotFoundException) { null }
     }
-    override fun install(folder: String, source: String): String = try {
-        save(folder, source.toUri(), replace = false)
-    } catch (error: SecurityException) { throw CoverWriteUnavailable(error) }
-      catch (error: java.io.IOException) { throw CoverWriteUnavailable(error) }
-      catch (error: IllegalStateException) { throw CoverWriteUnavailable(error) }
-      catch (error: IllegalArgumentException) { throw CoverWriteUnavailable(error) }
+    override fun install(folder: String, source: String): String = save(folder, source.toUri(), replace = false)
 
     /** The original chosen image is copied byte-for-byte. No tag, alias or source-image change. */
     fun save(folder: String, source: Uri, replace: Boolean): String {

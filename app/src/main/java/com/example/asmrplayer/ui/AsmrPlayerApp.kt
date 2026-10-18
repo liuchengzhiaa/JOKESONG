@@ -101,6 +101,10 @@ fun AsmrPlayerApp(
     onRefresh: () -> Unit,
     onOpenFolder: (LibraryItem) -> Unit,
     onSetFolderCover: suspend (String, android.net.Uri?) -> Boolean,
+    onSetAudioAsFolderCover: suspend (String, String) -> Boolean,
+    coverBatchState: com.example.asmrplayer.core.artwork.FolderCoverBatchState,
+    onStartFolderCoverBatch: () -> Unit,
+    onCancelFolderCoverBatch: () -> Unit,
     onNavigateUp: () -> Unit,
     onFocusedItemChange: (String?) -> Unit,
     onViewportChange: (Float, Float, Float) -> Unit,
@@ -462,6 +466,7 @@ fun AsmrPlayerApp(
                     onRefresh = onRefresh,
                     onOpenFolder = onOpenFolder,
                     onSetFolderCover = onSetFolderCover,
+                    onSetAudioAsFolderCover = onSetAudioAsFolderCover,
                     onMetadataSaved = { id, saved ->
                         retainedNowPlayingItem = retainedNowPlayingItem?.let {
                             if (it.id == id) it.copy(artworkUri = saved.artworkUri, documentUri = saved.documentUri) else it
@@ -496,6 +501,9 @@ fun AsmrPlayerApp(
               } else if (selectedDestination == 3) {
                 SettingsScreen(
                     state = libraryState,
+                    coverBatchState = coverBatchState,
+                    onStartFolderCoverBatch = onStartFolderCoverBatch,
+                    onCancelFolderCoverBatch = onCancelFolderCoverBatch,
                     onChooseRoot = onChooseRoot,
                     onRefresh = onRefresh,
                     onUiStylePresetChange = onUiStylePresetChange,
@@ -586,6 +594,7 @@ private fun LibraryContent(
     onRefresh: () -> Unit,
     onOpenFolder: (LibraryItem) -> Unit,
     onSetFolderCover: suspend (String, android.net.Uri?) -> Boolean,
+    onSetAudioAsFolderCover: suspend (String, String) -> Boolean,
     onMetadataSaved: (String, com.example.asmrplayer.core.metadata.TagSaveResult) -> Unit,
     onOpenPlayer: (LibraryItem) -> Unit,
     onOpenLyrics: (LibraryItem) -> Unit,
@@ -608,6 +617,8 @@ private fun LibraryContent(
 ) {
     var coverFolderUri by rememberSaveable { mutableStateOf<String?>(null) }
     var coverFolderTitle by rememberSaveable { mutableStateOf("") }
+    var audioActionsId by rememberSaveable { mutableStateOf<String?>(null) }
+    var audioParentUri by rememberSaveable { mutableStateOf("") }
     var audioCoverId by rememberSaveable { mutableStateOf<String?>(null) }
     var audioCoverUri by rememberSaveable { mutableStateOf("") }
     var audioCoverTitle by rememberSaveable { mutableStateOf("") }
@@ -621,9 +632,18 @@ private fun LibraryContent(
                 audioCoverUri = item.documentUri
                 audioCoverTitle = item.title
                 audioCoverArtwork = item.artworkUri
-                audioCoverId = item.id
+                audioParentUri = state.folderKey
+                audioActionsId = item.id
             }
         }
+    }
+    audioActionsId?.let { targetId ->
+        AudioCoverActionsDialog(
+            title = audioCoverTitle,
+            onEditAudio = { audioActionsId = null; audioCoverId = targetId },
+            onUseForFolder = { onSetAudioAsFolderCover(audioParentUri, audioCoverUri) },
+            onDismiss = { audioActionsId = null },
+        )
     }
     audioCoverId?.let { targetId ->
         MetadataEditorDialog(

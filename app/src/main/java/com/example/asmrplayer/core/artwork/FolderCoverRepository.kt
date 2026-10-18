@@ -38,4 +38,39 @@ internal class FolderCoverRepository(context: Context) {
             revision.incrementAndGet()
         }
     }
+    suspend fun setFromAudio(folderUri: String, audioUri: String): Boolean = withContext(Dispatchers.IO) {
+        val folder = folderUri.toUri()
+        val tree = DocumentsContract.buildTreeDocumentUri(folder.authority!!, DocumentsContract.getTreeDocumentId(folder))
+        val coroutine = currentCoroutineContext()
+        val checkpoint = { coroutine.ensureActive() }
+        FolderCoverFiles.locked(checkpoint) {
+            val store = SafFolderCoverStore(context, tree, CoverLookupBudget(checkpoint))
+            // Verify the selected track belongs to the captured directory, not a later navigation target.
+            require(folder.authority == "com.android.externalstorage.documents")
+            val audio = store.audioDocument(audioUri)
+                .let { it.copy(version = "${it.version}:${System.nanoTime()}") }
+            require(isDirectLocalAudioChild(DocumentsContract.getDocumentId(folder),
+                DocumentsContract.getDocumentId(audioUri.toUri())))
+            require(DocumentsContract.isChildDocument(context.contentResolver, folder, audioUri.toUri()))
+            val image = store.embedded(audio) ?: return@locked false
+            store.save(folderUri, image.toUri(), replace = true)
+            revision.incrementAndGet()
+            true
+        }
+    }
+    suspend fun processTree(tree: Uri, onProgress: (FolderCoverBatchCounts) -> Unit): FolderCoverBatchCounts =
+        withContext(Dispatchers.IO) {
+            val coroutine = currentCoroutineContext()
+            val checkpoint = { coroutine.ensureActive() }
+            val budget = CoverLookupBudget(checkpoint, maxFolders = 50_000, maxAudio = 250_000, maxRows = 100_000_000)
+            val raw = SafFolderCoverStore(context, tree, budget)
+            val store = object : FolderCoverStore by raw {
+                override fun existing(folder: String): String? = FolderCoverFiles.locked(checkpoint) { raw.existing(folder) }
+                override fun install(folder: String, source: String): String = FolderCoverFiles.locked(checkpoint) { raw.install(folder, source) }
+            }
+            try {
+                FolderCoverBatch(store, checkpoint, onProgress).run(
+                    DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree)).toString())
+            } finally { revision.incrementAndGet() }
+        }
 }

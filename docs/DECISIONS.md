@@ -1111,3 +1111,31 @@ recovery information rather than overwriting conflicting files. No user-media de
 Remove the old private-reset UI; do not reinterpret it as deleting a real cover.
 If more than one cover exists, show one deterministically but refuse ambiguous
 manual replacement until the user tidies the duplicates outside the app.
+
+
+## D-049 — Read-only cover display, explicit whole-root generation (2026-10-18)
+
+Owner rejects slow v0.1.7 on-demand recursive generation. Supersede D-048's display
+pipeline: the sole folder display source is its own direct `cover` image. No audio,
+private legacy source, child recursion, file generation or journal recovery during
+folder loading. In particular, no batch/write lock may block displaying a cover.
+
+Move recursive generation to Settings → Library, explicitly confirmed. Visit all
+folders, INCLUDING children of an already-covered parent; preserve all disk covers.
+For missing cover, retain old manual-choice migration, otherwise direct audio's
+first actual embedded art, otherwise successful child cover copied upward. Always
+continue remaining siblings. Empty subtrees legitimately remain uncovered. Show
+progress/counts/stop and distinguish failed persistence from no artwork.
+
+Use the existing recoverable image writer. Manual audio long press now offers two
+choices: edit its actual embedded cover, or set its own embedded image as the cover
+of its captured direct folder (explicit overwrite with retained backup). No inherited
+art fallback, other-song substitution or audio-tag write in the latter action.
+
+Batch lifetime is the Activity's LibraryViewModel: keep the app open, settings
+navigation/rotation okay, no process-death/service guarantee. Interrupted runs can
+be repeated without overwriting completed cover files. Root selection cancels/joins
+before releasing old permissions. Use 32-entry natural pages, 50k visited identities,
+128-depth, 250k audio and 100M row safety limits, not v0.1.7's 15s/256 request limits.
+Budget exits must show incomplete, not all-initialised. Daily browsing remains
+strictly read-only even if a manual-write recovery journal is pending.

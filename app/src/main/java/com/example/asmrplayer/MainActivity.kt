@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val libraryState by libraryViewModel.uiState.collectAsStateWithLifecycle()
             val subtitleState by libraryViewModel.subtitleState.collectAsStateWithLifecycle()
+            val coverBatchState by libraryViewModel.coverBatch.collectAsStateWithLifecycle()
             val playback = rememberPlaybackConnection()
             val playbackState by playback.state.collectAsStateWithLifecycle()
             val rootPicker = rememberLauncherForActivityResult(
@@ -60,6 +61,10 @@ class MainActivity : ComponentActivity() {
                     },
                     onOpenFolder = libraryViewModel::openFolder,
                     onSetFolderCover = libraryViewModel::setFolderCover,
+                    onSetAudioAsFolderCover = libraryViewModel::setAudioAsFolderCover,
+                    coverBatchState = coverBatchState,
+                    onStartFolderCoverBatch = libraryViewModel::startFolderCoverBatch,
+                    onCancelFolderCoverBatch = libraryViewModel::cancelFolderCoverBatch,
                     onNavigateUp = { libraryViewModel.navigateUp() },
                     onFocusedItemChange = libraryViewModel::onFocusedItemChange,
                     onViewportChange = libraryViewModel::onViewportChange,

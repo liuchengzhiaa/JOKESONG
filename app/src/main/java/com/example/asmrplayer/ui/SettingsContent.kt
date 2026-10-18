@@ -75,6 +75,9 @@ private enum class SettingsGroup { Appearance, Lyrics, DesktopLyrics, Cards, Lib
 @Composable
 fun SettingsScreen(
     state: LibraryUiState,
+    coverBatchState: com.example.asmrplayer.core.artwork.FolderCoverBatchState,
+    onStartFolderCoverBatch: () -> Unit,
+    onCancelFolderCoverBatch: () -> Unit,
     onChooseRoot: () -> Unit,
     onRefresh: () -> Unit,
     onUiStylePresetChange: (Int) -> Unit,
@@ -215,9 +218,14 @@ fun SettingsScreen(
         if (openGroup == SettingsGroup.Library) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FolderCoverBatchSettings(
+                        state = coverBatchState, hasRoot = state.hasRoot,
+                        onStart = onStartFolderCoverBatch, onCancel = onCancelFolderCoverBatch,
+                    )
                     SettingsActionRow(
                         icon = Icons.Default.FolderOpen,
                         labelRes = R.string.choose_library_root,
+                        enabled = coverBatchState.status != com.example.asmrplayer.core.artwork.FolderCoverBatchStatus.Running,
                         onClick = onChooseRoot,
                     )
                     SettingsActionRow(

@@ -5112,3 +5112,85 @@ fluidity acceptance remain untested. Next: owner cover-installs v0.1.7, checks a
 disposable read/write-granted media tree and verifies real `cover.*` files appear,
 then confirms refresh/restart/whole-directory phone migration. Do not equate a
 read-only source display or budget-limited lookup with completed disk persistence.
+
+
+## Direct-only folder display + explicit batch — verified, delivery pending (2026-10-18)
+
+Owner reports first cover loading too slow and explicitly replaces on-demand
+recursive generation with direct-cover-only display. D-049 overrides D-048's
+loading path; version 0.1.8 / code 9, unchanged package/signer.
+
+- `/folder` now reads direct metadata/cover only, no FolderCoverFiles lock, Room,
+  audio extraction, private migration, recursion, recovery or file write. Missing
+  cover means placeholder. There is no hidden first-load whole-root generation.
+- Removed FolderCoverResolver implementation; common models/budget moved to
+  FolderCoverModels. New pure FolderCoverBatch visits ALL descendants, including
+  under already-covered parents and after first successful sibling. Missing direct
+  cover uses retained old private explicit choice, otherwise naturally first direct
+  embedded art, otherwise copies child cover upward. Parent own art wins, but all
+  children still process. Read-only/failed writes do not count as generated.
+- Settings → Library has confirmed recursive-processing action, visited/generated/
+  existing/missing/failed counts, progress and stop. Separate ViewModel StateFlow/job,
+  progress max 5Hz. Navigation/rotation retain it; OS process death does NOT. UI asks
+  to keep app open; rerun preserves completed covers. No WorkManager, foreground
+  service, dependency or permission added. Limits: 32-candidate natural pages,
+  50k folder identities / 128 depth / 250k audio / 100M cursor rows, no old 15s/256
+  per-display limits. Native/provider calls and commit section remain cooperative.
+- Batch locks only existing/recovery and install operations, not whole traversal;
+  display never takes that lock. Existing image transaction/backup protections stay.
+  Journal recovery now requires explicit batch/manual action, not browsing. Keep old
+  private data as migration inputs; nothing is silently deleted.
+- Audio long press in all five layouts now opens an action dialog: existing real
+  embedded-cover editor or set this audio's embedded art as captured folder cover.
+  Explicit parent replacement keeps old backup. No inherited fallback; missing
+  embedded art/write failure keeps dialog open with message. Captured identities
+  survive queue changes/rotation, known local provider direct-parent ID and scoped
+  child relation checked. Use fresh extraction key for explicit action.
+- Library root changes cancel/join existing batch before releasing old URI grant;
+  settings root chooser disabled while processing. Batch completion/cancellation
+  re-projects art revisions, not destructive cache clear or audio rescan.
+
+First narrow pass: 38 JVM tests passed, BUILD SUCCESSFUL 1m16s. Final changes add
+10,000-child batch coverage, direct-parent/volume rejection, root-change joining and
+renamed model/test files. Full verification running; do not claim device or publish
+acceptance yet. No phone/media operation performed. Android fixtures remain compiled
+only. Actual first-load latency, large library throughput, source extraction/native
+allocation, SAF rename fidelity and lifecycle acceptance need owner device checks.
+
+Next: finish full verification/signing/version checks, review only source/tests/docs,
+commit and publish 0.1.8 through standard publisher, independently verify remote
+source/tag/assets/anonymous APK, then add receipt. Do not rerun a partially published
+release with overwrites. Existing native licence and earlier unrelated issues stay.
+
+
+### Final v0.1.8 verification before delivery
+
+Final `./gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest lintDebug
+assembleDebug assembleDebugAndroidTest` passed in **3m9s**. TEMP=TMP=C:\jtmp and
+GRADLE_USER_HOME=C:\Users\LiuDeZhou\.gradle. Independent XML count: **77 suites /
+589 JVM tests**, zero failures/errors/skips; lint **0 errors / 28 warnings**.
+
+Coverage includes a 10,000-covered-child fixture under a covered root (all 10,001
+visited), >256 direct audio and >256 child folders, natural first cover, own audio
+priority while children still process, every sibling/ancestor, legacy migration,
+rerun without extraction, empty subtree vs write failure, successful siblings after
+failure, cancellation, cycles/limits, progress and local direct-parent/volume
+rejection. Existing transaction failure/recovery and projection tests remain green.
+No device execution: compiled Android generated-image/URI fixtures are not a claim
+of actual SAF copy/rename, native extraction, screenshots, FPS or lifecycle tests.
+
+APK `../.asmrplayer-build/app/outputs/apk/debug/app-debug.apk`: 88,303,032 bytes,
+built `2026-10-18T14:57:17.9650960Z`, SHA256
+`cab886402e572eb30e2efae9b6cdec0c59e304fb5a7cdd4264050bd66cc53b78`.
+aapt2 confirms com.example.asmrplayer / 0.1.8 / code 9; apksigner confirms pinned
+`d834b2397f96c78efa5cf0b2dfa29ff56a92583d7c1402ecfdbbe9c993859152`.
+
+Reviewed pipeline: provider display route has no writer/Room/audio/lock/recovery,
+only direct metadata then image open. Write/recovery path remains explicit. Source,
+tests, resources and docs only in upload set, no private media, images, exports,
+keys, tool/auth/build caches or APK binaries. No new dependency/service/permission.
+Next: commit and standard publish, verify exact remote source/tag plus all three
+asset digests and anonymous latest APK, then record receipt. Safest device action:
+cover-install new APK, observe direct-only browsing, run Settings → Library batch
+on a disposable granted tree while keeping app open, inspect counts/real cover files,
+stop/rerun and test both long-press actions before using the large original library.
