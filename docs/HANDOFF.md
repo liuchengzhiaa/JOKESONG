@@ -5553,7 +5553,7 @@ aspect/text size. If the owner reports an issue, trace/reproduce that narrow pat
 before changing renderer geometry or persisting per-folder appearance again.
 
 
-## 2026-10-25 — D-054 ordinary-image cover fallback (verified, publication pending)
+## 2026-10-25 — D-054 ordinary-image cover fallback (published)
 
 Owner requests another APK: when embedded audio artwork cannot supply a cover, use
 highest-resolution ordinary image in this folder or descendant folders. Version
@@ -5597,3 +5597,31 @@ source/tag/three asset hashes/sizes/anonymous APK, then receipt-only docs. Not y
 published at this checkpoint. Keep phone checks open; large/partial corrupt source
 images may safely fail final copy validation, and detailed per-directory failure
 logging remains separate. Do not reintroduce ordinary-image work during browsing.
+
+### v0.1.13 delivery receipt (2026-10-25)
+
+Normal publisher repeated full standard tasks (BUILD SUCCESSFUL in17s, up-to-date),
+verified package/pinned signer, pushed source/tag
+`9e77bcd1cee0a2cc303b7754f75568b2fcf5738f`. Release published2026-10-25
+02:43:17Asia/Shanghai (2026-10-24T18:43:17Z), public/non-draft/non-prerelease/latest:
+https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.13
+
+Independent source/tag readback matches and all three uploaded asset sizes/digests
+match local published artifacts:
+- JOKESONG.apk:88,756,415bytes,
+  `767483eee2cdb93a707b45a9a88a36a2889c2727b797a4c9c9d84b197870911c`.
+- JOKESONG-build.json:667bytes,
+  `89536c8600448517dabe91796f27d821077cb66d84070d4885a6e311552d1299`.
+- SHA256SUMS.txt:79bytes,
+  `849b0e6aacf37603858112b8231a7381b0d87d4738d76f180c1090aaf8566eff`.
+Anonymous APK HEAD HTTP200, length88,756,415. Owner download:
+https://github.com/liuchengzhiaa/JOKESONG/releases/download/v0.1.13/JOKESONG.apk
+
+Earlier publication-pending checkpoints are complete. This receipt-only docs
+commit needs no repeated APK/tag. Final633JVM tests/lint0errors38warnings; Android
+fixtures compiled only, no device/provider/specific06 folder verification. No real
+media/private images/cards/backups/credentials uploaded or modified. Safest next:
+owner installs over existing version, explicitly reruns Settings cover batch and
+checks empty-parent/nested ordinary images/highest pixel area + no-overwrite. If
+reported missing covers persist, first distinguish disk-file absence from stale UI
+and get final batch counts; detailed per-folder error reporting remains future.

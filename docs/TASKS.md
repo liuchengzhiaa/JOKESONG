@@ -865,7 +865,9 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Narrow/full tests pass: 83 suites/633 JVM tests, lint0errors/38warnings,
       app + Android-test APKs built; Android generated catalog/PNG probes compiled
       only, not executed. Source/test/resources/docs-only upload set reviewed.
-- [ ] Commit/push/publish v0.1.13/code14, independently verify source/assets/download.
+- [x] Published v0.1.13/code14/source+tag9e77bcd; publisher rechecked package,
+      pinned signer and full standard tasks. Independent SHA/3 asset digest+size
+      readback confirmed, latest/public APK anonymous HTTP200/88,756,415bytes.
 - [ ] Owner phone: rerun recursive processing on generated/copy media; missing folder
       with non-cover image, siblings of different resolutions, a later audio source,
       existing covers untouched, cancellation/rerun, oversized/broken image handling.
