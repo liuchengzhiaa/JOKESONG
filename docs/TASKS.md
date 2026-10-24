@@ -848,7 +848,10 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Narrow tests and final full standard tasks pass: 82 suites/613 JVM tests,
       lint0errors/38warnings, app + Android-test APKs built. Android/device tests
       compiled only, not executed. Reviewed source/tests/docs-only upload set.
-- [ ] Commit/push/release v0.1.12/code13, independently verify source/assets/download.
+- [x] Published v0.1.12/code13/source+tag b0bea6d; normal publisher rechecked
+      signer/package/tests. Independent remote source/tag SHA and all 3 asset
+      digests/sizes match; anonymous APK HTTP200/89,247,810bytes. Receipt-only docs
+      follow, with no duplicate APK or retag.
 - [ ] Owner phone acceptance: upgrade old Bento selection; modify controls in parent,
       enter child/grandchild, Back and restart; pinch then navigate; square/portrait/
       landscape art, large text, no lyrics, short viewport and unchanged swipe/playback.

@@ -5484,7 +5484,7 @@ export/preview/restore pass, not Clear Data on the real library. Keep backup fil
 and password independently before any future uninstall/Clear Data/device move.
 
 
-## 2026-10-25 — D-053 Folia-only wall/global tools/cover-page lyrics (verified, pending publication)
+## 2026-10-25 — D-053 Folia-only wall/global tools/cover-page lyrics (published)
 
 Owner's "游戏角" interpreted from screenshot as the bottom-right corner tools.
 Removed old Bento menu value/geometry/renderer and independent viewport; keep
@@ -5523,3 +5523,31 @@ choice migrates; change tools in parent/child, Back/restart/pinch then navigate;
 portrait/landscape/square cover sizing and lyric placement, large text/no lyrics,
 short viewport and unchanged swipes/playback. Do not invoke Claude or overwrite
 any prior release assets.
+
+### v0.1.12 delivery receipt (2026-10-25)
+
+Normal publisher re-ran full standard tasks (BUILD SUCCESSFUL in15s, up-to-date),
+verified unchanged application ID/pinned signer, and pushed source/tag
+`b0bea6da77481b027ff15fdc2839139cf1afc2ab`. Public/non-draft/non-prerelease/latest
+Release published2026-10-25 01:35:38Asia/Shanghai (2026-10-24T17:35:38Z):
+https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.12
+
+Independent CLI read-back confirms branch/tag source SHA and all uploaded assets:
+- JOKESONG.apk:89,247,810bytes,
+  `e0b65c66767d2be00302ab2e940facb7dbf6e0803a58ee145728e667339b47b3`.
+- JOKESONG-build.json:667bytes,
+  `8c875f4c9cc4801ccfe9befc3f21bcc967ed7aa503f69a2d4098b5f6d63efaed`.
+- SHA256SUMS.txt:79bytes,
+  `2c5827b809ed544529f31e5f9e1d1c798bc0cc8a3d1e7c66868f9287c705415f`.
+Anonymous APK HEAD HTTP200, length89,247,810. Phone download (no login):
+https://github.com/liuchengzhiaa/JOKESONG/releases/download/v0.1.12/JOKESONG.apk
+
+The preceding pre-publication pending steps are complete. This follow-up commit is
+receipt-only docs; do not create another APK/tag. Final verification613JVM tests,
+lint0errors/38warnings, Android-test APK compiled only; no device/visual acceptance
+claimed. No original media, annotations, backups or credentials accessed/uploaded.
+Safest next: owner cover-update install (do not uninstall/Clear Data) and the new
+TASKS phone checklist: legacy layout migration, cross-level global tool settings,
+Back/restart/pinch/navigation, actual cover-to-seek lyric spacing under varied
+aspect/text size. If the owner reports an issue, trace/reproduce that narrow path
+before changing renderer geometry or persisting per-folder appearance again.
