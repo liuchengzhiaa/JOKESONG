@@ -809,7 +809,9 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Final full checks: 79 suites / 599 JVM tests, lint 0 errors / 32 warnings,
       app + Android-test APK build; generated desktop SQLite migration/query check passes.
       Android Room/device tests compiled, NOT executed. No phone/user media touched.
-- [ ] Source/docs/APK publication receipt (0.1.10/code 11).
+- [x] Source/docs/APK published and independently read back: v0.1.10/code 11,
+      source/tag 0d64670; all three asset sizes/digests match; anonymous APK HTTP 200.
+      Final receipt is in HANDOFF; phone acceptance remains open.
 - [ ] Owner phone acceptance: upgrade old install; label folder + two audio files,
       duplicate names/cancel/rotation/restart; exact 0/90/91 filter, clear score,
       folder navigation, off-folder playback/lyrics and revoked/missing source.

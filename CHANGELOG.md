@@ -14,7 +14,7 @@
 验证：79 组、599 项 JVM 测试通过，Lint 0 错误 / 32 警告；应用 APK 和设备测试 APK 构建成功。
 另通过生成数据的桌面 SQLite 迁移/查询检查，覆盖旧表与书签保留、精确评分、0 分/未评分区分、
 标签计数、根目录隔离和分页。数据库 Android 设备测试仅编译，未在手机执行；界面/升级待手机验收。
-发布前记录，最终上传回执见 HANDOFF。
+已发布：[下载 0.1.10 APK](https://github.com/liuchengzhiaa/JOKESONG/releases/download/v0.1.10/JOKESONG.apk)。源码、文档与附件已核对，回执见 HANDOFF。
 
 ## 0.1.9 — 2026-10-19（批量封面处理提速，手机验收版）
 

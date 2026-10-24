@@ -5363,3 +5363,32 @@ repeat standard checks. Reviewed source/tests/exported schema/docs only for uplo
 no local media/card exports/cache/auth/signing keys. Next: commit + normal publisher,
 then read back remote source and all release asset sizes/digests. Phone checklist
 remains open. This does not add backup or file move relinking.
+
+### v0.1.10 delivery receipt (2026-10-24)
+
+Normal `tools/publish-release.ps1` repeated all standard checks (up-to-date build,
+**BUILD SUCCESSFUL in 14s**), checked unchanged pinned certificate/application ID,
+and published source/tag `0d64670f44066592610e050468c2f90564510a6c`.
+Release https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.10 published at
+**2026-10-24 21:12:58 Asia/Shanghai** (`2026-10-24T13:12:58Z`), public/non-draft/latest.
+Independent remote master/tag read-back matched that source before this receipt-only
+commit. Publisher verified all attachment sizes and SHA256 digests; a separate CLI
+read-back confirmed all three uploaded assets:
+
+- JOKESONG.apk: 88,629,995 bytes,
+  `91d020e6f41524a6689d4ee7041cca4f50f3dc48b09491b6f25bddd11956376d`.
+- JOKESONG-build.json: 667 bytes,
+  `f5ab0c4865bf2639a3287c4d12aa0be5ee6ef882764171bc5eeee41a6d0f7cec`.
+- SHA256SUMS.txt: 79 bytes,
+  `7bb3464b6fdf969d26f9bcf04abb3a48a9b741c36a703ded7fde1c81d78ed8fd`.
+
+Anonymous version-specific APK HEAD returns HTTP 200 and length 88,629,995.
+Owner phone link: https://github.com/liuchengzhiaa/JOKESONG/releases/download/v0.1.10/JOKESONG.apk
+Only source/generated schemas/tests/docs uploaded; no private media/cards/DB/auth
+cache/keys. This receipt-only docs commit needs no duplicate APK or moved release tag.
+
+Next agent: read D-051/current TASKS. Owner should install over 0.1.9 without
+uninstalling and check tags, exact score filter, score clearing, persisted restart,
+keyboard/rotation and tagged-folder/off-folder-audio navigation. Device Room migration
+fixture/visual acceptance still NOT executed. Keep favorites/playlists out of scope
+unless requested; do not claim device portability/backup or moved-file relinking.
