@@ -67,6 +67,12 @@ branch/tag/release and finish only the missing step while preserving existing as
    .\gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
    ```
 
+   When changing an interface or its forwarding adapters, clean the affected build
+   outputs before final verification. v0.1.13 shipped a stale anonymous Kotlin
+   delegate missing `FolderCoverStore.image`, despite passing pure primitive tests.
+   Exercise the production adapter and actual APK entry flow on generated fixtures;
+   a successful probe-only instrumentation test is not an end-to-end batch test.
+
 3. Confirm the correct APK under `../.asmrplayer-build/app/outputs/apk/debug/` on this
    host. Verify package ID/signing compatibility, version, timestamp and SHA256.
    Keep the current signer for existing installations. Never copy a signing key into

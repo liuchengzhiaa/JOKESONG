@@ -66,10 +66,7 @@ internal class FolderCoverRepository(context: Context) {
             try {
                 CoverDirectoryCatalog(context.cacheDir, checkpoint).use { catalog ->
                     val raw = SafFolderCoverStore(context, tree, budget, catalog)
-                    val store = object : FolderCoverStore by raw {
-                        override fun existing(folder: String): String? = FolderCoverFiles.locked(checkpoint) { raw.existing(folder) }
-                        override fun install(folder: String, source: String): String = FolderCoverFiles.locked(checkpoint) { raw.install(folder, source) }
-                    }
+                    val store = LockedFolderCoverStore(raw, checkpoint)
                     FolderCoverBatch(store, checkpoint, onProgress).run(
                         DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree)).toString())
                 }

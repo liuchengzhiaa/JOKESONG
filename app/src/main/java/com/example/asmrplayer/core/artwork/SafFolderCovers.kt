@@ -19,20 +19,8 @@ import java.io.InputStream
 import java.security.MessageDigest
 import java.util.PriorityQueue
 import java.util.UUID
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.locks.ReentrantLock
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
-
-/** Serialises folder writes only: audio extraction/cache has a separate lock. */
-internal object FolderCoverFiles {
-    private val lock = ReentrantLock()
-    fun <T> locked(checkpoint: () -> Unit = {}, block: () -> T): T {
-        while (!lock.tryLock(100, TimeUnit.MILLISECONDS)) checkpoint()
-        try { checkpoint(); return block() } finally { lock.unlock() }
-    }
-
-}
 
 internal class SafFolderCoverStore(
     private val context: Context,

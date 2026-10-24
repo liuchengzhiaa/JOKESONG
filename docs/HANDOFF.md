@@ -1,9 +1,10 @@
 # Handoff
 
-**Latest continuation (2026-10-18):** see the final “Codex implementation: direct tag
-editing” entry and `docs/METADATA_EDITOR_PLAN.md`. Earlier sections are chronological
-history, including the now-superseded investigation-only status. Preserve the large
-incoming uncommitted tree; no Claude invocation or automatic device installation.
+**Latest continuation (2026-10-25):** see the final v0.1.14 recursive-cover crash
+repair/verification and delivery receipt. Older sections below are chronological
+history, not current publication status. Do not invoke Claude or install on the
+owner's phone automatically; runtime work in this slice uses an isolated generated
+fixture emulator only.
 
 ## Current state
 
@@ -5625,3 +5626,72 @@ owner installs over existing version, explicitly reruns Settings cover batch and
 checks empty-parent/nested ordinary images/highest pixel area + no-overwrite. If
 reported missing covers persist, first distinguish disk-file absence from stale UI
 and get final batch counts; detailed per-folder error reporting remains future.
+
+
+## 2026-10-25 — recursive-cover start crash, v0.1.14 repair in progress
+
+Owner confirms crash happens after confirmation's Start, not when opening dialog.
+Phone numeric diagnostics report Java crash reason4, but do not contain a stack.
+Reproduced published0.1.13/code14 on a fresh isolated API36 x86_64 emulator with
+persisted SAF grant to generated `Download/JokesongCrashFixture`: root image and
+20 child directories each holding a generated64x32 PNG, no owner files/accounts.
+Empty-directory run completed; image branch crashes with AbstractMethodError:
+`FolderCoverStore.image(CoverDocument)` on
+`FolderCoverRepository$processTree$2$1$store$1`, called by FolderCoverBatch.findImage.
+`javap` of the shipped build's anonymous class confirms missing image method.
+The4 existing Android probe/catalog tests PASS on the same emulator, demonstrating
+why primitive-only tests did not cover the repository's stale forwarding adapter.
+
+Replaced anonymous `FolderCoverStore by raw` with named LockedFolderCoverStore,
+explicitly forwarding all6 methods. Existing/recovery and install retain the same
+shared cancellable lock; page/image/embedded/legacy remain outside write lock.
+Moved the unchanged pure lock to adapter file. No broad Throwable catch, no changes
+to priorities/no-overwrite/SAF limits/media/permissions. New JVM tests check concrete
+method coverage/forwarding/cancellation/idempotent batch; Android regression calls
+the same production wrapper on ART. Version0.1.14/code15. Clean narrow build started;
+full tests/lint/APKs, upgrade of fixture emulator, actual UI Start/rerun and public
+publication still pending. Do not claim fixed/published until these complete.
+
+
+### v0.1.14 verification checkpoint — complete, publication next
+
+Clean narrow command: `./gradlew.bat -I tools/ascii-build-dir.init.gradle clean
+ testDebugUnitTest --tests '*LockedFolderCoverStoreTest' --tests '*FolderCoverBatchTest'`
+(actual invocation used fully qualified class names).37 tests passed in3m1s.
+Then full standard `testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest`
+passed in5m21s:84 suites/638 JVM tests, failures/errors/skips0; lint0errors/38 existing
+warnings. GRADLE_USER_HOME uses existing owner cache; TEMP/TMP=C:\jtmp. `javap` of
+new named production adapter confirms all6 concrete methods including image().
+
+Isolated API36 emulator `emulator-5580` on dedicated adb port5049, no owner phone:
+- Generated fixture root `Download/JokesongCrashFixture` initially contains one64x32
+  PNG and20 child directories each with art.png; no covers/audio. The root was
+  selected through real system SAF picker, persistent read/write grant confirmed.
+- Published0.1.13 reproduces AbstractMethodError after Settings > Library > recursive
+  cover processing > Start. Crash captured before clearing only emulator crash log.
+- `adb -P5049 -s emulator-5580 install -r app-debug.apk` upgrades to0.1.14/code15,
+  retaining data/grant. Reopen UI, same Start: visited21/created21/existing0/missing0/
+  failed0.21 actual cover files exist; app stays alive, no new crash-buffer record.
+- Repeat UI Start: visited21/created0/existing21/missing0/failed0. Hash, size and mtime
+  snapshots of all42 generated source+cover files are unchanged. Every byte hash is
+  `82050e052ed7513ad70adc4ec05281212e2f53f8193f07113b37fc115795010e`.
+- Install current Android-test APK; explicit instrumentation class list
+  `LockedFolderCoverStoreTest,CoverImageProbeTest,CoverDirectoryCatalogTest`
+  (all under com.example.asmrplayer.core.artwork) returns OK(5 tests),0.937s.
+  No pm clear, owner account, real media or real device used. This verifies ART
+  dispatch AND actual SAF UI flow, not only in-memory probes.
+- Ignored replay evidence: `build/crash-fixtures/` holds original PNG, crash stack,
+  before/after file hashes/stat and instrumentation output. Fresh AVD is under
+  sibling `.asmrplayer-build/emulator/`; not uploaded. To replay from clean baseline,
+  use a new generated fixture directory with the structure above and select it in
+  SAF. Do not delete/clear real owner directories/data for testing.
+
+APK88,756,415bytes, SHA256
+`4380da1a6d1a7a44be34ca1d6c4cae840cef9dbad07a12c2021879537e0343d1`.
+Reviewed11 source/test/version/docs files only, no source images/media/card exports,
+credentials/signing private keys/machine config/APK in Git. Same package and pinned
+signer will be checked again by normal publisher. Pending: commit/push/new release,
+independent receipt. Owner API35/vendor SAF/large-library acceptance still open;
+this is not a claim that every possible provider/image/native-memory failure is fixed.
+Safest next: publish tested APK, then owner installs over existing build (no data
+clear) and explicitly reruns recursive processing; existing covers remain unchanged.

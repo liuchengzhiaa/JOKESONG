@@ -125,7 +125,11 @@ Never mutate canonical metadata to implement privacy presentation.
   covers win. Root changes cancel/join processing before releasing the old grant.
 - During explicit work, only existing/recovery and actual install operations take
   FolderCoverFiles' dedicated lock; never hold it across the whole traversal. Daily
-  folder reads do not acquire it at all. Track extraction retains its old bounded
+  folder reads do not acquire it at all. `LockedFolderCoverStore` explicitly implements
+  every store method (no anonymous interface delegation); image/page/audio reads
+  forward without holding the write lock. Regression tests exercise the production
+  wrapper on both JVM and ART, not only the raw probe/catalog primitives.
+  Track extraction retains its old bounded
   cache/monitor and inherited native-allocation limitation.
 - `FolderCoverRepository.project` versions raw folder lookup IDs. Successful manual
   save and batch termination re-project snapshots without losing focus/viewport or

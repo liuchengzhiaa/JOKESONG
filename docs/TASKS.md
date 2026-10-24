@@ -872,3 +872,20 @@ order because each layer consumes the stable model built by the one before it:
       with non-cover image, siblings of different resolutions, a later audio source,
       existing covers untouched, cancellation/rerun, oversized/broken image handling.
       The reported06 directory itself has not been accessed or reproduced here.
+
+
+## Current follow-up — recursive-cover Start crash (2026-10-25)
+
+- [x] Reproduce published0.1.13 after Start on isolated API36 emulator/generated
+      SAF tree. Exact cause: stale anonymous delegate missing image(), raises
+      AbstractMethodError; existing4 primitive Android tests pass but miss wrapper.
+- [x] Explicit production LockedFolderCoverStore forwards all6 methods, retaining
+      lock boundaries. Add JVM concrete-method/batch/forwarding/cancel tests and
+      ART wrapper regression; prepare0.1.14/code15, same signer/package.
+- [x] Clean37 narrow tests, full84 suites/638 JVM tests, lint0errors/38warnings,
+      both APKs. API36 ART regressions OK(5); actual upgrade/SAF UI Start creates21
+      covers with0failures. Rerun21existing/0created,42 hashes+size+mtime unchanged,
+      no new crash. No owner phone/media accessed.
+- [ ] Review source/docs-only upload, commit/push and new public Release; independent
+      branch/tag/asset hash/anonymous-download verification and receipt.
+- [ ] Owner phone rerun; API35/vendor SAF/large real library not reproduced here.
