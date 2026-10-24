@@ -37,3 +37,6 @@ github-recovery-codes*.txt
 
 # Kotlin local compiler/session cache.
 .kotlin/
+
+# Portable encrypted user tag/score backups are private, never source artifacts.
+*.jst

@@ -815,5 +815,22 @@ order because each layer consumes the stable model built by the one before it:
 - [ ] Owner phone acceptance: upgrade old install; label folder + two audio files,
       duplicate names/cancel/rotation/restart; exact 0/90/91 filter, clear score,
       folder navigation, off-folder playback/lyrics and revoked/missing source.
-- [ ] Future separate slices: annotation export/relinking; tag rename/merge/delete;
+- [ ] Future separate slices: automatic backup/arbitrary-move relinking; tag rename/merge/delete;
       favorites/playlists and full-library indexing are NOT delivered here.
+
+## Current follow-up — portable tags/scores (2026-10-24)
+
+- [x] Explicit encrypted export/import in 标签库 -> 备份; no account/network/media writes.
+- [x] Portable relative paths, type validation, new-root rebinding, matched/missing
+      preview, conservative union/keep-score, single Room transaction and re-import.
+- [x] Bounded framed AEAD, staged validation before live writes, provider read-back
+      hash, cancellation/rotation, no saved password, .jst publication exclusion.
+- [x] Final full tasks pass: 80 suites / 611 JVM tests, lint 0 errors / 38 warnings;
+      app and generated Android-test APKs built; desktop SQLite regression check passes.
+      Android/SAF/device cases compiled, NOT executed.
+- [ ] Standard 0.1.11 source/docs/APK release and verified receipt.
+- [ ] Phone acceptance on generated/disposable media: cover-update install; export
+      and external file/pwd retention; new root/device-volume copy; preview/merge,
+      zero score preservation, wrong password/truncation, cancellation and rotation.
+      Do not clear real owner app data as a test.
+- [ ] Full-library progress/playlists/privacy backup and automatic backup remain separate.

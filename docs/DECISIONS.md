@@ -1177,3 +1177,23 @@ asmr.one account/data import and no new network permission. Same-install updates
 retain them; device migration/export and moved-file relinking remain future work.
 Replace the dormant playlist tab with 标签库 for now; this does not claim completion
 of durable queues, playlists, favorites, full-library indexing or general search.
+
+## D-052 — Explicit portable encrypted tag/score backup (2026-10-24)
+
+Owner raises loss of the new annotations after Clear Data or changing phones.
+Add a narrow manual tag/score export/import now, not favorites/playlists or full-app
+backup. Preserve the established encrypted-backup principle: password-derived,
+device-independent encryption, no account/network or device-key-only lock-in.
+
+An external verified backup and its password are prerequisites; never promise to
+recover cleared data without one or call temporary app-cache staging an exported
+backup. Relative paths + exact kind rebind to the user's newly granted media root;
+root location/volume may change but inner names/hierarchy must match. Preview counts
+and target root before explicit confirmation. Do not guess by title/basename, scan
+unrelated storage, write media tags, or silently apply to another root.
+
+Conservative merge: tag union and keep-current non-null score, fill unrated only.
+Missing/type/ambiguous paths are counted/skipped, backup retained for a later re-run.
+Validate/authenticate the full bounded stream before touching live annotation tables;
+one atomic Room import, not per-record partial commits. Update docs explicitly that
+this is not automatic backup, arbitrary file-move relinking or the full backup roadmap.

@@ -759,3 +759,41 @@ checks actual migration/query SQL on generated in-memory desktop SQLite; generat
 Android `AnnotationDatabaseTest` checks Room validation, v1 bookmark preservation,
 root isolation, transactional failures and reopen durability. Building that Android
 test APK is NOT executing the test; phone/Room runtime acceptance remains explicit.
+
+## Portable annotation backups (2026-10-24, D-052)
+
+Room remains v2 (new bounded DAO readers/merge methods, no schema change).
+`PortableAnnotations` is JVM-only: versioned binary records, explicit UTF-8 lengths,
+strict relative components and bounded counts. Password-derived AES-256-GCM uses
+PBKDF2-HMAC-SHA256/210k rounds + fresh 16-byte salt, 8-byte random nonce prefix and
+32-bit frame counter. <=64KiB frames authenticate header/counter/plaintext length;
+a mandatory authenticated empty final frame plus EOF rejects truncation, ordering,
+duplication and trailing data. Cipher internals never buffer a whole 128MiB file.
+Passwords are transient, never in saved state/DB/headers; no device keystore lock-in.
+
+Export reads the selected root's tags/items in 50-row stable-key pages inside a Room
+read snapshot, writes only encrypted app-cache staging, then copies to user-chosen
+CreateDocument URI. Read back length/SHA256 before reporting success. Partial provider
+writes aren't labelled backups; no real media is mutated. *.jst is Git-ignored.
+
+Import authenticates/parses the whole stream into a generated private SQLite stage
+(256MiB cap) before provider resolution or live writes. Duplicate record paths/URIs,
+invalid paths/counts/scores fail. Stage metadata queries materialize one bounded record
+at a time; relative-path resolution caches at most 128 documents. The only document-ID
+path shortcut is Android ExternalStorageProvider; generic export uses findDocumentPath,
+import resolves exact unique child names. Root IDs/new volume prefixes are never
+copied from the backup. Missing/type/ambiguity skips are previewed; explicit root
+confirmation required. Restore uses one outer Room transaction, normalized union,
+keep-current non-null score, fresh artwork provider endpoints and revalidated optional
+same-folder subtitle paths. Re-run is idempotent. Root grant is checked again at commit.
+
+Activity-owned AnnotationBackupViewModel retains the job/encrypted stage/preview
+across rotation. UI owns only transient password strings and picker launchers. Stop
+is cooperative, with an honest already-committed race message. Closing a non-busy
+session removes only generated cache files. Process death may leave private cache
+artifacts for OS cleanup; no durable job/automatic cloud sync is claimed.
+
+Pure JVM tests exercise crypto round trips/authentication/wrong passwords/truncation/
+frame reorder/trailing/length bounds and portable paths/types/merge. Generated Room
+instrumentation adds union/keep-zero/idempotency/whole-import rollback. Device SAF,
+provider read-back, interruption and rotation still require explicit phone acceptance.

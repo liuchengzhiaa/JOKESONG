@@ -26,6 +26,23 @@ abstract class AnnotationDao {
     protected abstract suspend fun clearAssignments(root: String, uri: String)
     @Insert protected abstract suspend fun insertAssignments(rows: List<UserItemTagEntity>)
 
+    @Query("SELECT * FROM user_items WHERE rootUri=:root AND documentUri>:after ORDER BY documentUri LIMIT 50")
+    abstract suspend fun exportItems(root: String, after: String): List<UserItemEntity>
+    @Query("SELECT * FROM user_tags WHERE rootUri=:root AND id>:after ORDER BY id LIMIT 50")
+    abstract suspend fun exportTags(root: String, after: Long): List<UserTagEntity>
+
+    @Transaction
+    open suspend fun restoreTag(root: String, name: String) {
+        val normalized = AnnotationPolicy.tagName(name)
+        insertTag(UserTagEntity(rootUri = root, name = normalized, nameKey = AnnotationPolicy.tagKey(normalized)))
+    }
+    @Transaction
+    open suspend fun mergeImport(snapshot: UserItemEntity, names: List<String>) {
+        val existing = item(snapshot.rootUri, snapshot.documentUri)
+        val merged = PortableAnnotations.mergeTags(assigned(snapshot.rootUri, snapshot.documentUri).map { it.name }, names)
+        save(snapshot, emptySet(), merged, existing?.score ?: snapshot.score)
+    }
+
     /** One transaction: a bad tag/root/score cannot leave a half-saved annotation. */
     @Transaction
     open suspend fun save(snapshot: UserItemEntity, selected: Set<Long>, newNames: List<String>, score: Int?) {

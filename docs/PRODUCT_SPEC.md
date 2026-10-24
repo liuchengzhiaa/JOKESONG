@@ -664,12 +664,48 @@ statuses, reviews or playlists. The former placeholder playlist destination beco
   associations and scores in Room v2. Do not scan all media or write media tags or
   sidecar files to implement this feature. Tag/results queries page 50 rows plus a
   look-ahead, never materializing the full library.
-- Same-package signed updates and process restarts retain the DB. Uninstall/device
-  changes are NOT backed up by this feature. File moves/renames/root changes are not
-  identity-relinking; records remain scoped to the original granted root and URI.
+- Same-package signed updates and process restarts retain the DB. Version 0.1.11 adds
+  an explicit password-encrypted tag/score export/import from 标签库 -> 备份 (D-052).
+  This is not automatic sync: before clearing data/uninstalling/changing phones, save
+  and separately copy a verified backup. Without one the app cannot recover cleared
+  records. Runtime entries still use root/URI identities; import rebinds relative paths.
   Captured title/art/lyric metadata refreshes on annotation save, not via a watcher.
   Source deletion/revoked permissions use existing reader/player error handling;
   this slice does not implement missing-item recovery.
+
+### Portable annotation backup (2026-10-24)
+
+- 标签库 -> 备份 offers Export and Import. Export uses a password (at least eight
+  characters, confirmed), first stages an encrypted file and then asks where to save
+  it through SAF. Only a completed provider write with matching read-back hash is
+  reported saved. Staging inside app cache is explicitly NOT a saved external backup.
+- No automatic backup/network/account/remote upload. The owner must keep the external
+  .jst file and password, preferably another device copy. Passwords cannot be recovered.
+  The full player, lyrics and all existing preferences remain untouched.
+- Content: custom tags (including unassigned ones), folder/audio relative paths,
+  small presentation/matching fields and audio scores; no audio/artwork bytes, access
+  grants, absolute document URIs, general settings or account credentials.
+- On a new phone, copy the media with its internal names/hierarchy preserved, grant
+  its new root, choose the backup/password and preview matches/missing counts before
+  confirming. A different root location/storage volume is allowed. Match exact relative
+  path + type, never fuzzy titles/basenames; root itself can be a tagged folder.
+- Restore merges/deduplicates tags, preserves any existing non-null score (including
+  zero), and fills only unrated audio. Re-import is idempotent. Missing/moved/type-
+  mismatched/ambiguous files are skipped and counted, not falsely linked or deleted.
+  Keep the original backup to re-import after missing media is copied back. Selecting
+  the correct root is the user's explicit preview decision; no content hash identity
+  matching is claimed for different files occupying the same path.
+- Authenticate/validate the entire file in bounded private staging before any live DB
+  write or SAF resolution. Confirmation commits all matched annotations in one Room
+  transaction; malformed/incorrect-password/incomplete backups never partly apply.
+  Stop cancels cooperatively; a transaction already committed before Stop remains.
+- Limits: 128 MiB plaintext, 50k records, 20k unique tags, 128 tags/item, 128 path
+  levels; refuse excess rather than truncate. System local storage has a direct ID
+  path mapping; other providers need ancestry for export and unambiguous child-name
+  lookup for import, otherwise fail/skip explicitly. No broad storage permission.
+- This is a narrow portable annotation backup, not the planned complete progress/
+  playlists/privacy/metadata-undo backup below. External renaming/moving files still
+  requires restoring the original relative layout; no background relinking/watcher.
 
 ## Privacy presentation mode
 

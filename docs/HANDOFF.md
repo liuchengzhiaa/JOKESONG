@@ -5392,3 +5392,66 @@ uninstalling and check tags, exact score filter, score clearing, persisted resta
 keyboard/rotation and tagged-folder/off-folder-audio navigation. Device Room migration
 fixture/visual acceptance still NOT executed. Keep favorites/playlists out of scope
 unless requested; do not claim device portability/backup or moved-file relinking.
+
+## Codex follow-up — portable encrypted annotations (2026-10-24, checks in progress)
+
+Owner asks what happens after Clear Data/new phone. Confirmed 0.1.10 DB-only
+annotations would be lost. D-052 adds manual encrypted tag/score backup, not full
+backup or automatic sync. Must explicitly tell owner to install update WITHOUT
+uninstalling, export + save external file/password before clearing data, and keep
+another device copy. No backup means the app cannot recover cleared records.
+
+标签库 -> 备份: export password+confirmation (>=8 chars), encrypted cache preparation,
+then explicit CreateDocument destination and length/SHA256 read-back before success.
+Import chooses file/password, authenticates/validates all records in private bounded
+SQLite, resolves relative paths into the current SAF root, previews matched/missing
+counts and root, then confirms one Room transaction. Union tags, keep current non-null
+scores (zero included), fill unrated; duplicates normalize, re-import is idempotent.
+Paths/type exact, no fuzzy title matching. Missing/renamed/ambiguous files skip; keep
+backup for re-run after arranging files. No media bytes/absolute URI/grants exported.
+Optional subtitle paths are rebound/revalidated; new artwork endpoint URIs generated.
+
+PortableAnnotations is a bounded streaming binary+framed AES256GCM/PBKDF2 SHA256
+format, not Java serialization. Fresh random salt/nonce; authenticated header/counter/
+length, final empty authenticated frame + EOF reject truncation/reorder/trailing.
+64KiB frames bound cipher allocations. 128MiB plaintext/50k records/20k tags/128 tags
+per item/128 path depth. Private SQLite stage cap 256MiB, path cache128, export SQL
+pages50; no eager full-library list. Only Android ExternalStorageProvider uses path-
+like document IDs; generic export needs findDocumentPath, import unique name traversal.
+Unsupported provider/invalid file/failed write isn't reported as a successful backup.
+
+New activity-owned backup ViewModel keeps active job and preview through rotation;
+passwords only transient/non-saveable, password keyboard flags, wipe CharArrays.
+Stop cooperatively cancels; an already committed transaction can remain (UI says so).
+Cache cleanup affects only session-generated files. Process death can leave owned
+cache artifacts, not a promised resumable job. *.jst now Git ignored; no user backup
+or media was opened/exported/uploaded in development. No Claude/subagent invocation.
+
+Version0.1.11/code12, Room stillv2 (DAO additions, no schema change). Initial compile
+passed in59s. Targeted policy+portable-format JVM tests passed in56s. Added generated
+Room union/keep-zero/idempotency/rollback cases; Android execution still NOT done.
+Final standard JVM/Lint/build and normal publication pending; do not cite earlier
+counts as current. Existing SQL migration/query check still passes. Next: finish
+standard tasks and release, then owner generated-media phone pass. Never clear owner
+app data for testing; use a separate test root/copy or a second device.
+
+### Final local backup verification (2026-10-24)
+
+`testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest` -> **BUILD
+SUCCESSFUL in 3m17s**. Independent XML: **80 suites / 611 JVM tests**, no failures/
+errors; lint **0 errors / 38 warnings** (six new UseKtx suggestions, no new fatal
+finding). New12 portable-format tests pass including multi-frame/Unicode roundtrip,
+fresh salt/nonces, wrong password, header/frame modification, truncation/final-frame/
+trailing data, frame reorder/duplication, hostile lengths, changed volume/root prefix,
+path traversal, score/type/lyric-directory validation and idempotent tag union.
+Generated Room fixture's union/keep-zero/outer-transaction rollback compiles; NOT run
+on Android. `python tools/test-annotation-sql.py` still passes; diff check clean.
+No phone, original media, user annotations or existing backups touched.
+
+APK: 88,789,383 bytes, built 2026-10-24T13:50:39.0415553Z; SHA256
+`f4c6864969ae85a5942dcd90a711c6ea0cd6f993ca8cbe2be2b7ae4ac435f792`.
+Version0.1.11/code12. Reviewed upload set: source/tests/docs/.gitignore only, no .jst,
+private stage DB/cache/media/auth/keys. Next normal commit/publish (same pinned signer),
+verify remote SHA and all three attachments, then receipt-only docs. Phone checklist
+still open: install OVER existing app, export + save and keep password, copy fixture
+hierarchy to a new root and preview/restore; never clear real owner data as a test.

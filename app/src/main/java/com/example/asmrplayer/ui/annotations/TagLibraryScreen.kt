@@ -49,6 +49,8 @@ fun TagLibraryScreen(root: String?, onOpen: (UserItemEntity) -> Unit) {
     var failed by remember { mutableStateOf(false) }
     var retry by remember { mutableIntStateOf(0) }
     var editTarget by rememberSaveable(root) { mutableStateOf<UserItemEntity?>(null) }
+    var showBackup by rememberSaveable(root) { mutableStateOf(false) }
+    if (showBackup) AnnotationBackupDialog(root) { showBackup = false }
     val showItems = scoresMode || tagId != null
     val tagFlow = remember(root, query, page, retry, showItems) {
         dao.tags(root, AnnotationPolicy.containsPattern(query), AnnotationPolicy.PageSize + 1, if (showItems) 0 else page * AnnotationPolicy.PageSize)
@@ -67,6 +69,8 @@ fun TagLibraryScreen(root: String?, onOpen: (UserItemEntity) -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = !scoresMode, onClick = { scoresMode = false; tagId = null; page = 0 }, label = { Text(stringResource(R.string.annotation_tags)) })
             FilterChip(selected = scoresMode, onClick = { scoresMode = true; tagId = null; page = 0 }, label = { Text(stringResource(R.string.annotation_scores)) })
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { showBackup = true }) { Text(stringResource(R.string.annotation_backup_button)) }
         }
         if (scoresMode) Row(verticalAlignment = Alignment.CenterVertically) {
             val parsed = runCatching { AnnotationPolicy.score(scoreText) }.getOrNull()

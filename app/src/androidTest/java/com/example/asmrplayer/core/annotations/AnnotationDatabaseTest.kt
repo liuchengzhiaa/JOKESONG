@@ -2,6 +2,7 @@ package com.example.asmrplayer.core.annotations
 
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
+import androidx.room.withTransaction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.asmrplayer.core.database.AsmrDatabase
@@ -75,6 +76,19 @@ class AnnotationDatabaseTest {
                 db.annotationDao().save(audio(1), emptySet(), emptyList(), null)
                 assertNull(db.annotationDao().item(root, audio(1).documentUri)?.score)
                 assertTrue(db.annotationDao().assigned(root, audio(1).documentUri).isEmpty())
+                val dao = db.annotationDao()
+                dao.save(audio(4), emptySet(), listOf("existing"), 0)
+                dao.mergeImport(audio(4).copy(score = 90), listOf("imported"))
+                dao.mergeImport(audio(4).copy(score = 90), listOf("imported"))
+                assertEquals(0, dao.item(root, audio(4).documentUri)?.score)
+                assertEquals(2, dao.assigned(root, audio(4).documentUri).size)
+                assertTrue(runCatching { db.withTransaction {
+                    dao.restoreTag(root, "rollback")
+                    dao.mergeImport(audio(5).copy(score = 91), listOf("rollback"))
+                    error("generated interrupted import")
+                } }.isFailure)
+                assertNull(dao.item(root, audio(5).documentUri))
+                assertNull(dao.tag(root, "rollback"))
             }
         } finally { context.deleteDatabase(name) }
     }
