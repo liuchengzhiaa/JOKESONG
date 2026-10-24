@@ -1220,3 +1220,25 @@ For portrait player covers, centre previous/current/next text between actual cov
 bottom and seek line while preserving intrinsic fit and user text/cover sizing.
 Clamp when space is limited; do not redesign landscape, immersive modes, desktop
 lyrics, playback state, SAF media writes or annotations in this slice.
+
+
+## D-054 — Highest-resolution ordinary-image fallback in explicit cover processing (2026-10-25)
+
+Owner adds a fallback when embedded audio art cannot supply a folder cover: use an
+ordinary image from this folder or its descendants, choosing the clearest by pixel
+resolution. Extend D-049/D-050 rather than reintroducing recursive display-time work.
+Existing disk covers, legacy manual migration, direct embedded art and established
+child covers retain priority/no-overwrite semantics. Ordinary images are the final
+fallback, including non-cover filenames. Generated image-derived covers in this
+run retain fallback provenance so first-success order cannot mask sharper sibling
+images or a later embedded-art source.
+
+Define clarity as width × height in Long arithmetic, independent of JPEG/PNG byte
+size; ties use deterministic natural-name/URI order. Carry only the best metadata
+candidate per subtree. Enumerate source rows once into the per-run disk catalog,
+page32 image candidates, read bounds without full bitmap decode and cap each header
+stream at8MiB. Skip unsupported/unreadable dimensions and known oversize candidates.
+Use the existing8MiB writer/actual-format validation/recoverable stage transaction;
+never resize/delete original pictures, write audio tags, overwrite existing covers
+or publish user media. Unknown lengths still fail safely if the actual copy exceeds
+that cap. Daily browsing, manual-cover actions and permissions remain unchanged.

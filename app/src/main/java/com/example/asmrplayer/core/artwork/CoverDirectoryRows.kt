@@ -1,7 +1,7 @@
 package com.example.asmrplayer.core.artwork
 
 internal data class CoverDirectoryRow(val document: CoverDocument, val kind: Int) {
-    companion object { const val Audio = 0; const val Folder = 1; const val Cover = 2 }
+    companion object { const val Audio = 0; const val Folder = 1; const val Cover = 2; const val Image = 3 }
 }
 
 /** One folder in memory at a time; sorted results are spooled to the run's private disk index. */

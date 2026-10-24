@@ -28,9 +28,14 @@ internal class FolderCoverBatch(
         onProgress(counts)
         return counts
     }
-    private fun visit(folder: String, depth: Int): String? {
+    /** Image-derived covers remain fallback candidates, not an artificial higher-priority source. */
+    private data class Result(
+        val preferredCover: String? = null,
+        val image: CoverImageCandidate? = null,
+    )
+    private fun visit(folder: String, depth: Int): Result {
         checkpoint()
-        if (folder in visited) return null
+        if (folder in visited) return Result()
         check(visited.size < maxFolders && depth <= maxDepth) { "COVER_BATCH_LIMIT" }
         visited += folder
         counts = counts.copy(visited = counts.visited + 1)
@@ -50,7 +55,9 @@ internal class FolderCoverBatch(
                 if (cover != null) counts = counts.copy(created = counts.created + 1)
             }
         }
+        var preferredCover = cover
         var firstChildCover: String? = null
+        var bestImage: CoverImageCandidate? = null
         var childErrors = false
         var after: CoverDocument? = null
         while (true) {
@@ -60,20 +67,46 @@ internal class FolderCoverBatch(
                 val previousErrors = counts.failed
                 val childCover = visit(child.uri, depth + 1)
                 if (counts.failed > previousErrors) childErrors = true
-                if (firstChildCover == null) firstChildCover = childCover
+                if (firstChildCover == null) firstChildCover = childCover.preferredCover
+                bestImage = sharperCoverImage(bestImage, childCover.image)
             }
             if (page.size < 32) break
             after = page.last()
         }
         if (cover == null && !failed && firstChildCover != null) {
             cover = attempt { store.install(folder, firstChildCover) }
-            if (cover != null) counts = counts.copy(created = counts.created + 1)
+            if (cover != null) {
+                counts = counts.copy(created = counts.created + 1)
+                preferredCover = cover
+            }
+        }
+        if (cover == null && !failed && firstChildCover == null) {
+            bestImage = sharperCoverImage(bestImage, attempt { findImage(folder) })
+            val chosenImage = bestImage
+            if (!failed && chosenImage != null) {
+                cover = attempt { store.install(folder, chosenImage.document.uri) }
+                if (cover != null) counts = counts.copy(created = counts.created + 1)
+            }
         }
         if (cover == null && childErrors) failed = true
         if (failed) counts = counts.copy(failed = counts.failed + 1)
         else if (cover == null) counts = counts.copy(missing = counts.missing + 1)
         onProgress(counts)
-        return cover
+        return Result(preferredCover, bestImage)
+    }
+    private fun findImage(folder: String): CoverImageCandidate? {
+        var best: CoverImageCandidate? = null
+        var after: CoverDocument? = null
+        while (true) {
+            checkpoint()
+            val page = checkedPage(folder, CoverChildKind.Image, after)
+            for (image in page) {
+                checkpoint()
+                best = sharperCoverImage(best, store.image(image))
+            }
+            if (page.size < 32) return best
+            after = page.last()
+        }
     }
     private fun findAudioCover(folder: String): String? {
         var after: CoverDocument? = null

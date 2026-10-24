@@ -3,8 +3,8 @@
     <string name="audio_cover_edit">设置音频封面</string>
     <string name="audio_cover_notice">仅更换或移除这首音频的内嵌封面，不修改标题、作者等标签。选择图片后点击保存才会写入真实音频文件。保存时暂停本曲目，完成后可手动继续；安全检查不通过时拒绝写入。</string>
     <string name="folder_cover_batch_title">递归处理文件夹封面</string>
-    <string name="folder_cover_batch_notice">平时只读取当前文件夹的 cover 图片。本操作统一处理整个已授权资料库：已有 cover 不覆盖，缺少时从音频内嵌封面或子目录回填。请保持应用开启；中断后可再次执行。</string>
-    <string name="folder_cover_batch_confirm">将为整个资料库中缺少封面的文件夹生成 cover 图片，逐一处理所有子目录，已有 cover 保持不变。无可用音频封面的目录可能留空。需要本地目录读写权限；不会修改音频或删除图片。</string>
+    <string name="folder_cover_batch_notice">平时只读取当前文件夹的 cover 图片。本操作统一处理整个已授权资料库：已有 cover 不覆盖，缺少时优先从音频内嵌封面或子目录封面回填，仍无封面时选取本目录及子目录中分辨率最高的图片。请保持应用开启；中断后可再次执行。</string>
+    <string name="folder_cover_batch_confirm">将为整个资料库中缺少封面的文件夹生成 cover 图片，逐一处理所有子目录，已有 cover 保持不变。没有音频封面时，将比较本目录及子目录普通图片的像素面积（宽×高），选取最大的一张；没有可用图片的目录才会留空。需要本地目录读写权限；不会修改音频或删除图片。</string>
     <string name="folder_cover_batch_start">开始处理</string>
     <string name="folder_cover_batch_cancel">停止／取消</string>
     <string name="folder_cover_batch_running">正在处理，可离开此设置页</string>

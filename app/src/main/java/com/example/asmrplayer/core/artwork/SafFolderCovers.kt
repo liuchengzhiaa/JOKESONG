@@ -83,6 +83,7 @@ internal class SafFolderCoverStore(
                 val kind = when {
                     mime == Docs.Document.MIME_TYPE_DIR -> CoverDirectoryRow.Folder
                     isNamedFolderCover(doc.name) && SupportedArtwork.isSupported(doc.name, mime) -> CoverDirectoryRow.Cover
+                    SupportedArtwork.isSupported(doc.name, mime) -> CoverDirectoryRow.Image
                     SupportedAudio.isSupported(doc.name, mime) -> CoverDirectoryRow.Audio
                     else -> null
                 }
@@ -109,8 +110,11 @@ internal class SafFolderCoverStore(
         }
         val best = PriorityQueue(limit, CoverDocumentOrder.reversed())
         rows(folder) { doc, mime ->
-            val eligible = if (kind == CoverChildKind.Folder) mime == Docs.Document.MIME_TYPE_DIR
-                else mime != Docs.Document.MIME_TYPE_DIR && SupportedAudio.isSupported(doc.name, mime)
+            val eligible = when (kind) {
+                CoverChildKind.Folder -> mime == Docs.Document.MIME_TYPE_DIR
+                CoverChildKind.Audio -> mime != Docs.Document.MIME_TYPE_DIR && SupportedAudio.isSupported(doc.name, mime)
+                CoverChildKind.Image -> mime != Docs.Document.MIME_TYPE_DIR && !isNamedFolderCover(doc.name) && SupportedArtwork.isSupported(doc.name, mime)
+            }
             if (eligible && (after == null || CoverDocumentOrder.compare(doc, after) > 0)) {
                 if (best.size < limit) best.add(doc)
                 else if (CoverDocumentOrder.compare(doc, best.peek()) < 0) { best.poll(); best.add(doc) }
@@ -131,6 +135,22 @@ internal class SafFolderCoverStore(
             check(c.moveToFirst()) { "COVER_AUDIO_MISSING" }
             CoverDocument(uri, c.getString(1), "${c.getLong(3)}:${c.getLong(4)}")
         } ?: error("COVER_AUDIO_MISSING")
+    }
+    /** Read dimensions only. Images are copied/fully validated only after selection. */
+    override fun image(candidate: CoverDocument): CoverImageCandidate? {
+        budget.check()
+        if (!folderCoverLengthAllowed(candidate.version)) return null
+        val uri = candidate.uri.toUri()
+        require(uri.scheme == "content" && uri.authority == tree.authority && Docs.getTreeDocumentId(uri) == root)
+        return try {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            val input = resolver.openInputStream(uri) ?: return null
+            CoverImageHeaderStream(input).use { limited -> BitmapFactory.decodeStream(limited, null, bounds) }
+            budget.check()
+            if (bounds.outWidth !in 1..65536 || bounds.outHeight !in 1..65536) null
+            else CoverImageCandidate(candidate, bounds.outWidth, bounds.outHeight)
+        } catch (cancelled: java.util.concurrent.CancellationException) { throw cancelled }
+          catch (_: Exception) { null }
     }
     override fun embedded(audio: CoverDocument): String? {
         budget.audio()
@@ -159,7 +179,7 @@ internal class SafFolderCoverStore(
                     val count = input.read(buffer)
                     if (count < 0) break
                     total += count
-                    check(total <= 8L * 1024 * 1024) { "COVER_IMAGE_TOO_LARGE" }
+                    check(total <= MaximumFolderCoverBytes) { "COVER_IMAGE_TOO_LARGE" }
                     output.write(buffer, 0, count)
                 }
             } }

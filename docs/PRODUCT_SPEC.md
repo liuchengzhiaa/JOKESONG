@@ -66,7 +66,19 @@ on the entire granted root, including the root itself. Visit ALL descendants eve
 if a parent already has a cover. Preserve every existing cover; for an uncovered
 folder migrate its old explicit private choice if present, otherwise use the first
 naturally ordered direct audio with embedded artwork, otherwise copy a successful
-child cover upward. Continue processing remaining siblings after finding a source.
+child cover upward. If none of those sources exists, compare ordinary supported
+images in the folder and its descendants and copy the highest-resolution usable
+candidate as cover (D-054). Resolution means width × height, using 64-bit pixel
+area, not compressed byte size or filename order; equal areas use natural name/URI
+ordering. An image fallback generated earlier in this run must not hide a sharper
+later sibling image or outrank a later real embedded-art source. Existing disk
+covers remain protected and keep their previous precedence.
+
+Probe dimensions only, with bounded header reads and no full-size bitmap decode.
+Known images over the existing 8 MiB copy limit are ineligible; unknown lengths
+remain subject to the writer's real byte cap. Final chosen image goes through the
+existing format/partial-decode/read-back/transaction validation, preserving source
+bytes and leaving original images/audio untouched. Continue processing all siblings.
 Folders with no usable artwork anywhere below them remain empty; failures are
 counted separately from missing artwork, not reported as successful persistence.
 

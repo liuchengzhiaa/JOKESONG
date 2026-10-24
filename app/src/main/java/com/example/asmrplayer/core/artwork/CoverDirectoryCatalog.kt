@@ -43,7 +43,11 @@ internal class CoverDirectoryCatalog(cacheDirectory: File, private val checkpoin
     ).use { if (it.moveToFirst()) it.getString(0) else null }
     fun page(folder: String, kind: CoverChildKind, after: CoverDocument?, limit: Int): List<CoverDocument> {
         checkpoint()
-        val type = if (kind == CoverChildKind.Audio) CoverDirectoryRow.Audio else CoverDirectoryRow.Folder
+        val type = when (kind) {
+            CoverChildKind.Audio -> CoverDirectoryRow.Audio
+            CoverChildKind.Folder -> CoverDirectoryRow.Folder
+            CoverChildKind.Image -> CoverDirectoryRow.Image
+        }
         val position = if (after == null) -1L else db.rawQuery(
             "SELECT position FROM entries WHERE owner=? AND kind=? AND uri=?",
             arrayOf(folder, type.toString(), after.uri),

@@ -855,3 +855,18 @@ order because each layer consumes the stable model built by the one before it:
 - [ ] Owner phone acceptance: upgrade old Bento selection; modify controls in parent,
       enter child/grandchild, Back and restart; pinch then navigate; square/portrait/
       landscape art, large text, no lyrics, short viewport and unchanged swipe/playback.
+
+## Current follow-up — highest-resolution image cover fallback (2026-10-25)
+
+- [x] D-054: ordinary-image fallback across directory/subtree, Long pixel ranking,
+      stable ties, preferred cover/audio priorities and no overwrite preserved.
+- [x] Image metadata in existing scratch catalog/pages, bounded header-only probes,
+      shared8MiB cap and original validated transaction writer, no display recursion.
+- [x] Narrow/full tests pass: 83 suites/633 JVM tests, lint0errors/38warnings,
+      app + Android-test APKs built; Android generated catalog/PNG probes compiled
+      only, not executed. Source/test/resources/docs-only upload set reviewed.
+- [ ] Commit/push/publish v0.1.13/code14, independently verify source/assets/download.
+- [ ] Owner phone: rerun recursive processing on generated/copy media; missing folder
+      with non-cover image, siblings of different resolutions, a later audio source,
+      existing covers untouched, cancellation/rerun, oversized/broken image handling.
+      The reported06 directory itself has not been accessed or reproduced here.

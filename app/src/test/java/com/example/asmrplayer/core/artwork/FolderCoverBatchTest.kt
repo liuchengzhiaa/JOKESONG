@@ -10,13 +10,20 @@ class FolderCoverBatchTest {
         val audios = mutableMapOf<String, List<CoverDocument>>()
         val folders = mutableMapOf<String, List<CoverDocument>>()
         val art = mutableMapOf<String, String>()
+        val images = mutableMapOf<String, List<CoverDocument>>()
+        val imageFacts = mutableMapOf<String, CoverImageCandidate>()
         val log = mutableListOf<String>()
         val failFolders = mutableSetOf<String>()
         override fun existing(folder: String) = covers[folder]
         override fun legacy(folder: String) = legacy[folder]
         override fun page(folder: String, kind: CoverChildKind, after: CoverDocument?, limit: Int): List<CoverDocument> =
-            (if (kind == CoverChildKind.Audio) audios[folder] else folders[folder]).orEmpty()
+            when (kind) {
+                CoverChildKind.Audio -> audios[folder]
+                CoverChildKind.Folder -> folders[folder]
+                CoverChildKind.Image -> images[folder]
+            }.orEmpty()
                 .sortedWith(CoverDocumentOrder).filter { after == null || CoverDocumentOrder.compare(it, after) > 0 }.take(limit)
+        override fun image(candidate: CoverDocument) = imageFacts[candidate.uri]
         override fun embedded(audio: CoverDocument): String? { log += "audio:${audio.uri}"; return art[audio.uri] }
         override fun install(folder: String, source: String): String {
             if (folder in failFolders) throw SecurityException("read only")
@@ -127,4 +134,83 @@ class FolderCoverBatchTest {
         assertFalse(isDirectLocalAudioChild("primary:Music", "ABCD:Music/song.mp3"))
         assertFalse(isDirectLocalAudioChild("primary:Music", "primary:Other/song.mp3"))
     }
+    private fun Store.picture(folder: String, name: String, width: Int, height: Int, version: String = ""): String {
+        val document = CoverDocument("$folder/$name", name, version)
+        images[folder] = images[folder].orEmpty() + document
+        imageFacts[document.uri] = CoverImageCandidate(document, width, height)
+        return document.uri
+    }
+    @Test fun `ordinary images fill folder without audio embedded art`() {
+        val s = Store(); s.audios["root"] = listOf(doc("song"))
+        val source = s.picture("root", "artwork.jpg", 1600, 1200)
+        val c = s.run()
+        assertEquals(1, c.created); assertEquals(0, c.missing); assertEquals(0, c.failed)
+        assertTrue(s.log.contains("save:root:$source"))
+    }
+    @Test fun `pixel area beats filename ordering and encoded byte size`() {
+        val s = Store()
+        s.picture("root", "1.jpg", 1000, 1000, "7000000:1")
+        val best = s.picture("root", "10.png", 2400, 1600, "100000:1")
+        s.picture("root", "2.jpg", 2000, 1000, "7000000:1")
+        s.run(); assertEquals(listOf("save:root:$best"), s.log)
+    }
+    @Test fun `sharpest descendant wins over direct image and first successful image child`() {
+        val s = Store(); s.folders["root"] = listOf(doc("b"), doc("a")); s.folders["b"] = listOf(doc("c"))
+        s.picture("root", "direct.png", 1800, 1000)
+        s.picture("a", "first.jpg", 1000, 1000)
+        val best = s.picture("c", "best.webp", 3000, 2000)
+        val c = s.run()
+        assertEquals(4, c.created); assertEquals(0, c.missing)
+        assertTrue(s.log.contains("save:b:$best")); assertEquals("save:root:$best", s.log.last())
+    }
+    @Test fun `direct embedded audio remains ahead of a larger ordinary image`() {
+        val s = Store(); s.audios["root"] = listOf(doc("song")); s.art["song"] = "embedded"
+        s.picture("root", "large.png", 8000, 8000)
+        s.run(); assertEquals(listOf("audio:song", "save:root:embedded"), s.log)
+    }
+    @Test fun `later child audio wins over earlier child's newly generated image fallback`() {
+        val s = Store(); s.folders["root"] = listOf(doc("a"), doc("b"))
+        s.picture("a", "large.png", 8000, 8000)
+        s.audios["b"] = listOf(doc("song")); s.art["song"] = "embedded"
+        val c = s.run(); assertEquals(3, c.created)
+        assertEquals("save:root:b/cover.png", s.log.last())
+    }
+    @Test fun `existing parent cover is never replaced but uncovered image children are processed`() {
+        val s = Store(); s.covers["root"] = "original"; s.folders["root"] = listOf(doc("a"))
+        val child = s.picture("a", "art.png", 3000, 2000)
+        s.picture("root", "huge.png", 9000, 9000)
+        val c = s.run(); assertEquals(1, c.existing); assertEquals(1, c.created)
+        assertEquals("original", s.covers["root"]); assertEquals(listOf("save:a:$child"), s.log)
+    }
+    @Test fun `existing child cover retains precedence before ordinary image fallback`() {
+        val s = Store(); s.folders["root"] = listOf(doc("a")); s.covers["a"] = "saved-cover"
+        s.picture("root", "huge.png", 9000, 9000)
+        s.run(); assertEquals(listOf("save:root:saved-cover"), s.log)
+    }
+    @Test fun `image pagination considers candidates after page 32 and 256`() {
+        val s = Store()
+        (1..300).forEach { s.picture("root", "$it.jpg", it, it) }
+        s.run(); assertEquals(listOf("save:root:root/300.jpg"), s.log)
+    }
+    @Test fun `unreadable images are skipped while a readable candidate remains usable`() {
+        val s = Store(); s.images["root"] = listOf(doc("broken.jpg"))
+        val best = s.picture("root", "valid.png", 1600, 1200)
+        assertEquals(1, s.run().created); assertEquals(listOf("save:root:$best"), s.log)
+    }
+    @Test fun `image fallback never reports failed copy as generated`() {
+        val s = Store(); s.failFolders += "root"; s.picture("root", "art.png", 1600, 1200)
+        val c = s.run(); assertEquals(0, c.created); assertEquals(1, c.failed); assertTrue(s.covers.isEmpty())
+    }
+    @Test fun `image rerun preserves every generated cover and does not replace it with a later larger image`() {
+        val s = Store(); s.folders["root"] = listOf(doc("a")); s.picture("a", "art.png", 1600, 1200)
+        s.run(); s.log.clear(); s.picture("root", "later.png", 4000, 4000)
+        val c = s.run(); assertEquals(2, c.existing); assertEquals(0, c.created); assertTrue(s.log.isEmpty())
+    }
+    @Test fun `equal pixel areas are stable independent of subtree visitation order`() {
+        val s = Store(); s.folders["root"] = listOf(doc("a"), doc("b"))
+        s.picture("a", "10.png", 2000, 1000)
+        val best = s.picture("b", "2.png", 1000, 2000)
+        s.run(); assertEquals("save:root:$best", s.log.last())
+    }
+
 }

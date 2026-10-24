@@ -108,7 +108,14 @@ Never mutate canonical metadata to implement privacy presentation.
   every descendant even under covered parents, pages 32 natural-order candidates
   from a per-run `CoverDirectoryCatalog` rather than rescanning SAF for each page,
   prefers direct embedded art, then successful child cover, and processes all
-  siblings. Old private manual images migrate ONLY in this operation, after disk
+  siblings. D-054 adds ordinary-image fallback: the same scratch catalog keeps
+  image rows; 32-item pages probe dimensions through an 8 MiB-capped header stream.
+  Keep just one best `(URI,width,height)` per subtree; compare Long pixel areas and
+  stable natural-name/URI ties. Propagate image fallback provenance separately
+  from preferred disk/audio covers so early image-generated children cannot mask
+  later sharper images or embedded-art sources. Fully validate/copy only the final
+  chosen image through the existing protected writer. No changes to daily display.
+  Old private manual images migrate ONLY in this operation, after disk
   cover. No old per-display recursive resolver remains; common types/budgets are
   in FolderCoverModels. Do not count an unpersisted source as generated artwork.
 - LibraryViewModel owns a separate batch StateFlow/job, independent of library

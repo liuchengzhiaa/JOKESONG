@@ -5551,3 +5551,49 @@ TASKS phone checklist: legacy layout migration, cross-level global tool settings
 Back/restart/pinch/navigation, actual cover-to-seek lyric spacing under varied
 aspect/text size. If the owner reports an issue, trace/reproduce that narrow path
 before changing renderer geometry or persisting per-folder appearance again.
+
+
+## 2026-10-25 — D-054 ordinary-image cover fallback (verified, publication pending)
+
+Owner requests another APK: when embedded audio artwork cannot supply a cover, use
+highest-resolution ordinary image in this folder or descendant folders. Version
+prepared0.1.13/code14. Current implementation extends the pure FolderCoverBatch
+result with preferred-cover vs image-fallback provenance and one best image fact;
+raw image candidates never outrank existing/audio sources, but are merged across
+all siblings/depth rather than stopping at first image-generated child.
+
+CoverDirectoryCatalog gains image-kind rows/pages in its existing per-run scratch
+DB (no persistent Room/schema change). SafFolderCoverStore reads dimensions using
+BitmapFactory bounds-only via8MiB-bounded input; no pixel arrays/full bitmap loads.
+Known oversized files are skipped; actual chosen copy still enforces8MiB, actual
+MIME/partial-decode checks/readback/journal. Daily /folder display unchanged; no
+media samples or phone directories opened. No claim about the specific06 folder.
+
+Added pure tests for largest pixels across multiple depths/siblings, priorities,
+image paging>256, ties, invalid/unknown/oversize metadata, constrained stream reads,
+no-overwrite/rerun and failed writes. Android catalog image-page fixture added for
+compilation, not executed yet. Narrow Gradle run underway; final checks/publication
+pending. Keep existing signer/package. Next: finish tests, full standard tasks,
+review docs/source-only upload, normal publisher, independent receipt. Owner must
+explicitly rerun Settings batch after install; existing covers remain unchanged.
+
+### v0.1.13 verification checkpoint
+
+Narrow cover/image/transaction tests passed; final standard commands then passed
+in3m28s: `./gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest
+lintDebug assembleDebug assembleDebugAndroidTest`, GRADLE_USER_HOME set to the
+existing owner .gradle cache, TEMP/TMP=C:\jtmp.83 suites/633 JVM tests, zero
+failures/errors/skips; lint0errors/38warnings. Android fixtures include image-kind
+SQLite paging and generated PNG bounds through capped/non-mark streams; compiled
+only, not executed. No phone/provider or reported06 directory reproduction.
+
+APK0.1.13/code14, 88,756,415bytes, built2026-10-24T18:38:02.2866914Z, SHA256
+`767483eee2cdb93a707b45a9a88a36a2889c2727b797a4c9c9d84b197870911c`.
+Existing signer/application ID preserved in config; publisher rechecks compatibility.
+Reviewed changes are Kotlin/tests/resources/version/docs only, no source pictures,
+phone media, card/backup exports, credentials/signing keys, machine config or APK
+Git blobs. Diff check clean. Next: commit/push using normal publisher, verify remote
+source/tag/three asset hashes/sizes/anonymous APK, then receipt-only docs. Not yet
+published at this checkpoint. Keep phone checks open; large/partial corrupt source
+images may safely fail final copy validation, and detailed per-directory failure
+logging remains separate. Do not reintroduce ordinary-image work during browsing.
