@@ -828,7 +828,9 @@ order because each layer consumes the stable model built by the one before it:
 - [x] Final full tasks pass: 80 suites / 611 JVM tests, lint 0 errors / 38 warnings;
       app and generated Android-test APKs built; desktop SQLite regression check passes.
       Android/SAF/device cases compiled, NOT executed.
-- [ ] Standard 0.1.11 source/docs/APK release and verified receipt.
+- [x] Published v0.1.11/code12, source/tag 3872d92. Independent remote SHA and
+      all three attachment digests/sizes confirmed; anonymous APK HTTP200/88,789,383.
+      Documentation-only receipt commit follows without another APK.
 - [ ] Phone acceptance on generated/disposable media: cover-update install; export
       and external file/pwd retention; new root/device-volume copy; preview/merge,
       zero score preservation, wrong password/truncation, cancellation and rotation.

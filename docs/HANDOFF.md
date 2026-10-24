@@ -5455,3 +5455,30 @@ private stage DB/cache/media/auth/keys. Next normal commit/publish (same pinned 
 verify remote SHA and all three attachments, then receipt-only docs. Phone checklist
 still open: install OVER existing app, export + save and keep password, copy fixture
 hierarchy to a new root and preview/restore; never clear real owner data as a test.
+
+### v0.1.11 delivery receipt (2026-10-24)
+
+Normal publisher re-ran the standard tasks (**BUILD SUCCESSFUL in14s**, up-to-date),
+verified unchanged pinned signer/application ID, and published code12/source/tag
+`3872d92dc7e9fd53a03e0fff4529e41364192eae`. Release published **2026-10-24 21:57:36
+Asia/Shanghai** (`2026-10-24T13:57:36Z`), public/non-draft/latest:
+https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.11
+
+Publisher verified all attachments; independent CLI source/tag read-back matches,
+independent Release response confirms uploaded assets:
+- JOKESONG.apk: 88,789,383 bytes,
+  `f4c6864969ae85a5942dcd90a711c6ea0cd6f993ca8cbe2be2b7ae4ac435f792`.
+- JOKESONG-build.json:667 bytes,
+  `d41667c1fe85e94c968312f7a044601e20e000986546395a5e15ba014381973a`.
+- SHA256SUMS.txt:79 bytes,
+  `c4f0468fcf1a6554a46fc438d0d265a767406b2efb7cdc5aea84517df4fae182`.
+Anonymous APK HEAD HTTP200, length88,789,383. Owner link:
+https://github.com/liuchengzhiaa/JOKESONG/releases/download/v0.1.11/JOKESONG.apk
+
+This receipt-only documentation commit requires no duplicate APK or retag. No
+owner backups/annotations/media/credentials were accessed or uploaded. Latest local
+feature verification:611 JVM tests, lint0errors/38warnings; Android Room/SAF tests
+compiled only, no device or visual acceptance. Do NOT call this a tested phone
+migration or automatic backup. Safest next is owner install-over + generated root
+export/preview/restore pass, not Clear Data on the real library. Keep backup file
+and password independently before any future uninstall/Clear Data/device move.

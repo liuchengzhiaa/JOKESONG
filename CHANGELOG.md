@@ -13,7 +13,8 @@
 
 验证：80 组、611 项 JVM 测试通过，Lint 0 错误 / 38 警告；应用与设备测试 APK 构建成功。
 新增密码错误、篡改、截断、分帧重排、路径迁移和标签合并测试。Android Room/SAF 设备测试仅编译，
-未在手机执行；导出读回、真实迁移、停止与旋转待手机验收。发布前记录，最终回执见 HANDOFF。
+未在手机执行；导出读回、真实迁移、停止与旋转待手机验收。
+已发布：[下载 0.1.11 APK](https://github.com/liuchengzhiaa/JOKESONG/releases/download/v0.1.11/JOKESONG.apk)，源码和附件已核对，回执见 HANDOFF。
 
 ## 0.1.10 — 2026-10-24（标签库与音频评分）
 
