@@ -886,6 +886,8 @@ order because each layer consumes the stable model built by the one before it:
       both APKs. API36 ART regressions OK(5); actual upgrade/SAF UI Start creates21
       covers with0failures. Rerun21existing/0created,42 hashes+size+mtime unchanged,
       no new crash. No owner phone/media accessed.
-- [ ] Review source/docs-only upload, commit/push and new public Release; independent
-      branch/tag/asset hash/anonymous-download verification and receipt.
+- [x] Reviewed11 source/test/version/docs files; published0.1.14/code15 with normal
+      publisher, pinned signer/package and638 tests rechecked. Source/tag f0e5678,
+      latest/public/non-draft Release; independent remote refs and3 asset hashes+
+      sizes match; anonymous APK HEAD200/88,756,415bytes. Receipt-only docs follow.
 - [ ] Owner phone rerun; API35/vendor SAF/large real library not reproduced here.

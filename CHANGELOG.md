@@ -2,6 +2,8 @@
 
 ## 0.1.14 — 2026-10-25（修复递归处理封面点击开始后闪退）
 
+已发布：[下载 0.1.14 APK](https://github.com/liuchengzhiaa/JOKESONG/releases/download/v0.1.14/JOKESONG.apk)。
+
 - 修复图片兜底阶段的 `AbstractMethodError`：旧 APK 的封面处理代理缺少图片读取方法。
   改为显式实现全部接口方法，并清理构建输出重新打包；不靠吞掉异常掩盖问题。
 - 保留已有 cover 不覆盖、图片清晰度选择、SAF 授权和原有事务写入逻辑，不修改原始音频或图片。

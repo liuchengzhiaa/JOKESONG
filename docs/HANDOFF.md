@@ -5695,3 +5695,35 @@ independent receipt. Owner API35/vendor SAF/large-library acceptance still open;
 this is not a claim that every possible provider/image/native-memory failure is fixed.
 Safest next: publish tested APK, then owner installs over existing build (no data
 clear) and explicitly reruns recursive processing; existing covers remain unchanged.
+
+
+### v0.1.14 delivery receipt — published (2026-10-25)
+
+Normal publisher reran standard tasks successfully in16s (up-to-date), checked
+unchanged package and pinned signer, then pushed source/master and tagv0.1.14 at
+`f0e567820b7fed98470cbb527f657d8f68f709de`. Public/latest/non-draft/non-prerelease
+Release published2026-10-25 03:14:44Asia/Shanghai (2026-10-24T19:14:44Z):
+https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.14
+
+Independent remote branch/tag readback matches release source; all3 remote asset
+sizes/digests match local tested artifacts:
+- JOKESONG.apk:88,756,415bytes,
+  `4380da1a6d1a7a44be34ca1d6c4cae840cef9dbad07a12c2021879537e0343d1`.
+- JOKESONG-build.json:667bytes,
+  `2676b259ba3e780feaccc8eb0f7cd562f71790a1694db517566f06bd0307b992`.
+- SHA256SUMS.txt:79bytes,
+  `1551110a86d3d225dc8e5ba3d846e324c9fb60138095db4e554aafd44f57b99b`.
+Anonymous APK HEAD HTTP200, Content-Length88,756,415. Phone download:
+https://github.com/liuchengzhiaa/JOKESONG/releases/download/v0.1.14/JOKESONG.apk
+
+Earlier pending publication checkpoints are now complete. This receipt-only docs
+commit is intentionally separate from release source/tag/APK and needs no new APK
+or rewritten asset. Final84 suites/638 JVM tests/lint0errors38warnings;5 Android
+regressions really executed on isolated API36; actual SAF UI Start21created/0failed,
+rerun21existing/0created and all42 source/cover hash+size+mtime snapshots unchanged.
+No owner phone files/accounts/media/card exports/credentials uploaded or modified.
+No delivery blockers remain. Owner phone API35/vendor provider/large-library
+acceptance remains pending: cover-update install WITHOUT clearing data, explicitly
+rerun Settings > Library > recursive cover processing > Start and inspect counts.
+If a different crash persists, collect a fresh diagnostic/stack rather than assuming
+all future memory/provider failures share this now-reproduced AbstractMethodError.
