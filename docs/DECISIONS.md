@@ -1162,3 +1162,18 @@ before writes remain live. Cache only positive transaction document URIs, update
 rename, never cache absent target names. Reuse computed source digest rather than an
 extra stage read. Display-only cover policy, scope, source order, no-overwrite and
 manual/audio semantics remain D-049. Limits/errors must not return partial success.
+
+## D-051 — Local folder/audio tags and exact audio scores (2026-10-24)
+
+Owner explicitly rejects expanding the next slice to asmr.one-style favorites,
+playlists and listening statuses. Deliver custom folder/audio tags, a tag library
+with associated-folder/audio results, and per-audio numeric scores visible/editable
+in details and searchable by score. Adopt 0–100 integer scores; exact 90 means 90,
+not a threshold. Unscored is null, not zero. Folder tags never auto-propagate.
+
+These are user-library annotations, not file tag editing. Persist in root/URI-scoped
+Room tables with an additive migration; no media file/sidecar writes, no online
+asmr.one account/data import and no new network permission. Same-install updates
+retain them; device migration/export and moved-file relinking remain future work.
+Replace the dormant playlist tab with 标签库 for now; this does not claim completion
+of durable queues, playlists, favorites, full-library indexing or general search.

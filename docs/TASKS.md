@@ -796,3 +796,22 @@ order because each layer consumes the stable model built by the one before it:
 - [ ] Owner phone speed/stop/rerun/large-folder acceptance; no FPS/throughput claim from desktop tests.
 - [ ] JVM/Lint/instrumentation verification explicitly skipped for this release at owner's request;
       run normal full verification next time, including new catalog tests, before claiming them passed.
+
+## Current slice — folder/audio tags and numeric audio scores (2026-10-24)
+
+- [x] Owner narrows scope: tags + exact audio scores only; no favorites/playlists/statuses.
+- [x] Native tag library, searchable tags with counts, bounded result pages; all-layout
+      long press -> shared tag/score editor; player score badge/entry; exact 0–100 filter.
+- [x] Root-scoped Room v2, additive 1->2 migration, atomic assignments and scoring,
+      null vs zero, normalized duplicate tags, captured target/drafts, no media writes.
+- [x] Tagged folders open exact location; audio results play captured single entry with
+      available subtitle match, not the unrelated current folder queue.
+- [x] Final full checks: 79 suites / 599 JVM tests, lint 0 errors / 32 warnings,
+      app + Android-test APK build; generated desktop SQLite migration/query check passes.
+      Android Room/device tests compiled, NOT executed. No phone/user media touched.
+- [ ] Source/docs/APK publication receipt (0.1.10/code 11).
+- [ ] Owner phone acceptance: upgrade old install; label folder + two audio files,
+      duplicate names/cancel/rotation/restart; exact 0/90/91 filter, clear score,
+      folder navigation, off-folder playback/lyrics and revoked/missing source.
+- [ ] Future separate slices: annotation export/relinking; tag rename/merge/delete;
+      favorites/playlists and full-library indexing are NOT delivered here.

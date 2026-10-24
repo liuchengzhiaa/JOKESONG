@@ -1488,7 +1488,7 @@ private fun FocusCoverCard(
             // gesture. "Double tap to open" still works -- see resolveCardTap.
             .combinedClickable(
                 onClick = onClick, onLongClick = onLongClick,
-                onLongClickLabel = if (onLongClick != null) stringResource(R.string.folder_cover_set) else null,
+                onLongClickLabel = if (onLongClick != null) stringResource(R.string.library_item_actions) else null,
             ),
     ) {
         BoxWithConstraints(

@@ -195,6 +195,8 @@ fun PlayerDetail(
     modifier: Modifier = Modifier,
     toolClusterStyle: ToolClusterStyle = ToolClusterStyle.Default,
     motionPercent: Int = 100,
+    annotationRoot: String? = null,
+    onAnnotate: () -> Unit = {},
     cardCoverByDefault: Boolean = false,
     cardRevision: Int = 0,
     initialPage: Int = 0,
@@ -404,7 +406,12 @@ fun PlayerDetail(
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     val header: @Composable () -> Unit = {
-        PlayerHeader(title = metadata.title ?: item.title, artist = metadata.artist, titlePercent = sizing.playerTitlePercent)
+        Column {
+            PlayerHeader(title = metadata.title ?: item.title, artist = metadata.artist, titlePercent = sizing.playerTitlePercent)
+            Box(Modifier.padding(start = 22.dp)) {
+                com.example.asmrplayer.ui.annotations.AudioScoreBadge(annotationRoot, item.documentUri, onAnnotate)
+            }
+        }
     }
 
     val progress: @Composable () -> Unit = {

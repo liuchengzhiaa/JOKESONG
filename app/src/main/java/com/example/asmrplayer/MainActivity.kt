@@ -97,6 +97,18 @@ class MainActivity : ComponentActivity() {
                     onResetAppearanceDefaults = libraryViewModel::resetAppearanceDefaults,
                     onOpenSubtitleDetail = libraryViewModel::openSubtitleDetail,
                     onCloseSubtitleDetail = libraryViewModel::closeSubtitleDetail,
+                    onOpenAnnotatedFolder = libraryViewModel::openAnnotatedFolder,
+                    onPlayAnnotatedItem = { entry ->
+                        libraryViewModel.noteAnnotatedPlayback(entry)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
+                            !notificationPermissionRequested) {
+                            notificationPermissionRequested = true
+                            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        playback.playFromFolder(listOf(entry.item()), entry.item(),
+                            entry.timedText()?.let { mapOf(entry.documentUri to it) } ?: emptyMap())
+                    },
                     onPlayItem = { item ->
                         // The queue is built from the listing on screen, so this is
                         // the one moment that knows which folder the queue belongs

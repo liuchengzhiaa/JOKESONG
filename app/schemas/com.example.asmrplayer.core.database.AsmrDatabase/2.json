@@ -1,0 +1,918 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "dafb343fb5532f2e6ef9a5744d864864",
+    "entities": [
+      {
+        "tableName": "library_folders",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentUri` TEXT NOT NULL, `parentDocumentUri` TEXT, `displayName` TEXT NOT NULL, `relativePath` TEXT NOT NULL, `sortKey` TEXT NOT NULL, `artworkKey` TEXT, `childFolderCount` INTEGER NOT NULL, `audioCount` INTEGER NOT NULL, `totalDurationMs` INTEGER NOT NULL, `modifiedAtMs` INTEGER NOT NULL, `addedAtMs` INTEGER NOT NULL, `lastSeenScanId` INTEGER NOT NULL, `isMissing` INTEGER NOT NULL, PRIMARY KEY(`documentUri`))",
+        "fields": [
+          {
+            "fieldPath": "documentUri",
+            "columnName": "documentUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentDocumentUri",
+            "columnName": "parentDocumentUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "relativePath",
+            "columnName": "relativePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sortKey",
+            "columnName": "sortKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artworkKey",
+            "columnName": "artworkKey",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "childFolderCount",
+            "columnName": "childFolderCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "audioCount",
+            "columnName": "audioCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalDurationMs",
+            "columnName": "totalDurationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modifiedAtMs",
+            "columnName": "modifiedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "addedAtMs",
+            "columnName": "addedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSeenScanId",
+            "columnName": "lastSeenScanId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isMissing",
+            "columnName": "isMissing",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentUri"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_library_folders_parentDocumentUri_sortKey_displayName",
+            "unique": false,
+            "columnNames": [
+              "parentDocumentUri",
+              "sortKey",
+              "displayName"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_library_folders_parentDocumentUri_sortKey_displayName` ON `${TABLE_NAME}` (`parentDocumentUri`, `sortKey`, `displayName`)"
+          },
+          {
+            "name": "index_library_folders_lastSeenScanId",
+            "unique": false,
+            "columnNames": [
+              "lastSeenScanId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_library_folders_lastSeenScanId` ON `${TABLE_NAME}` (`lastSeenScanId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "audio_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentUri` TEXT NOT NULL, `parentFolderUri` TEXT NOT NULL, `displayName` TEXT NOT NULL, `sortKey` TEXT NOT NULL, `mimeType` TEXT, `title` TEXT, `artist` TEXT, `album` TEXT, `circle` TEXT, `trackNumber` INTEGER, `discNumber` INTEGER, `year` INTEGER, `genre` TEXT, `comment` TEXT, `customTagsJson` TEXT, `durationMs` INTEGER NOT NULL, `sizeBytes` INTEGER NOT NULL, `modifiedAtMs` INTEGER NOT NULL, `addedAtMs` INTEGER NOT NULL, `fingerprint` TEXT NOT NULL, `artworkKey` TEXT, `lastSeenScanId` INTEGER NOT NULL, `isMissing` INTEGER NOT NULL, PRIMARY KEY(`documentUri`))",
+        "fields": [
+          {
+            "fieldPath": "documentUri",
+            "columnName": "documentUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentFolderUri",
+            "columnName": "parentFolderUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sortKey",
+            "columnName": "sortKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mimeType",
+            "columnName": "mimeType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "artist",
+            "columnName": "artist",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "album",
+            "columnName": "album",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "circle",
+            "columnName": "circle",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "trackNumber",
+            "columnName": "trackNumber",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "discNumber",
+            "columnName": "discNumber",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "year",
+            "columnName": "year",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "genre",
+            "columnName": "genre",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "comment",
+            "columnName": "comment",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "customTagsJson",
+            "columnName": "customTagsJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sizeBytes",
+            "columnName": "sizeBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modifiedAtMs",
+            "columnName": "modifiedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "addedAtMs",
+            "columnName": "addedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fingerprint",
+            "columnName": "fingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artworkKey",
+            "columnName": "artworkKey",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastSeenScanId",
+            "columnName": "lastSeenScanId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isMissing",
+            "columnName": "isMissing",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentUri"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_audio_items_parentFolderUri_sortKey_displayName",
+            "unique": false,
+            "columnNames": [
+              "parentFolderUri",
+              "sortKey",
+              "displayName"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_audio_items_parentFolderUri_sortKey_displayName` ON `${TABLE_NAME}` (`parentFolderUri`, `sortKey`, `displayName`)"
+          },
+          {
+            "name": "index_audio_items_lastSeenScanId",
+            "unique": false,
+            "columnNames": [
+              "lastSeenScanId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_audio_items_lastSeenScanId` ON `${TABLE_NAME}` (`lastSeenScanId`)"
+          },
+          {
+            "name": "index_audio_items_fingerprint",
+            "unique": false,
+            "columnNames": [
+              "fingerprint"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_audio_items_fingerprint` ON `${TABLE_NAME}` (`fingerprint`)"
+          }
+        ]
+      },
+      {
+        "tableName": "artwork_entries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`artworkKey` TEXT NOT NULL, `ownerDocumentUri` TEXT NOT NULL, `sourceKind` TEXT NOT NULL, `sourceUri` TEXT, `mimeType` TEXT, `width` INTEGER, `height` INTEGER, `cacheKey` TEXT NOT NULL, `modifiedAtMs` INTEGER NOT NULL, PRIMARY KEY(`artworkKey`))",
+        "fields": [
+          {
+            "fieldPath": "artworkKey",
+            "columnName": "artworkKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerDocumentUri",
+            "columnName": "ownerDocumentUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceKind",
+            "columnName": "sourceKind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceUri",
+            "columnName": "sourceUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "mimeType",
+            "columnName": "mimeType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "width",
+            "columnName": "width",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "height",
+            "columnName": "height",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "cacheKey",
+            "columnName": "cacheKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modifiedAtMs",
+            "columnName": "modifiedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "artworkKey"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_artwork_entries_ownerDocumentUri",
+            "unique": false,
+            "columnNames": [
+              "ownerDocumentUri"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_artwork_entries_ownerDocumentUri` ON `${TABLE_NAME}` (`ownerDocumentUri`)"
+          }
+        ]
+      },
+      {
+        "tableName": "subtitle_entries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentUri` TEXT NOT NULL, `parentFolderUri` TEXT NOT NULL, `audioDocumentUri` TEXT, `displayName` TEXT NOT NULL, `format` TEXT NOT NULL, `languageTag` TEXT, `sizeBytes` INTEGER NOT NULL, `modifiedAtMs` INTEGER NOT NULL, `lastSeenScanId` INTEGER NOT NULL, `isMissing` INTEGER NOT NULL, PRIMARY KEY(`documentUri`))",
+        "fields": [
+          {
+            "fieldPath": "documentUri",
+            "columnName": "documentUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentFolderUri",
+            "columnName": "parentFolderUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "audioDocumentUri",
+            "columnName": "audioDocumentUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "format",
+            "columnName": "format",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "languageTag",
+            "columnName": "languageTag",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sizeBytes",
+            "columnName": "sizeBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modifiedAtMs",
+            "columnName": "modifiedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSeenScanId",
+            "columnName": "lastSeenScanId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isMissing",
+            "columnName": "isMissing",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentUri"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_subtitle_entries_audioDocumentUri",
+            "unique": false,
+            "columnNames": [
+              "audioDocumentUri"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_subtitle_entries_audioDocumentUri` ON `${TABLE_NAME}` (`audioDocumentUri`)"
+          },
+          {
+            "name": "index_subtitle_entries_parentFolderUri",
+            "unique": false,
+            "columnNames": [
+              "parentFolderUri"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_subtitle_entries_parentFolderUri` ON `${TABLE_NAME}` (`parentFolderUri`)"
+          },
+          {
+            "name": "index_subtitle_entries_lastSeenScanId",
+            "unique": false,
+            "columnNames": [
+              "lastSeenScanId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_subtitle_entries_lastSeenScanId` ON `${TABLE_NAME}` (`lastSeenScanId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "playback_progress",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`audioDocumentUri` TEXT NOT NULL, `positionMs` INTEGER NOT NULL, `durationMs` INTEGER NOT NULL, `isCompleted` INTEGER NOT NULL, `lastPlayedAtMs` INTEGER NOT NULL, `playCount` INTEGER NOT NULL, PRIMARY KEY(`audioDocumentUri`))",
+        "fields": [
+          {
+            "fieldPath": "audioDocumentUri",
+            "columnName": "audioDocumentUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "positionMs",
+            "columnName": "positionMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCompleted",
+            "columnName": "isCompleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastPlayedAtMs",
+            "columnName": "lastPlayedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playCount",
+            "columnName": "playCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "audioDocumentUri"
+          ]
+        }
+      },
+      {
+        "tableName": "playback_session",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singletonId` INTEGER NOT NULL, `currentAudioDocumentUri` TEXT, `currentQueueIndex` INTEGER NOT NULL, `currentPositionMs` INTEGER NOT NULL, `repeatMode` INTEGER NOT NULL, `shuffleEnabled` INTEGER NOT NULL, `wasPlaying` INTEGER NOT NULL, `updatedAtMs` INTEGER NOT NULL, PRIMARY KEY(`singletonId`))",
+        "fields": [
+          {
+            "fieldPath": "singletonId",
+            "columnName": "singletonId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentAudioDocumentUri",
+            "columnName": "currentAudioDocumentUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "currentQueueIndex",
+            "columnName": "currentQueueIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentPositionMs",
+            "columnName": "currentPositionMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repeatMode",
+            "columnName": "repeatMode",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "shuffleEnabled",
+            "columnName": "shuffleEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wasPlaying",
+            "columnName": "wasPlaying",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updatedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "singletonId"
+          ]
+        }
+      },
+      {
+        "tableName": "playback_queue",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`entryId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `queueIndex` INTEGER NOT NULL, `audioDocumentUri` TEXT NOT NULL, `titleSnapshot` TEXT NOT NULL, `artworkUriSnapshot` TEXT, `sourceIndex` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "entryId",
+            "columnName": "entryId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "queueIndex",
+            "columnName": "queueIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "audioDocumentUri",
+            "columnName": "audioDocumentUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "titleSnapshot",
+            "columnName": "titleSnapshot",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artworkUriSnapshot",
+            "columnName": "artworkUriSnapshot",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceIndex",
+            "columnName": "sourceIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "entryId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_playback_queue_queueIndex",
+            "unique": true,
+            "columnNames": [
+              "queueIndex"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_playback_queue_queueIndex` ON `${TABLE_NAME}` (`queueIndex`)"
+          },
+          {
+            "name": "index_playback_queue_audioDocumentUri",
+            "unique": false,
+            "columnNames": [
+              "audioDocumentUri"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_playback_queue_audioDocumentUri` ON `${TABLE_NAME}` (`audioDocumentUri`)"
+          }
+        ]
+      },
+      {
+        "tableName": "playback_bookmarks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bookmarkId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `audioDocumentUri` TEXT NOT NULL, `positionMs` INTEGER NOT NULL, `label` TEXT, `createdAtMs` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "bookmarkId",
+            "columnName": "bookmarkId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "audioDocumentUri",
+            "columnName": "audioDocumentUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "positionMs",
+            "columnName": "positionMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "label",
+            "columnName": "label",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "createdAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "bookmarkId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_playback_bookmarks_audioDocumentUri_positionMs",
+            "unique": true,
+            "columnNames": [
+              "audioDocumentUri",
+              "positionMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_playback_bookmarks_audioDocumentUri_positionMs` ON `${TABLE_NAME}` (`audioDocumentUri`, `positionMs`)"
+          }
+        ]
+      },
+      {
+        "tableName": "user_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`rootUri` TEXT NOT NULL, `documentUri` TEXT NOT NULL, `kind` TEXT NOT NULL, `title` TEXT NOT NULL, `subtitle` TEXT NOT NULL, `artworkUri` TEXT, `paletteSeed` INTEGER NOT NULL, `parentUri` TEXT, `score` INTEGER, `lyricUri` TEXT, `lyricName` TEXT, `lyricFormat` TEXT, `lyricSize` INTEGER NOT NULL, `lyricModified` INTEGER NOT NULL, `lyricLanguage` TEXT, PRIMARY KEY(`rootUri`, `documentUri`))",
+        "fields": [
+          {
+            "fieldPath": "rootUri",
+            "columnName": "rootUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "documentUri",
+            "columnName": "documentUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subtitle",
+            "columnName": "subtitle",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artworkUri",
+            "columnName": "artworkUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "paletteSeed",
+            "columnName": "paletteSeed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentUri",
+            "columnName": "parentUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "score",
+            "columnName": "score",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lyricUri",
+            "columnName": "lyricUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lyricName",
+            "columnName": "lyricName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lyricFormat",
+            "columnName": "lyricFormat",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lyricSize",
+            "columnName": "lyricSize",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lyricModified",
+            "columnName": "lyricModified",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lyricLanguage",
+            "columnName": "lyricLanguage",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "rootUri",
+            "documentUri"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_user_items_rootUri_score_title_documentUri",
+            "unique": false,
+            "columnNames": [
+              "rootUri",
+              "score",
+              "title",
+              "documentUri"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_user_items_rootUri_score_title_documentUri` ON `${TABLE_NAME}` (`rootUri`, `score`, `title`, `documentUri`)"
+          }
+        ]
+      },
+      {
+        "tableName": "user_tags",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `rootUri` TEXT NOT NULL, `name` TEXT NOT NULL, `nameKey` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rootUri",
+            "columnName": "rootUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nameKey",
+            "columnName": "nameKey",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_user_tags_rootUri_nameKey",
+            "unique": true,
+            "columnNames": [
+              "rootUri",
+              "nameKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_user_tags_rootUri_nameKey` ON `${TABLE_NAME}` (`rootUri`, `nameKey`)"
+          }
+        ]
+      },
+      {
+        "tableName": "user_item_tags",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`rootUri` TEXT NOT NULL, `documentUri` TEXT NOT NULL, `tagId` INTEGER NOT NULL, PRIMARY KEY(`rootUri`, `documentUri`, `tagId`), FOREIGN KEY(`rootUri`, `documentUri`) REFERENCES `user_items`(`rootUri`, `documentUri`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`tagId`) REFERENCES `user_tags`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "rootUri",
+            "columnName": "rootUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "documentUri",
+            "columnName": "documentUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tagId",
+            "columnName": "tagId",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "rootUri",
+            "documentUri",
+            "tagId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_user_item_tags_tagId",
+            "unique": false,
+            "columnNames": [
+              "tagId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_user_item_tags_tagId` ON `${TABLE_NAME}` (`tagId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "user_items",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "rootUri",
+              "documentUri"
+            ],
+            "referencedColumns": [
+              "rootUri",
+              "documentUri"
+            ]
+          },
+          {
+            "table": "user_tags",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "tagId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'dafb343fb5532f2e6ef9a5744d864864')"
+    ]
+  }
+}

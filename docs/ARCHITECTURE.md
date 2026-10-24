@@ -729,3 +729,33 @@ closes/deletes only this owned scratch DB; process death may leave a private cac
 Fresh cover conflict scans remain live; transaction caches store only positive URIs
 and update on rename. No negative conflict cache. Empty legacy directory absence
 skips unnecessary Room queries. Progress publishes entry before expensive extraction.
+
+## Local annotations (2026-10-24, D-051)
+
+`core/annotations` owns Room v2 entities, policy, DAO and the explicit additive 1->2
+migration. Existing eight tables/rows are untouched; no destructive fallback.
+`user_items` is a small snapshot keyed by root tree URI + document URI, not the
+unimplemented full library index. `user_tags` has a root/normalized-name unique
+index; `user_item_tags` references snapshot/tag identities. The transaction validates
+same-tree ownership, tag-root ownership, bounded names/counts and audio-only scores,
+then atomically replaces assignments/score. Normal browsing never queries/writes
+annotations per poster or observes a playback tick.
+
+`ui/annotations` is a native Compose editor plus paged tag/score results. The editor
+captures a Serializable scalar snapshot, keeps drafts through rotation/process-state
+restoration, suspends Save while loading/saving, preserves selections outside the
+searched page, and commits only on Save. Current selected root guards the host.
+The player badge observes only the one root/document score. Queries are lifecycle
+aware; local I/O failures are caught and reported. All user strings are resources.
+
+MainActivity plays a tag-result audio as one captured queue entry, with its matched
+subtitle extras; LibraryViewModel retains that one external subtitle match and its
+parent origin so immersive/desktop lyrics and reveal can reuse existing paths.
+Folder results open root -> exact folder, not an incorrect inferred parent chain.
+No new player, permission, network/API dependency, recursive scan or media writes.
+
+Verification layers: policy/snapshot/serialization JVM tests; `tools/test-annotation-sql.py`
+checks actual migration/query SQL on generated in-memory desktop SQLite; generated
+Android `AnnotationDatabaseTest` checks Room validation, v1 bookmark preservation,
+root isolation, transactional failures and reopen durability. Building that Android
+test APK is NOT executing the test; phone/Room runtime acceptance remains explicit.

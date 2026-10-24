@@ -228,7 +228,7 @@ private fun DetailedRow(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(onClick = onOpen, onLongClick = onLongClick,
-                onLongClickLabel = if (onLongClick != null) stringResource(R.string.folder_cover_set) else null)
+                onLongClickLabel = if (onLongClick != null) stringResource(R.string.library_item_actions) else null)
             .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -286,7 +286,7 @@ private fun CompactRow(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(onClick = onOpen, onLongClick = onLongClick,
-                onLongClickLabel = if (onLongClick != null) stringResource(R.string.folder_cover_set) else null)
+                onLongClickLabel = if (onLongClick != null) stringResource(R.string.library_item_actions) else null)
             .padding(start = 12.dp, end = 4.dp, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -344,7 +344,7 @@ private fun GridCell(
 ) {
     val isCurrent = playbackState.isCurrent(item.id)
     Column(modifier = Modifier.combinedClickable(onClick = onOpen, onLongClick = onLongClick,
-                onLongClickLabel = if (onLongClick != null) stringResource(R.string.folder_cover_set) else null)) {
+                onLongClickLabel = if (onLongClick != null) stringResource(R.string.library_item_actions) else null)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()

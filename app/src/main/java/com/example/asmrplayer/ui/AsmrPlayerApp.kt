@@ -20,12 +20,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,6 +43,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.asmrplayer.core.annotations.UserItemEntity
+import com.example.asmrplayer.core.storage.RootPreferences
+import com.example.asmrplayer.ui.annotations.AnnotationEditor
+import com.example.asmrplayer.ui.annotations.TagLibraryScreen
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -132,6 +140,8 @@ fun AsmrPlayerApp(
     onResetAppearanceDefaults: () -> Unit,
     onOpenSubtitleDetail: (String) -> Unit,
     onCloseSubtitleDetail: () -> Unit,
+    onPlayAnnotatedItem: (UserItemEntity) -> Unit,
+    onOpenAnnotatedFolder: (UserItemEntity) -> Unit,
     onPlayItem: (LibraryItem) -> Unit,
     onRevealPlayingItem: (String) -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -144,6 +154,23 @@ fun AsmrPlayerApp(
     onMetadataSaved: (String, com.example.asmrplayer.core.metadata.TagSaveResult) -> Unit = { _, _ -> },
 ) {
     MetadataRecoveryPrompt(onRecovered = onRefresh)
+    val appContext = LocalContext.current.applicationContext
+    val rootFlow = remember(appContext) { RootPreferences(appContext).rootUri }
+    val annotationRoot by rootFlow.collectAsStateWithLifecycle(null)
+    val rootKey = annotationRoot?.toString()
+    var annotationTarget by rememberSaveable { mutableStateOf<UserItemEntity?>(null) }
+    val annotate: (LibraryItem) -> Unit = { item ->
+        if (rootKey != null && item.documentUri != null &&
+            com.example.asmrplayer.core.annotations.AnnotationPolicy.sameTree(rootKey, item.documentUri)) {
+            annotationTarget = UserItemEntity.capture(rootKey, item,
+                libraryState.folderKey.takeIf { libraryState.items.any { listed -> listed.id == item.id } },
+                libraryState.timedText[item.id])
+        }
+    }
+    annotationTarget?.takeIf { it.rootUri == rootKey }?.let { target ->
+        AnnotationEditor(target) { annotationTarget = null }
+    }
+    LaunchedEffect(rootKey) { if (annotationTarget?.rootUri != rootKey) annotationTarget = null }
     var selectedDestination by rememberSaveable { mutableIntStateOf(0) }
     var fullPlayerItemId by rememberSaveable { mutableStateOf<String?>(null) }
     var playerSection by rememberSaveable(fullPlayerItemId) { mutableIntStateOf(0) }
@@ -204,8 +231,10 @@ fun AsmrPlayerApp(
     LaunchedEffect(fullPlayerItem) {
         if (fullPlayerItem != null) retainedFullPlayerItem = fullPlayerItem
     }
-    val playerQueue = remember(libraryState.items) {
-        libraryState.items.filter { it.type == LibraryItemType.Audio }
+    var taggedQueueItem by rememberSaveable { mutableStateOf<UserItemEntity?>(null) }
+    val playerQueue = remember(libraryState.items, taggedQueueItem, playbackState.mediaId) {
+        taggedQueueItem?.takeIf { it.documentUri == playbackState.mediaId }?.let { listOf(it.item()) }
+            ?: libraryState.items.filter { it.type == LibraryItemType.Audio }
     }
     // The captured item is the exact object that was open; the id finds it again after a
     // configuration change, when only saveable state survives.
@@ -215,7 +244,7 @@ fun AsmrPlayerApp(
     val destinations = listOf(
         Destination(R.string.library) { Icon(Icons.Default.LibraryMusic, null) },
         Destination(R.string.search) { Icon(Icons.Default.Search, null) },
-        Destination(R.string.playlists) { Icon(Icons.AutoMirrored.Filled.PlaylistPlay, null) },
+        Destination(R.string.annotation_library) { Icon(Icons.Default.Sell, null) },
         Destination(R.string.settings) { Icon(Icons.Default.Settings, null) },
     )
 
@@ -426,6 +455,7 @@ fun AsmrPlayerApp(
                         onSeekBy = onSeekBy,
                         onQueueItemSelected = { selected ->
                             fullPlayerItemId = selected.id
+                            taggedQueueItem = null
                             onPlayItem(selected)
                         },
                         onOpenLyrics = { showSubtitleDetail = true },
@@ -439,6 +469,8 @@ fun AsmrPlayerApp(
                             libraryState.toolClusterStyleOrdinal,
                         ),
                         motionPercent = libraryState.motionPercent,
+                        annotationRoot = rootKey,
+                        onAnnotate = { annotate(playerItem) },
                         cardCoverByDefault = libraryState.cardCoverByDefault,
                         cardRevision = cardRevision,
                         initialPage = playerSection,
@@ -465,6 +497,7 @@ fun AsmrPlayerApp(
                     onChooseRoot = onChooseRoot,
                     onRefresh = onRefresh,
                     onOpenFolder = onOpenFolder,
+                    onAnnotate = annotate,
                     onSetFolderCover = onSetFolderCover,
                     onSetAudioAsFolderCover = onSetAudioAsFolderCover,
                     onMetadataSaved = { id, saved ->
@@ -491,13 +524,30 @@ fun AsmrPlayerApp(
                     onWallAutoFocusPlayingChange = onWallAutoFocusPlayingChange,
                     onWallPosterTintStrengthChange = onWallPosterTintStrengthChange,
                     onMotionPercentChange = onMotionPercentChange,
-                    onPlayItem = onPlayItem,
+                    onPlayItem = { taggedQueueItem = null; onPlayItem(it) },
                     onRevealPlayingItem = onRevealPlayingItem,
                     onTogglePlayPause = onTogglePlayPause,
                     onSeekTo = onSeekTo,
                     onPrevious = onPrevious,
                     onNext = onNext,
                 )
+              } else if (selectedDestination == 2) {
+                TagLibraryScreen(rootKey) { entry ->
+                    if (entry.rootUri == rootKey) {
+                        if (entry.kind == "Folder") {
+                            onOpenAnnotatedFolder(entry)
+                            selectedDestination = 0
+                        } else {
+                            retainedNowPlayingItem = entry.item()
+                            fullPlayerItemId = entry.documentUri
+                            showSubtitleDetail = false
+                            if (!playbackState.isCurrent(entry.documentUri)) {
+                                taggedQueueItem = entry
+                                onPlayAnnotatedItem(entry)
+                            }
+                        }
+                    }
+                }
               } else if (selectedDestination == 3) {
                 SettingsScreen(
                     state = libraryState,
@@ -593,6 +643,7 @@ private fun LibraryContent(
     onChooseRoot: () -> Unit,
     onRefresh: () -> Unit,
     onOpenFolder: (LibraryItem) -> Unit,
+    onAnnotate: (LibraryItem) -> Unit,
     onSetFolderCover: suspend (String, android.net.Uri?) -> Boolean,
     onSetAudioAsFolderCover: suspend (String, String) -> Boolean,
     onMetadataSaved: (String, com.example.asmrplayer.core.metadata.TagSaveResult) -> Unit,
@@ -615,6 +666,7 @@ private fun LibraryContent(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
 ) {
+    var actionItem by remember { mutableStateOf<LibraryItem?>(null) }
     var coverFolderUri by rememberSaveable { mutableStateOf<String?>(null) }
     var coverFolderTitle by rememberSaveable { mutableStateOf("") }
     var audioActionsId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -636,6 +688,17 @@ private fun LibraryContent(
                 audioActionsId = item.id
             }
         }
+    }
+    actionItem?.let { item ->
+        AlertDialog(
+            onDismissRequest = { actionItem = null },
+            title = { Text(item.title, maxLines = 2) },
+            text = { Column {
+                TextButton(onClick = { actionItem = null; onAnnotate(item) }) { Text(stringResource(R.string.annotation_edit)) }
+                TextButton(onClick = { actionItem = null; editLibraryCover(item) }) { Text(stringResource(R.string.folder_cover_set)) }
+            } },
+            confirmButton = { TextButton(onClick = { actionItem = null }) { Text(stringResource(R.string.annotation_cancel)) } },
+        )
     }
     audioActionsId?.let { targetId ->
         AudioCoverActionsDialog(
@@ -810,7 +873,7 @@ private fun LibraryContent(
                     onPrevious = onPrevious,
                     onNext = onNext,
                     onOpenLyrics = onOpenLyrics,
-                    onItemLongClick = editLibraryCover,
+                    onItemLongClick = { actionItem = it },
                     layoutMode = layoutMode,
                     onLayoutModeChange = onLayoutModeChange,
                     onDensityChange = onWallDensityChange,
@@ -856,7 +919,7 @@ private fun LibraryContent(
                     onPrevious = onPrevious,
                     onNext = onNext,
                     onOpenLyrics = onOpenLyrics,
-                    onItemLongClick = editLibraryCover,
+                    onItemLongClick = { actionItem = it },
                     layoutMode = layoutMode,
                     onLayoutModeChange = onLayoutModeChange,
                     onDensityChange = onWallDensityChange,
@@ -888,7 +951,7 @@ private fun LibraryContent(
                     items = state.items,
                     playbackState = playbackState,
                     onOpen = openItem,
-                    onItemLongClick = editLibraryCover,
+                    onItemLongClick = { actionItem = it },
                     onPlay = onPlayItem,
                     onTogglePlayPause = onTogglePlayPause,
                 )
@@ -897,7 +960,7 @@ private fun LibraryContent(
                     items = state.items,
                     playbackState = playbackState,
                     onOpen = openItem,
-                    onItemLongClick = editLibraryCover,
+                    onItemLongClick = { actionItem = it },
                     onPlay = onPlayItem,
                     onTogglePlayPause = onTogglePlayPause,
                 )
@@ -906,7 +969,7 @@ private fun LibraryContent(
                     items = state.items,
                     playbackState = playbackState,
                     onOpen = openItem,
-                    onItemLongClick = editLibraryCover,
+                    onItemLongClick = { actionItem = it },
                     onPlay = onPlayItem,
                     onTogglePlayPause = onTogglePlayPause,
                 )

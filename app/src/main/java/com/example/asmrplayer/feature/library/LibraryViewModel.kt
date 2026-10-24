@@ -145,6 +145,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
      * document-URI-to-path map.
      */
     private var playbackOrigin: List<Uri> = emptyList()
+    private var annotatedSubtitle: Pair<String, TimedTextMatch?>? = null
     private var pendingFocusItemId: String? = null
     private var appSettings = AppSettings()
     private var receivedInitialAppSettings = false
@@ -178,6 +179,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 folderStack.clear()
                 folderSnapshots.clear()
                 playbackOrigin = emptyList()
+                annotatedSubtitle = null
                 pendingFocusItemId = null
                 treeUri = persistedRoot
                 if (persistedRoot == null) {
@@ -219,6 +221,26 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         val uri = item.documentUri?.let(Uri::parse) ?: return
         folderStack.addLast(uri)
         loadFolder(uri)
+    }
+
+    fun openAnnotatedFolder(entry: com.example.asmrplayer.core.annotations.UserItemEntity) {
+        val root = treeUri ?: return
+        if (entry.rootUri != root.toString() || entry.kind != "Folder") return
+        val rootDocument = scanner.rootDocumentUri(root)
+        folderStack.clear()
+        folderStack.addLast(rootDocument)
+        val target = Uri.parse(entry.documentUri)
+        if (target != rootDocument) folderStack.addLast(target)
+        loadFolder(target)
+    }
+
+    fun noteAnnotatedPlayback(entry: com.example.asmrplayer.core.annotations.UserItemEntity) {
+        val root = treeUri ?: return
+        if (entry.rootUri != root.toString() || entry.kind != "Audio") return
+        annotatedSubtitle = entry.documentUri to entry.timedText()
+        val rootDocument = scanner.rootDocumentUri(root)
+        playbackOrigin = listOfNotNull(rootDocument, entry.parentUri?.let(Uri::parse)).distinct()
+        mutableUiState.update { it.copy(hasPlaybackOrigin = true) }
     }
 
     fun navigateUp(): Boolean {
@@ -306,6 +328,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
      * the only place that knows both the listing and the track.
      */
     fun notePlaybackOrigin() {
+        annotatedSubtitle = null
         if (folderStack.isEmpty()) return
         playbackOrigin = folderStack.toList()
         mutableUiState.update { it.copy(hasPlaybackOrigin = true) }
@@ -355,6 +378,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun openSubtitleDetail(itemId: String) {
         subtitleJob?.cancel()
         val match = mutableUiState.value.timedText[itemId]
+            ?: annotatedSubtitle?.takeIf { it.first == itemId }?.second
         if (match == null) {
             mutableSubtitleState.value = SubtitleDetailState.unmatched(itemId)
             return

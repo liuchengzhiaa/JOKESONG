@@ -1,5 +1,6 @@
 package com.example.asmrplayer.core.database
 
+import com.example.asmrplayer.core.annotations.*
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
@@ -15,11 +16,14 @@ import androidx.room.RoomDatabase
         PlaybackSessionEntity::class,
         PlaybackQueueEntryEntity::class,
         PlaybackBookmarkEntity::class,
+        UserItemEntity::class, UserTagEntity::class, UserItemTagEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class AsmrDatabase : RoomDatabase() {
+    abstract fun annotationDao(): AnnotationDao
+
     abstract fun libraryDao(): LibraryDao
 
     abstract fun playbackDao(): PlaybackDao
@@ -35,7 +39,7 @@ abstract class AsmrDatabase : RoomDatabase() {
                 context.applicationContext,
                 AsmrDatabase::class.java,
                 FileName,
-            ).build().also { instance = it }
+            ).addMigrations(AnnotationMigration1To2).build().also { instance = it }
         }
     }
 }

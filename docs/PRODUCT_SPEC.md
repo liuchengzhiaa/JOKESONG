@@ -641,6 +641,36 @@ Every write is transactional:
   completed and unfinished.
 - Manual playlists preserve order and may contain duplicates.
 
+### Current delivery: local tags and audio scores (2026-10-24)
+
+The owner narrows the next slice to tags and scores only, not favorites, listening
+statuses, reviews or playlists. The former placeholder playlist destination becomes
+标签库, with 标签 and 评分筛选 tabs; future playlist work remains a separate backlog.
+
+- Long-press any folder/audio in all five library layouts -> 标签与评分. Folders
+  accept tags only; audio accepts tags plus an optional integer 0–100 score. The
+  player header displays 未评分 or the actual score and opens the same editor.
+- Multiple custom tags per item; normalize whitespace/NFKC/case for tag identity,
+  preserve readable display names. Names are 1–40 Unicode code points, up to 128 tags
+  per item. A new tag is committed only with Save; Cancel never writes annotations.
+- 标签库 searches tag names, shows assignment counts, and opens a paged mixed list
+  of folders and audio. Folder tags do not imply descendant/audio tags. Folder results
+  open that exact folder, with root as the back destination; audio results play that
+  individual audio, without silently substituting the current folder's queue.
+- 评分筛选 selects audio with exactly the entered integer (e.g. 90, not >=90).
+  Blank is unscored, distinct from zero; clearing a score removes it from scored
+  results. Result rows show scores and support long-press editing.
+- Store root-scoped URI identities, small presentation/subtitle snapshots, tags,
+  associations and scores in Room v2. Do not scan all media or write media tags or
+  sidecar files to implement this feature. Tag/results queries page 50 rows plus a
+  look-ahead, never materializing the full library.
+- Same-package signed updates and process restarts retain the DB. Uninstall/device
+  changes are NOT backed up by this feature. File moves/renames/root changes are not
+  identity-relinking; records remain scoped to the original granted root and URI.
+  Captured title/art/lyric metadata refreshes on annotation save, not via a watcher.
+  Source deletion/revoked permissions use existing reader/player error handling;
+  this slice does not implement missing-item recovery.
+
 ## Privacy presentation mode
 
 - Configuration contains one replacement artwork image and one fixed replacement

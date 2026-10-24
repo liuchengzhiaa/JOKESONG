@@ -5306,3 +5306,60 @@ Source/docs/APK uploaded; private media/DB/cache/derived publisher/keys excluded
 Receipt-only commit requires no duplicate APK. Next: owner installs 0.1.9 and tests
 explicit batch speed, stop/rerun, preservation and failures on phone. Follow-up agent
 must run standard full checks/new catalog fixtures before any validation claim.
+
+## Codex slice — local tags and audio scores (2026-10-24, verification in progress)
+
+Owner corrected the research scope: tags for folders/audio, tag library with linked
+items, per-audio integer scores shown on details and exact-score filtering ONLY.
+Do not implement favorites/playlists/statuses as part of this slice. D-051 and the
+current PRODUCT_SPEC section are authoritative. No Claude or sub-agent was invoked.
+
+Implemented native shared editor via all five layouts' existing long-press menus
+(original cover actions retained), native paged 标签库 replacing the playlist
+placeholder, and the player header's score/edit badge. Scores 0..100 integers;
+null is unrated, exact 90 excludes 91 and unrated. Draft/target survives saved state;
+Save is atomic, Cancel writes nothing. Newly typed tag names commit on Save, not
+on typing/Add. Search only changes the visible options, not selected tags elsewhere.
+
+Room v2 adds root-scoped small item snapshots, normalized tags and FK associations.
+Explicit additive 1->2 migration; original tables intact, no destructive migration.
+No media writes/network/full-root scan. Results are 50 + lookahead; editor searches
+50 tags at a time, selections limited to 128. Changing roots never applies one root's
+score/tag IDs to another. Folder results open root -> exact folder; audio results
+play a one-item queue with saved matching subtitle extras. Root/URI move relinking,
+export/backup, tag rename/merge/delete, full playlists/favorites remain separate.
+Snapshot names/art/lyrics are not live provider watchers; resaving refreshes them.
+
+Version 0.1.10 / code 11, existing ID/signing compatibility. Targeted policy tests
+passed. Desktop generated-SQL check passes against actual DAO queries and migration:
+old schema/rows preserved, Room exported fresh schema equivalence, exact score,
+zero/unrated, tag counts, root isolation and pagination. Generated Android Room
+migration/reopen/rollback tests added; device execution NOT performed. Initial full
+build found test-only RoomDatabase.use misuse, corrected to explicit try/finally
+close; final full JVM/Lint/build rerun and publication remain pending below.
+
+Safest next: complete standard verification (TEMP=TMP=C:\jtmp,
+GRADLE_USER_HOME=C:\Users\LiuDeZhou\.gradle), review upload set, commit and publish
+with tools/publish-release.ps1. Phone acceptance still needed, especially upgrade,
+editor keyboard/rotation, root switching and off-folder lyric playback. Do not claim
+Room Android execution or visual acceptance from desktop SQL/JVM/build alone.
+
+### Final local verification (2026-10-24)
+
+Corrected the test-only close helper and re-ran the complete standard task set:
+`testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest` ->
+**BUILD SUCCESSFUL in 3m7s**. Independent XML read-back: **79 suites / 599 JVM
+ tests, zero failures/errors; lint 0 errors / 32 warnings**. The seven new annotation
+policy/snapshot tests pass, as do the previously unexecuted v0.1.9 JVM fixtures.
+`python tools/test-annotation-sql.py` passes. `git diff --check` clean. Android
+Room validation/transaction/reopen test APK compiles, NOT executed on any device.
+No phone install, UI acceptance or mutation of user media. Same-tree identity guard
+also prevents tagging the old root's still-playing song under a newly selected root.
+
+Final local APK: 88,629,995 bytes; built 2026-10-24T13:07:03.7444061Z;
+SHA256 `91d020e6f41524a6689d4ee7041cca4f50f3dc48b09491b6f25bddd11956376d`.
+0.1.10/code 11; publication script must independently verify ID/cert/version and
+repeat standard checks. Reviewed source/tests/exported schema/docs only for upload;
+no local media/card exports/cache/auth/signing keys. Next: commit + normal publisher,
+then read back remote source and all release asset sizes/digests. Phone checklist
+remains open. This does not add backup or file move relinking.
