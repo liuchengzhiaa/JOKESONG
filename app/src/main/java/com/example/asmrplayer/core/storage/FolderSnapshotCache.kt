@@ -18,35 +18,14 @@ data class FolderSnapshot(
     val supportedItemCount: Int,
     val isTruncated: Boolean,
     val focusedItemId: String? = null,
-    val canvasZoom: Float = 1f,
     val panX: Float = 0f,
     val panY: Float = 0f,
-    /** Continuous wall density, where 100 is the product default. */
-    val wallDensityPercent: Int = DefaultWallDensityPercent,
-    /** Mirrors `FoliaFocusShape` ordinal; the cache stays free of UI types. */
-    val wallFocusShapeOrdinal: Int = DefaultWallFocusShapeOrdinal,
-    /** Mirrors `FoliaFocusSize` ordinal; the cache stays free of UI types. */
-    val wallFocusSizeOrdinal: Int = DefaultWallFocusSizeOrdinal,
-    /** Continuous ambient-light strength, where 100 is the product default. */
-    val wallAmbientPercent: Int = DefaultWallAmbientPercent,
     /**
      * Which track in this folder has lyrics beside it, keyed by item id. Kept so that
      * stepping back into a folder does not lose the subtitle index until a refresh.
      */
     val timedText: Map<String, TimedTextMatch> = emptyMap(),
-) {
-    companion object {
-        const val DefaultWallDensityPercent: Int = 100
-
-        /** `FoliaFocusShape.Square.ordinal`. */
-        const val DefaultWallFocusShapeOrdinal: Int = 0
-
-        /** `FoliaFocusSize.Medium.ordinal`. */
-        const val DefaultWallFocusSizeOrdinal: Int = 1
-
-        const val DefaultWallAmbientPercent: Int = 100
-    }
-}
+)
 
 /**
  * Bounded least-recently-used store of [FolderSnapshot]s.

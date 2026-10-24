@@ -1197,3 +1197,26 @@ Missing/type/ambiguous paths are counted/skipped, backup retained for a later re
 Validate/authenticate the full bounded stream before touching live annotation tables;
 one atomic Room import, not per-record partial commits. Update docs explicitly that
 this is not automatic backup, arbitrary file-move relinking or the full backup roadmap.
+
+
+## D-053 — Folia-only wall, global tools and cover-page lyric spacing (2026-10-25)
+
+Owner explicitly removes the old 聚焦封面墙 because it conflicts with Folia,
+requests corner-tool settings across every folder level, and moves the ordinary
+cover-page lyric window nearer the cover. This supersedes earlier decisions to
+retain Bento and to restore per-folder density/zoom/ambient/focus shape/size.
+
+Remove the old selectable layout, geometry and poster/lyric rendering paths;
+keep detailed/compact list, grid and Folia. Persist explicit stable values 0/1/2/4,
+map legacy 3 and 4 to Folia, and default to Folia. Never interpret a shifted enum
+ordinal as a saved choice.
+
+All corner display controls are global. Only each folder's listing, focused item,
+pan and subtitle matches are cached. Switching folder levels and Back must not
+restore old appearance; live pinch zoom is inherited even before its debounced
+preference write. Explicit "focus current" stays an action, not a persistent setting.
+
+For portrait player covers, centre previous/current/next text between actual cover
+bottom and seek line while preserving intrinsic fit and user text/cover sizing.
+Clamp when space is limited; do not redesign landscape, immersive modes, desktop
+lyrics, playback state, SAF media writes or annotations in this slice.

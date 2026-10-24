@@ -70,7 +70,7 @@ data class LibraryUiState(
     val panY: Float = 0f,
     val libraryLayoutOrdinal: Int = AppSettings.DefaultLibraryLayoutOrdinal,
     val wallDensityPercent: Int = 100,
-    /** Shape of the Folia wall's focused cover; the Bento wall ignores it. */
+    /** Global shape of the Folia wall's focused cover. */
     val wallFocusShapeOrdinal: Int = FoliaFocusShape.Square.ordinal,
     /** How large the Folia wall's focused cover grows. */
     val wallFocusSizeOrdinal: Int = FoliaFocusSize.Medium.ordinal,
@@ -148,7 +148,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private var annotatedSubtitle: Pair<String, TimedTextMatch?>? = null
     private var pendingFocusItemId: String? = null
     private var appSettings = AppSettings()
-    private var receivedInitialAppSettings = false
+    private var globalWallZoom = 1f
+    private var lastPersistedWallZoom: Int? = null
 
     private val mutableUiState = MutableStateFlow(LibraryUiState(isScanning = true))
     val uiState = mutableUiState.asStateFlow()
@@ -167,9 +168,12 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             appPreferences.settings.collectLatest { settings ->
                 appSettings = settings
-                val applyWallDefaults = !receivedInitialAppSettings
-                receivedInitialAppSettings = true
-                mutableUiState.update { it.withAppSettings(settings, applyWallDefaults) }
+                // Unrelated preference emissions must not undo an in-flight pinch.
+                if (lastPersistedWallZoom != settings.wallZoomPercent) {
+                    globalWallZoom = settings.wallZoomPercent / 100f
+                    lastPersistedWallZoom = settings.wallZoomPercent
+                }
+                mutableUiState.update { it.withGlobalSettings() }
             }
         }
         viewModelScope.launch {
@@ -183,17 +187,14 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 pendingFocusItemId = null
                 treeUri = persistedRoot
                 if (persistedRoot == null) {
-                    mutableUiState.value = LibraryUiState().withAppSettings(
-                        appSettings,
-                        applyWallDefaults = true,
-                    )
+                    mutableUiState.value = LibraryUiState().withGlobalSettings()
                 } else {
                     val rootDocumentUri = scanner.rootDocumentUri(persistedRoot)
                     folderStack.addLast(rootDocumentUri)
                     mutableUiState.value = LibraryUiState(
                         hasRoot = true,
                         isScanning = true,
-                    ).withAppSettings(appSettings, applyWallDefaults = true)
+                    ).withGlobalSettings()
                     loadFolder(rootDocumentUri)
                 }
             }
@@ -412,69 +413,73 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun onViewportChange(zoom: Float, panX: Float, panY: Float) {
         val folderKey = currentFolderKey() ?: return
         folderSnapshots.update(folderKey) {
-            it.copy(canvasZoom = zoom, panX = panX, panY = panY)
+            it.copy(panX = panX, panY = panY)
         }
+        val safeZoom = zoom.coerceIn(0.72f, 1.35f)
+        if (kotlin.math.abs(safeZoom - globalWallZoom) < 0.0001f) return
+        globalWallZoom = safeZoom
         wallZoomPersistJob?.cancel()
         wallZoomPersistJob = viewModelScope.launch {
             delay(350)
-            appPreferences.setWallZoom((zoom * 100).toInt())
+            appPreferences.setWallZoom((safeZoom * 100).toInt())
         }
     }
 
     fun onLibraryLayoutChange(ordinal: Int) {
-        val safeOrdinal = LibraryLayoutMode.fromOrdinal(ordinal).ordinal
+        val safeOrdinal = LibraryLayoutMode.fromOrdinal(ordinal).storedValue
+        appSettings = appSettings.copy(libraryLayoutOrdinal = safeOrdinal)
         mutableUiState.update { it.copy(libraryLayoutOrdinal = safeOrdinal) }
         viewModelScope.launch { appPreferences.setLibraryLayout(safeOrdinal) }
     }
 
     fun onWallDensityChange(percent: Int) {
-        val folderKey = currentFolderKey() ?: return
         val safePercent = percent.coerceIn(70, 130)
-        folderSnapshots.update(folderKey) { it.copy(wallDensityPercent = safePercent) }
+        appSettings = appSettings.copy(wallDensityPercent = safePercent)
         mutableUiState.update { it.copy(wallDensityPercent = safePercent) }
         viewModelScope.launch { appPreferences.setWallDensity(safePercent) }
     }
 
     fun onWallFocusShapeChange(ordinal: Int) {
-        val folderKey = currentFolderKey() ?: return
-        folderSnapshots.update(folderKey) { it.copy(wallFocusShapeOrdinal = ordinal) }
+        appSettings = appSettings.copy(wallFocusShapeOrdinal = ordinal)
         mutableUiState.update { it.copy(wallFocusShapeOrdinal = ordinal) }
         viewModelScope.launch { appPreferences.setWallFocusShape(ordinal) }
     }
 
     fun onWallFocusSizeChange(ordinal: Int) {
-        val folderKey = currentFolderKey() ?: return
-        folderSnapshots.update(folderKey) { it.copy(wallFocusSizeOrdinal = ordinal) }
+        appSettings = appSettings.copy(wallFocusSizeOrdinal = ordinal)
         mutableUiState.update { it.copy(wallFocusSizeOrdinal = ordinal) }
         viewModelScope.launch { appPreferences.setWallFocusSize(ordinal) }
     }
 
     fun onWallAmbientStrengthChange(percent: Int) {
-        val folderKey = currentFolderKey() ?: return
         val safePercent = percent.coerceIn(0, 150)
-        folderSnapshots.update(folderKey) { it.copy(wallAmbientPercent = safePercent) }
+        appSettings = appSettings.copy(wallAmbientPercent = safePercent)
         mutableUiState.update { it.copy(wallAmbientPercent = safePercent) }
         viewModelScope.launch { appPreferences.setWallAmbient(safePercent) }
     }
 
     fun onWallLightsOutChange(enabled: Boolean) {
+        appSettings = appSettings.copy(wallLightsOut = enabled)
         mutableUiState.update { it.copy(wallLightsOut = enabled) }
         viewModelScope.launch { appPreferences.setLightsOut(enabled) }
     }
 
     fun onWallAutoFocusPlayingChange(enabled: Boolean) {
+        appSettings = appSettings.copy(wallAutoFocusPlaying = enabled)
         mutableUiState.update { it.copy(wallAutoFocusPlaying = enabled) }
         viewModelScope.launch { appPreferences.setAutoFocusPlaying(enabled) }
     }
 
     fun onWallPosterTintStrengthChange(percent: Int) {
         val safePercent = percent.coerceIn(0, 60)
+        appSettings = appSettings.copy(wallPosterTintPercent = safePercent)
         mutableUiState.update { it.copy(wallPosterTintPercent = safePercent) }
         viewModelScope.launch { appPreferences.setPosterTint(safePercent) }
     }
 
     fun onMotionPercentChange(percent: Int) {
         val safePercent = percent.coerceIn(0, 100)
+        appSettings = appSettings.copy(motionPercent = safePercent, uiStylePresetOrdinal = UiStylePreset.Custom.ordinal)
         mutableUiState.update {
             it.copy(
                 motionPercent = safePercent,
@@ -590,18 +595,14 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun resetAppearanceDefaults() {
         appSettings = AppSettings()
-        folderSnapshots.updateAll { snapshot ->
-            snapshot.copy(
-                canvasZoom = appSettings.wallZoomPercent / 100f,
-                wallDensityPercent = appSettings.wallDensityPercent,
-                wallFocusShapeOrdinal = appSettings.wallFocusShapeOrdinal,
-                wallFocusSizeOrdinal = appSettings.wallFocusSizeOrdinal,
-                wallAmbientPercent = appSettings.wallAmbientPercent,
-            )
-        }
-        mutableUiState.update { it.withAppSettings(appSettings, applyWallDefaults = true) }
+        wallZoomPersistJob?.cancel()
+        globalWallZoom = appSettings.wallZoomPercent / 100f
+        mutableUiState.update { it.withGlobalSettings() }
         viewModelScope.launch { appPreferences.resetDefaults() }
     }
+
+    private fun LibraryUiState.withGlobalSettings(): LibraryUiState =
+        withAppSettings(appSettings).copy(canvasZoom = globalWallZoom)
 
     private fun currentFolderKey(): String? = folderStack.peekLast()?.toString()
 
@@ -623,7 +624,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                         canNavigateUp = folderStack.size > 1,
                         restored = pendingFocusItemId == null,
                         hasPlaybackOrigin = playbackOrigin.isNotEmpty(),
-                    ).copy(items = presented).withAppSettings(appSettings, applyWallDefaults = false)
+                    ).copy(items = presented).withGlobalSettings()
                     applyPendingFocus()
                 } catch (error: CancellationException) {
                     throw error
@@ -643,7 +644,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 isScanning = true,
                 canNavigateUp = folderStack.size > 1,
                 hasPlaybackOrigin = playbackOrigin.isNotEmpty(),
-            ).withAppSettings(appSettings, applyWallDefaults = true)
+            ).withGlobalSettings()
         } else {
             mutableUiState.value.copy(isScanning = true, hasError = false, isRestored = false)
         }
@@ -673,7 +674,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     canNavigateUp = folderStack.size > 1,
                     hasPlaybackOrigin = playbackOrigin.isNotEmpty(),
                     timedText = listing.timedText,
-                ).withAppSettings(appSettings, applyWallDefaults = true)
+                ).withGlobalSettings()
                 applyPendingFocus()
             } catch (error: CancellationException) {
                 throw error
@@ -733,7 +734,7 @@ private fun TimedTextMatch.toDetailState(
     document = document,
 )
 
-private fun FolderSnapshot.toUiState(
+internal fun FolderSnapshot.toUiState(
     canNavigateUp: Boolean,
     restored: Boolean,
     hasPlaybackOrigin: Boolean,
@@ -749,34 +750,19 @@ private fun FolderSnapshot.toUiState(
     isRestored = restored,
     hasPlaybackOrigin = hasPlaybackOrigin,
     focusedItemId = focusedItemId,
-    canvasZoom = canvasZoom,
     panX = panX,
     panY = panY,
-    wallDensityPercent = wallDensityPercent,
-    wallFocusShapeOrdinal = wallFocusShapeOrdinal,
-    wallFocusSizeOrdinal = wallFocusSizeOrdinal,
-    wallAmbientPercent = wallAmbientPercent,
     timedText = timedText,
 )
 
-private fun LibraryUiState.withAppSettings(
-    settings: AppSettings,
-    applyWallDefaults: Boolean,
-): LibraryUiState = copy(
-    libraryLayoutOrdinal = settings.libraryLayoutOrdinal,
-    canvasZoom = if (applyWallDefaults) settings.wallZoomPercent / 100f else canvasZoom,
-    wallDensityPercent = if (applyWallDefaults) settings.wallDensityPercent else wallDensityPercent,
-    wallFocusShapeOrdinal = if (applyWallDefaults) {
-        settings.wallFocusShapeOrdinal
-    } else {
-        wallFocusShapeOrdinal
-    },
-    wallFocusSizeOrdinal = if (applyWallDefaults) {
-        settings.wallFocusSizeOrdinal
-    } else {
-        wallFocusSizeOrdinal
-    },
-    wallAmbientPercent = if (applyWallDefaults) settings.wallAmbientPercent else wallAmbientPercent,
+/** Global display preferences always win over a restored folder's navigation state. */
+internal fun LibraryUiState.withAppSettings(settings: AppSettings): LibraryUiState = copy(
+    libraryLayoutOrdinal = LibraryLayoutMode.fromOrdinal(settings.libraryLayoutOrdinal).storedValue,
+    canvasZoom = settings.wallZoomPercent / 100f,
+    wallDensityPercent = settings.wallDensityPercent,
+    wallFocusShapeOrdinal = settings.wallFocusShapeOrdinal,
+    wallFocusSizeOrdinal = settings.wallFocusSizeOrdinal,
+    wallAmbientPercent = settings.wallAmbientPercent,
     wallLightsOut = settings.wallLightsOut,
     wallAutoFocusPlaying = settings.wallAutoFocusPlaying,
     wallPosterTintPercent = settings.wallPosterTintPercent,

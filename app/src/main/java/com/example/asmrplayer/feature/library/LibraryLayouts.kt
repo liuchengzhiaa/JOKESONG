@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.SpaceDashboard
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.ViewComfy
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -536,6 +535,5 @@ internal fun LibraryLayoutMode.icon(): ImageVector = when (this) {
     LibraryLayoutMode.DetailedList -> Icons.AutoMirrored.Filled.ViewList
     LibraryLayoutMode.CompactList -> Icons.AutoMirrored.Filled.List
     LibraryLayoutMode.Grid -> Icons.Default.GridView
-    LibraryLayoutMode.FocusWall -> Icons.Default.ViewComfy
     LibraryLayoutMode.FoliaWall -> Icons.Default.SpaceDashboard
 }

@@ -5482,3 +5482,44 @@ compiled only, no device or visual acceptance. Do NOT call this a tested phone
 migration or automatic backup. Safest next is owner install-over + generated root
 export/preview/restore pass, not Clear Data on the real library. Keep backup file
 and password independently before any future uninstall/Clear Data/device move.
+
+
+## 2026-10-25 — D-053 Folia-only wall/global tools/cover-page lyrics (verified, pending publication)
+
+Owner's "游戏角" interpreted from screenshot as the bottom-right corner tools.
+Removed old Bento menu value/geometry/renderer and independent viewport; keep
+Folia + 3 non-wall layouts. Explicit layout storedValue 0/1/2/4; legacy3/4 both
+read Folia. Default4; IDs/signing/schema/annotations/media unchanged.
+
+FolderSnapshot no longer contains zoom/density/shape/size/ambient overrides.
+Restored and fresh states apply global prefs; only focus/pan/listing/timed-text
+belong to each folder. Live zoom is shared before debounced storage; pan-only
+frames don't restart persistence. Hoisted viewport syncs each preference separately.
+Portrait PlayerCoverPage preserves old artwork fit/allocation but measures actual
+art bottom and centres 3-line lyrics toward it, clamped before seek controls.
+Landscape, desktop-overlay lyrics and immersive modes unchanged.
+
+Version0.1.12/code13. Initial narrow compilation found a deleted shared detailLine
+helper still used by Folia chrome; restored it and reran successfully. Final source
+then passed the full standard tasks (BUILD SUCCESSFUL in3m20s):
+`testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest`, using the
+ASCII build init script, GRADLE_USER_HOME=C:\Users\LiuDeZhou\.gradle and TEMP/TMP=C:\jtmp.
+82 suites/613 JVM tests; 0failures/errors/skipped; lint0errors/38warnings. Android
+fixtures compiled only, not device-executed. Reviewed migration, global restored
+folder controls, reset, all intrinsic cover shapes/sizes and constrained lyric
+geometry tests; existing Folia scene/spatial-index/40k geometry tests still pass.
+
+APK89,247,810 bytes, built2026-10-24T17:29:57.4123342Z; SHA256
+`e0b65c66767d2be00302ab2e940facb7dbf6e0803a58ee145728e667339b47b3`.
+Reviewed upload set: Kotlin/resources/tests/version/docs only, no attachments,
+media/card exports/backup files/auth caches/keys/machine config/APK Git blobs.
+Diff check clean. Signing/package compatibility will be rechecked by the publisher.
+
+Next: commit reviewed source/docs, normal tools/publish-release.ps1, verify remote
+source/tag/three asset hashes/sizes/anonymous APK, then receipt-only docs. Not yet
+published at this checkpoint. No device or owner media has been touched. Owner
+phone acceptance remains open (TASKS): install over existing version; old Bento
+choice migrates; change tools in parent/child, Back/restart/pinch then navigate;
+portrait/landscape/square cover sizing and lyric placement, large text/no lyrics,
+short viewport and unchanged swipes/playback. Do not invoke Claude or overwrite
+any prior release assets.

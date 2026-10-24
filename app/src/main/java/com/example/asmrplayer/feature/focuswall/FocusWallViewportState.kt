@@ -16,19 +16,18 @@ internal const val MaximumAmbientPercent = 150
 
 /**
  * What every continuous wall setting starts at, and what its reset row restores.
- * It matches the storage defaults in `FolderSnapshot` and `AppSettings`: the two
+ * It matches the storage defaults in `AppSettings`: they
  * are deliberately the same number, because a reset that landed anywhere else
  * would be a second, invisible default.
  */
 internal const val DefaultWallPercent = 100
 
 /**
- * Focus-wall viewport that lives outside the wall composable.
+ * Folia viewport that lives outside the wall composable.
  *
- * Hoisting it keeps the canvas zoom, pan and density alive while the user
- * switches to a list or grid layout and back, so changing layout never resets
- * where they were. It is seeded from the folder snapshot so returning to a
- * previously visited folder restores its viewport too.
+ * Hoisting retains the viewport across list/grid switches. Only pan is seeded
+ * from a folder snapshot; all display controls are synchronized from the shared
+ * global preferences, so returning to a folder cannot restore stale settings.
  */
 @Stable
 class FocusWallViewportState(
@@ -49,7 +48,7 @@ class FocusWallViewportState(
         initialDensityPercent.coerceIn(MinimumWallDensityPercent, MaximumWallDensityPercent),
     )
 
-    /** Shape of the focused cover. Folia only; the Bento wall ignores it. */
+    /** Shape of the focused cover, shared globally across folders. */
     var focusShapeOrdinal by mutableIntStateOf(
         initialFocusShapeOrdinal.coerceIn(FoliaFocusShape.entries.indices),
     )

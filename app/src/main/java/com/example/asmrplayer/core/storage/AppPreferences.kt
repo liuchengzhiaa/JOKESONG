@@ -101,8 +101,8 @@ data class AppSettings(
     val temperaTuning: TemperaTuning = TemperaTuning(),
 ) {
     companion object {
-        // LibraryLayoutMode.FocusWall.ordinal, kept raw so storage owns no UI type.
-        const val DefaultLibraryLayoutOrdinal = 3
+        // Stable Folia wall storage value; legacy 3 is migrated at the UI boundary.
+        const val DefaultLibraryLayoutOrdinal = 4
         // LyricsWordGlowMode.Smart.ordinal, kept raw so storage owns no UI type.
         const val DefaultLyricsWordGlowModeOrdinal = 1
         // LyricsVisualizerMode.Luminous.storedValue. Kept raw so storage owns no UI type.

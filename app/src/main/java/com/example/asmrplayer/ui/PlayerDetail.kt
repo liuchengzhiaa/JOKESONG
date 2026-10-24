@@ -553,21 +553,18 @@ fun PlayerDetail(
                         beyondViewportPageCount = 0,
                     ) { page ->
                         when (page) {
-                            0 -> Column(Modifier.fillMaxSize()) {
-                                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                    PlayerArtwork(
-                                        item = artworkItem, card = card, showCard = showingCard,
-                                        onDecodedAspect = { if (kotlin.math.abs(decodedArtworkAspect - it) > 0.002f) decodedArtworkAspect = it },
-                                        modifier = Modifier.artworkSized(
-                                            showingCard = showingCard,
-                                            squareSize = maxWidth * 0.85f,
-                                            artworkAspect = artworkAspect,
-                                            coverPercent = sizing.playerCoverPercent,
-                                            maxWidth = maxWidth, maxHeight = maxHeight,
-                                        ),
-                                    )
-                                }
-                                PlayerCoverLyrics(lyricPair, sizing.playerLyricsPercent)
+                            0 -> PlayerCoverPage(
+                                showingCard = showingCard,
+                                artworkAspect = artworkAspect,
+                                coverPercent = sizing.playerCoverPercent,
+                                pair = lyricPair,
+                                lyricsPercent = sizing.playerLyricsPercent,
+                            ) { artworkModifier ->
+                                PlayerArtwork(
+                                    item = artworkItem, card = card, showCard = showingCard,
+                                    onDecodedAspect = { if (kotlin.math.abs(decodedArtworkAspect - it) > 0.002f) decodedArtworkAspect = it },
+                                    modifier = artworkModifier,
+                                )
                             }
                             1 -> PlayerPlainLyrics(
                                 subtitles = subtitles, itemId = item.id,

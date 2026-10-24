@@ -11,10 +11,7 @@ import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -37,7 +34,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -65,12 +61,9 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Widgets
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -114,10 +107,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.ProgressBarRangeInfo
-import androidx.compose.ui.semantics.progressBarRangeInfo
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -193,11 +182,6 @@ private data class VisibleWallCard(
     val depthScale: Float,
 )
 
-enum class FocusWallStyle {
-    Bento,
-    Folia,
-}
-
 @Composable
 fun FocusCoverWall(
     items: List<LibraryItem>,
@@ -218,12 +202,6 @@ fun FocusCoverWall(
     onLayoutModeChange: (LibraryLayoutMode) -> Unit,
     onDensityChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    style: FocusWallStyle = FocusWallStyle.Bento,
-    /**
-     * Folia only. The Bento wall's focused block is a hand-written template, so it
-     * has no shape or size to choose; both callbacks are still passed by every wall
-     * so the shared tools panel needs no special case.
-     */
     onFocusShapeChange: (Int) -> Unit = {},
     onFocusSizeChange: (Int) -> Unit = {},
     onAmbientStrengthChange: (Int) -> Unit = {},
@@ -265,7 +243,6 @@ fun FocusCoverWall(
                 subtitleState = subtitleState,
                 wordGlowMode = wordGlowMode,
                 viewportState = viewportState,
-                style = style,
                 lightsOut = lightsOut,
                 posterTintPercent = posterTintPercent,
                 motionPercent = motionPercent,
@@ -308,7 +285,6 @@ fun FocusCoverWall(
                 contentKey = contentKey,
                 layoutMode = layoutMode,
                 onLayoutModeChange = onLayoutModeChange,
-                style = style,
                 viewportState = viewportState,
                 onRevealPlayingItem = onRevealPlayingItem,
                 onDensityChange = onDensityChange,
@@ -371,7 +347,6 @@ private fun WallToolsOverlay(
     contentKey: String,
     layoutMode: LibraryLayoutMode,
     onLayoutModeChange: (LibraryLayoutMode) -> Unit,
-    style: FocusWallStyle,
     viewportState: FocusWallViewportState,
     onRevealPlayingItem: (() -> Unit)?,
     onDensityChange: (Int) -> Unit,
@@ -458,47 +433,42 @@ private fun WallToolsOverlay(
                             minimumZoomPercent..maximumZoomPercent,
                         ),
                     ),
-                ) + if (style == FocusWallStyle.Folia) {
-                    listOf(
-                        GlassTool(
-                            icon = Icons.Default.GraphicEq,
-                            labelRes = R.string.wall_ambient_strength,
-                            enabled = true,
-                            onClick = { page = WallPanelPage.AmbientStrength },
-                            levelFraction = levelFraction(
-                                viewportState.ambientPercent,
-                                0..MaximumAmbientPercent,
-                            ),
+                    GlassTool(
+                        icon = Icons.Default.GraphicEq,
+                        labelRes = R.string.wall_ambient_strength,
+                        enabled = true,
+                        onClick = { page = WallPanelPage.AmbientStrength },
+                        levelFraction = levelFraction(
+                            viewportState.ambientPercent,
+                            0..MaximumAmbientPercent,
                         ),
-                        GlassTool(
-                            icon = Icons.Default.Tune,
-                            labelRes = R.string.wall_presentation,
-                            enabled = true,
-                            onClick = { page = WallPanelPage.Presentation },
-                        ),
-                        GlassTool(
-                            icon = Icons.Default.CropSquare,
-                            labelRes = R.string.wall_focus_shape,
-                            enabled = true,
-                            onClick = { page = WallPanelPage.FocusShape },
-                            valueRes = viewportState.focusShape.labelResource(),
-                        ),
-                        GlassTool(
-                            icon = Icons.Default.AspectRatio,
-                            labelRes = R.string.wall_focus_size,
-                            // The silhouettes are drawn at one size: there is
-                            // no second size for a heart or a circle to grow
-                            // into, so the row shows the setting greyed out
-                            // rather than opening a page that cannot change
-                            // anything.
-                            enabled = !viewportState.focusShape.isSilhouette,
-                            onClick = { page = WallPanelPage.FocusSize },
-                            valueRes = viewportState.focusSize.labelResource(),
-                        ),
-                    )
-                } else {
-                    emptyList()
-                },
+                    ),
+                    GlassTool(
+                        icon = Icons.Default.Tune,
+                        labelRes = R.string.wall_presentation,
+                        enabled = true,
+                        onClick = { page = WallPanelPage.Presentation },
+                    ),
+                    GlassTool(
+                        icon = Icons.Default.CropSquare,
+                        labelRes = R.string.wall_focus_shape,
+                        enabled = true,
+                        onClick = { page = WallPanelPage.FocusShape },
+                        valueRes = viewportState.focusShape.labelResource(),
+                    ),
+                    GlassTool(
+                        icon = Icons.Default.AspectRatio,
+                        labelRes = R.string.wall_focus_size,
+                        // The silhouettes are drawn at one size: there is
+                        // no second size for a heart or a circle to grow
+                        // into, so the row shows the setting greyed out
+                        // rather than opening a page that cannot change
+                        // anything.
+                        enabled = !viewportState.focusShape.isSilhouette,
+                        onClick = { page = WallPanelPage.FocusSize },
+                        valueRes = viewportState.focusSize.labelResource(),
+                    ),
+                ),
             )
             WallPanelPage.Layout -> LibraryLayoutOptionsPanel(
                 selected = layoutMode,
@@ -826,7 +796,6 @@ private fun FocusWallCanvas(
     subtitleState: SubtitleDetailState,
     wordGlowMode: LyricsWordGlowMode,
     viewportState: FocusWallViewportState,
-    style: FocusWallStyle,
     lightsOut: Boolean,
     posterTintPercent: Int,
     motionPercent: Int,
@@ -943,12 +912,12 @@ private fun FocusWallCanvas(
             ?: MaterialTheme.colorScheme.primary
         val sceneRequest = FocusWallSceneRequest(
             contentKey, layoutItems, viewportWidth, viewportHeight, orientation,
-            viewportState.densityPercent, focusedItemId, wallGapPx, style,
+            viewportState.densityPercent, focusedItemId, wallGapPx,
             viewportState.focusShape, viewportState.focusSize,
             // Palette arrival changes light, not geometry. Only FullCover needs
             // another layout once the source aspect is known.
             focusedCoverFacts?.aspect.takeIf {
-                style == FocusWallStyle.Folia && viewportState.focusShape == FoliaFocusShape.FullCover
+                viewportState.focusShape == FoliaFocusShape.FullCover
             },
         )
         val producedScene by produceState<FocusWallScene?>(null, sceneRequest) {
@@ -978,10 +947,7 @@ private fun FocusWallCanvas(
         }
 
         CoverAmbientLayer(
-            // The original Bento wall remains visually stable. The cover-driven
-            // stage lighting belongs to the Folia presentation mode and can be
-            // evaluated independently before it is offered elsewhere.
-            palette = if (style == FocusWallStyle.Folia) ambientPalette else emptyList(),
+            palette = ambientPalette,
             mode = AmbientLayerMode.Backdrop,
             strengthMultiplier = viewportState.ambientMultiplier,
             motionPercent = motionPercent,
@@ -1139,7 +1105,7 @@ private fun FocusWallCanvas(
                     // follows the drag directly instead of restarting a 260 ms
                     // tween for every visible card on every pointer frame.
                     val animatedLightsOutFraction by animateFloatAsState(
-                        targetValue = if (style == FocusWallStyle.Folia && lightsOut && !isFocused && !isCurrent) 1f else 0f,
+                        targetValue = if (lightsOut && !isFocused && !isCurrent) 1f else 0f,
                         animationSpec = tween(
                             durationMillis = wallMotionDuration(260, motionPercent),
                         ),
@@ -1152,7 +1118,6 @@ private fun FocusWallCanvas(
                     }
                     FocusCoverCard(
                         item = item,
-                        style = style,
                         isFocused = isFocused,
                         isCurrent = isCurrent,
                         isPlaying = isCurrent && currentIsPlaying,
@@ -1176,7 +1141,7 @@ private fun FocusWallCanvas(
                             0f
                         },
                         posterTint = if (
-                            style == FocusWallStyle.Folia && !isFocused && !isCurrent
+                            !isFocused && !isCurrent
                         ) {
                             posterTintColor.copy(
                                 alpha = posterTintPercent.coerceIn(0, 60) / 100f,
@@ -1251,7 +1216,7 @@ private fun FocusWallCanvas(
         // which is what makes the whole wall visibly change with the cover. It has
         // no pointer input, so the card and seek gestures below remain the owners.
         CoverAmbientLayer(
-            palette = if (style == FocusWallStyle.Folia) ambientPalette else emptyList(),
+            palette = ambientPalette,
             mode = AmbientLayerMode.PosterWash,
             strengthMultiplier = viewportState.ambientMultiplier,
             motionPercent = motionPercent,
@@ -1390,7 +1355,6 @@ private fun Color.multipliedAlpha(factor: Float): Color =
 @Composable
 private fun FocusCoverCard(
     item: LibraryItem,
-    style: FocusWallStyle,
     isFocused: Boolean,
     isCurrent: Boolean,
     isPlaying: Boolean,
@@ -1428,8 +1392,6 @@ private fun FocusCoverCard(
     modifier: Modifier = Modifier,
 ) {
     val platformContext = LocalPlatformContext.current
-    val foliaPoster = style == FocusWallStyle.Folia
-    val foliaFocused = foliaPoster && isFocused
     // The card is composed at its zoom-1 layout size and then magnified by the canvas,
     // so it asks for artwork at the size it will actually be painted at. Layout
     // constraints would otherwise pin the request to the smaller layout size.
@@ -1451,11 +1413,7 @@ private fun FocusCoverCard(
         label = "focusBorder",
     )
     val borderWidth by animateFloatAsState(
-        targetValue = when {
-            foliaFocused -> 1.1f
-            isFocused -> 2.2f
-            else -> 0f
-        },
+        targetValue = if (isFocused) 1.1f else 0f,
         animationSpec = tween(durationMillis = wallMotionDuration(260, motionPercent)),
         label = "focusBorderWidth",
     )
@@ -1468,13 +1426,7 @@ private fun FocusCoverCard(
     // shape and a tap in the corners of its rectangle never reaches the card. Every other
     // card keeps the rounded rectangle the wall has always drawn.
     val shape: Shape = silhouette?.let(::FocusWallCellShape)
-        ?: RoundedCornerShape(
-            when {
-                foliaPoster -> 2.dp
-                isFocused -> 12.dp
-                else -> 8.dp
-            },
-        )
+        ?: RoundedCornerShape(2.dp)
 
     Box(
         modifier = modifier
@@ -1491,12 +1443,11 @@ private fun FocusCoverCard(
                 onLongClickLabel = if (onLongClick != null) stringResource(R.string.library_item_actions) else null,
             ),
     ) {
-        BoxWithConstraints(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(artworkBrush(item.paletteSeed)),
         ) {
-            val compactCard = !isFocused && (maxWidth < 116.dp || maxHeight < 112.dp)
             if (artworkRequest != null) {
                 AsyncImage(
                     model = artworkRequest,
@@ -1516,27 +1467,21 @@ private fun FocusCoverCard(
                 modifier = Modifier
                     .fillMaxSize()
                     .drawWithCache {
-                        val verticalShade = if (foliaFocused) {
+                        val verticalShade = if (isFocused) {
                             Brush.verticalGradient(
                                 0f to Color(0x42000000),
                                 0.38f to Color(0x30000000),
                                 0.72f to Color(0x62000000),
                                 1f to Color(0xD605070B),
                             )
-                        } else if (foliaPoster) {
+                        } else {
                             Brush.verticalGradient(
                                 0f to Color(0x18000000),
                                 0.48f to Color(0x26000000),
                                 1f to Color(0xDA05070B),
                             )
-                        } else {
-                            Brush.verticalGradient(
-                                0f to Color(0x08000000),
-                                0.46f to Color(0x24000000),
-                                1f to Color(0xEB05070B),
-                            )
                         }
-                        val focusedSideShade = if (foliaFocused) {
+                        val focusedSideShade = if (isFocused) {
                             Brush.horizontalGradient(
                                 0f to Color.Black.copy(alpha = lyricsShadeAlpha * 0.72f),
                                 0.54f to Color.Black.copy(alpha = lyricsShadeAlpha * 0.28f),
@@ -1561,8 +1506,7 @@ private fun FocusCoverCard(
                     it.isTimed
             }
             val lyricFrame = lyricDocument?.coverLyricsFrame(playbackState.positionMs)
-            val hasCoverLyrics = lyricFrame != null
-            if (foliaFocused) {
+            if (isFocused) {
                 FoliaFocusedPosterChrome(
                     item = item,
                     isCurrent = isCurrent,
@@ -1582,162 +1526,10 @@ private fun FocusCoverCard(
                     onClearFocus = onClearFocus,
                     modifier = Modifier.fillMaxSize(),
                 )
-            } else if (lyricFrame != null) {
-                val lyricTopPadding = (maxHeight * 0.18f).coerceIn(28.dp, 48.dp)
-                val lyricBottomPadding = (maxHeight * 0.36f).coerceIn(58.dp, 92.dp)
-                val usableLyricHeight = maxHeight - lyricTopPadding - lyricBottomPadding
-                CoverLyricsOverlay(
-                    frame = lyricFrame,
-                    document = lyricDocument,
-                    positionMs = playbackState.positionMs,
-                    isPlaying = isPlaying,
-                    wordGlowMode = wordGlowMode,
-                    accent = coverAccent,
-                    shadeAlpha = lyricsShadeAlpha,
-                    motionPercent = motionPercent,
-                    showContext = usableLyricHeight >= 124.dp,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .fillMaxSize()
-                        // Top icons own the first band; title, seek and transport
-                        // own the deeper bottom band. Lyrics occupy what is truly
-                        // left instead of being painted under those controls.
-                        .padding(
-                            start = 12.dp,
-                            top = lyricTopPadding,
-                            end = 12.dp,
-                            bottom = lyricBottomPadding,
-                        ),
-                )
             }
 
-            if (foliaPoster && !isFocused) {
-                FoliaOrdinaryPosterChrome(
-                    item = item,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else if (!foliaPoster) {
-                Icon(
-                    imageVector = if (item.type == LibraryItemType.Folder) {
-                        Icons.Default.Folder
-                    } else {
-                        Icons.Default.LibraryMusic
-                    },
-                    contentDescription = stringResource(
-                        if (item.type == LibraryItemType.Folder) R.string.folder_type else R.string.audio_type,
-                    ),
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(if (compactCard) 6.dp else 12.dp)
-                        .size(if (isFocused) 34.dp else if (compactCard) 22.dp else 30.dp)
-                        .background(Color(0xB814171D), CircleShape)
-                        .padding(if (compactCard) 5.dp else 7.dp),
-                    tint = Color.White,
-                )
-            }
-
-            if (isCurrent && !foliaPoster) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(if (compactCard) 6.dp else 12.dp)
-                        .background(Color(0xD014171D), CircleShape)
-                        .padding(
-                            horizontal = if (compactCard) 6.dp else 10.dp,
-                            vertical = if (compactCard) 4.dp else 6.dp,
-                        ),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        Icons.Default.GraphicEq,
-                        contentDescription = null,
-                        modifier = Modifier.size(if (compactCard) 14.dp else 17.dp),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    if (!compactCard) {
-                        Spacer(Modifier.width(5.dp))
-                        Text(
-                            stringResource(R.string.now_playing),
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
-                }
-            }
-
-            if (!foliaPoster) Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .padding(if (isFocused) 18.dp else if (compactCard) 8.dp else 14.dp),
-            ) {
-                // The live lyric scene is the focused cover's central subject. Its
-                // now-playing badge still identifies the media, so repeating title
-                // and metadata below it would take the only space the lyrics have.
-                if (!hasCoverLyrics) {
-                    Text(
-                        text = item.title,
-                        color = Color.White,
-                        fontSize = if (isFocused) 24.sp else if (compactCard) 12.sp else 19.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = if (compactCard) 1 else 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (!compactCard) {
-                        Spacer(Modifier.height(3.dp))
-                        Text(
-                            text = item.detailLine(),
-                            color = Color(0xFFDCE1EA),
-                            style = if (isFocused) {
-                                MaterialTheme.typography.bodyMedium
-                            } else {
-                                MaterialTheme.typography.bodySmall
-                            },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-
-                // Only audio carries an action row here. A folder owns no playable
-                // queue of its own -- the folder listing excludes child folders --
-                // and tapping the focused cover already resolves to the same
-                // activation the card used to spell out, so a focused folder shows
-                // nothing but its own title and counts.
-                //
-                // The row that carries the play button carries the way out of focus
-                // too, at its far end: the button pair then reads as one row of
-                // actions, and neither sits on top of the title above it.
-                if (isFocused && item.type == LibraryItemType.Audio) {
-                    if (isCurrent) {
-                        Spacer(Modifier.height(8.dp))
-                        CompactSeekBar(playbackState = playbackState, onSeekTo = onSeekTo)
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        FilledIconButton(onClick = onPlayPause) {
-                            Icon(
-                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = stringResource(
-                                    if (isPlaying) R.string.pause else R.string.play,
-                                ),
-                            )
-                        }
-                        ClearFocusButton(onClick = onClearFocus)
-                    }
-                } else if (isFocused) {
-                    Spacer(Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                    ) {
-                        ClearFocusButton(onClick = onClearFocus)
-                    }
-                }
+            if (!isFocused) {
+                FoliaOrdinaryPosterChrome(item = item, modifier = Modifier.fillMaxSize())
             }
         }
     }
@@ -2203,135 +1995,6 @@ private fun FoliaPosterControl(
 }
 
 /**
- * Three-line lyric scene for the expanded playing poster.
- *
- * It is deliberately centred rather than reusing the full reader's scrolling
- * anchor: a cover is a finite visual composition, not a document. Context lines
- * blur and recede, the active line takes the focus palette, and line changes use
- * the global motion percentage. A palette-derived black field protects text on
- * bright artwork without permanently blurring the cover bitmap.
- */
-@Composable
-private fun CoverLyricsOverlay(
-    frame: CoverLyricsFrame,
-    document: TimedTextDocument?,
-    positionMs: Long,
-    isPlaying: Boolean,
-    wordGlowMode: LyricsWordGlowMode,
-    accent: Color,
-    shadeAlpha: Float,
-    motionPercent: Int,
-    showContext: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val duration = wallMotionDuration(280, motionPercent)
-    val readableAccent = if (accent.luminance() < 0.46f) {
-        lerp(accent, Color.White, 0.52f)
-    } else {
-        accent
-    }
-    AnimatedContent(
-        targetState = frame,
-        contentKey = { it.currentIndex },
-        transitionSpec = {
-            (fadeIn(tween(duration)) + scaleIn(tween(duration), initialScale = 0.96f)) togetherWith
-                (fadeOut(tween(duration)) + scaleOut(tween(duration), targetScale = 1.025f))
-        },
-        contentAlignment = Alignment.Center,
-        label = "coverLyrics",
-        modifier = modifier,
-    ) { shown ->
-        val timeline = remember(document, shown.currentIndex, wordGlowMode) {
-            document?.coverLyricsGlowTimeline(shown, wordGlowMode)
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = shadeAlpha),
-                            Color.Black.copy(alpha = shadeAlpha * 0.78f),
-                            Color.Transparent,
-                        ),
-                        radius = 520f,
-                    ),
-                    shape = RoundedCornerShape(22.dp),
-                )
-                .padding(horizontal = 18.dp, vertical = 18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (showContext && shown.previous != null) {
-                CoverLyricContextLine(shown.previous, blurRadius = 1.8f, alpha = 0.52f)
-            }
-            GlowingLyricText(
-                text = shown.current,
-                timeline = timeline,
-                positionMs = positionMs,
-                isPlaying = isPlaying,
-                accent = readableAccent,
-                motionPercent = motionPercent,
-                restingColor = readableAccent,
-                fontSize = 20.sp,
-                lineHeight = 24.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                textStyle = MaterialTheme.typography.titleMedium.copy(
-                    shadow = Shadow(Color.Black.copy(alpha = 0.92f), Offset(0f, 2f), 8f),
-                ),
-            )
-            if (showContext && shown.next != null) {
-                CoverLyricContextLine(shown.next, blurRadius = 1.2f, alpha = 0.68f)
-            }
-        }
-    }
-}
-
-@Composable
-private fun CoverLyricContextLine(text: String, blurRadius: Float, alpha: Float) {
-    Text(
-        text = text,
-        modifier = Modifier.blur(blurRadius.dp),
-        color = Color.White.copy(alpha = alpha),
-        fontSize = 14.sp,
-        fontWeight = FontWeight.Medium,
-        textAlign = TextAlign.Center,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-        style = MaterialTheme.typography.bodyMedium.copy(
-            shadow = Shadow(Color.Black.copy(alpha = 0.88f), Offset(0f, 1f), 6f),
-        ),
-    )
-}
-
-/**
- * The focused card's way out of focus, at the card's bottom end.
- *
- * Icon only: the card is a picture, so a label would have to sit on top of it, and the
- * close glyph already carries the meaning. Removing focus rather than the item is the
- * only thing it can do, so there is no destructive action to guard.
- */
-@Composable
-private fun ClearFocusButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    IconButton(
-        onClick = onClick,
-        modifier = modifier
-            .size(38.dp)
-            .background(Color(0xB814171D), CircleShape),
-    ) {
-        Icon(
-            imageVector = Icons.Default.Close,
-            contentDescription = stringResource(R.string.clear_focus),
-            modifier = Modifier.size(20.dp),
-            tint = Color.White,
-        )
-    }
-}
-
-/**
  * A card drawn as the cells the wall gave it, rather than as a rectangle.
  *
  * The cells are merged into one path before it is handed over: stroking them separately
@@ -2363,58 +2026,6 @@ private class FocusWallCellShape(private val cells: FocusWallShape) : Shape {
         }
         return Outline.Generic(
             Path().apply { op(cellPath, cellPath, PathOperation.Union) },
-        )
-    }
-}
-
-/**
- * Compact seekable timeline for the focused card. It reports the shared playback
- * position and seeks the real player; it never models progress locally.
- */
-@Composable
-private fun CompactSeekBar(
-    playbackState: PlaybackState,
-    onSeekTo: (Long) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var scrubFraction by remember(playbackState.mediaId) { mutableStateOf<Float?>(null) }
-    val shownFraction = scrubFraction ?: playbackState.progress
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = formatPlaybackTime(playbackState.positionForFraction(shownFraction)),
-            color = Color(0xFFDCE1EA),
-            style = MaterialTheme.typography.labelSmall,
-        )
-        Slider(
-            value = shownFraction,
-            onValueChange = { scrubFraction = it },
-            onValueChangeFinished = {
-                scrubFraction?.let { fraction ->
-                    onSeekTo(playbackState.positionForFraction(fraction))
-                }
-                scrubFraction = null
-            },
-            enabled = playbackState.hasDuration,
-            colors = SliderDefaults.colors(
-                thumbColor = MaterialTheme.colorScheme.primary,
-                activeTrackColor = MaterialTheme.colorScheme.primary,
-                inactiveTrackColor = Color(0x66FFFFFF),
-            ),
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 8.dp),
-        )
-        Text(
-            text = if (playbackState.hasDuration) {
-                formatPlaybackTime(playbackState.durationMs)
-            } else {
-                stringResource(R.string.unknown_duration)
-            },
-            color = Color(0xFFDCE1EA),
-            style = MaterialTheme.typography.labelSmall,
         )
     }
 }

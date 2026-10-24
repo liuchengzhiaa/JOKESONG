@@ -836,3 +836,19 @@ order because each layer consumes the stable model built by the one before it:
       zero score preservation, wrong password/truncation, cancellation and rotation.
       Do not clear real owner app data as a test.
 - [ ] Full-library progress/playlists/privacy backup and automatic backup remain separate.
+
+## Current follow-up — Folia-only wall/global tools/player lyric placement (2026-10-25)
+
+- [x] D-053: remove old Bento selectable layout/geometry/chrome; preserve Folia,
+      detailed/compact list and grid. Stable values and legacy 3/4 migration.
+- [x] Global wall display controls override fresh and restored folder states;
+      snapshots retain listing/focus/pan/subtitle matches, never display overrides.
+- [x] Portrait cover-page lyrics centred between actual artwork bottom and seek
+      line, clamped for short screens; original fit/size controls preserved.
+- [x] Narrow tests and final full standard tasks pass: 82 suites/613 JVM tests,
+      lint0errors/38warnings, app + Android-test APKs built. Android/device tests
+      compiled only, not executed. Reviewed source/tests/docs-only upload set.
+- [ ] Commit/push/release v0.1.12/code13, independently verify source/assets/download.
+- [ ] Owner phone acceptance: upgrade old Bento selection; modify controls in parent,
+      enter child/grandchild, Back and restart; pinch then navigate; square/portrait/
+      landscape art, large text, no lyrics, short viewport and unchanged swipe/playback.

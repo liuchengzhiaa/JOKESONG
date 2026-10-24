@@ -192,12 +192,11 @@ Supported layouts:
 - Detailed list
 - Compact list
 - Regular grid
-- Focus-cover wall
 - Folia-style focus wall
 
-The five layouts are collected under the bottom-right tools button's Layout page;
-it shows all five named choices and marks the active one. Lists and grid retain a
-matching bottom-right chooser so users can always switch back to either wall.
+The four layouts are collected under the bottom-right tools button's Layout page;
+it shows all four named choices and marks the active one. Lists and grid retain a
+matching bottom-right chooser so users can always switch back to the Folia wall.
 No separate layout-switch row or gesture-instruction text reserves space above the
 wall. Following owner feedback, the library folder header's content height and title
 size are 55% of the original app bar (35.2 dp / 12.1 sp with default Material metrics),
@@ -205,7 +204,8 @@ with 20 dp action glyphs and no left up-navigation icon. System Back still navig
 up. System status bar insets remain intact, action targets retain independent 48 dp widths, and other
 destinations/player headers are unchanged. Scanning/error/truncation indicators
 still appear when relevant, rather than silently hiding real problems. The app
-remembers a global layout and permits per-folder overrides. Lists default
+remembers a global layout. Wall tools are global across all folder levels; there
+are no per-folder appearance overrides. Lists default
 to folders-first grouping with an optional mixed-sort mode. Supported deterministic
 sorts include natural name, track number, modified time and date added. Custom drag
 ordering is not supported.
@@ -214,24 +214,23 @@ ordering is not supported.
 
 This is a signature feature, not a decorative grid.
 
-The original centred-bento wall remains available unchanged. A second wall mode,
-shown immediately after it in the layout menu, uses a denser Folia-style
-12-item lattice. In that mode the focused item grows where it already is: the
-hero keeps the configured focus shape, its position inside the block is derived
-from the slot the card already occupied, and the remaining eleven slots are
-regenerated as an exact cover around it, so neighbours change shape and move
-rather than the hero jumping to a block corner. A card that already sat in a
-corner still focuses in that corner. Both modes share the same focus, playback
-and gesture semantics below.
+The Folia-style 12-item lattice is the only wall mode. The old centred-bento
+layout, geometry engine and poster/lyric chrome were removed at the owner's
+request (D-053). Existing saved values for either old wall select Folia after
+upgrade; list/grid choices retain their stable storage values.
 
-The Folia focus shape and size are per-folder settings, offered from the wall's
+The focused item grows where it already is: the hero keeps the configured shape,
+its position derives from its existing slot, and the eleven neighbours regenerate
+as an exact cover around it. A corner item still focuses in that corner.
+
+The Folia focus shape and size are global settings, offered from the wall's
 tools panel beside the density control. Both default to the wall's original
-behaviour, a square 6 x 6 hero, so a folder that never opens the panel looks
-exactly as it always has. There are six shapes -- square, portrait, landscape,
+behaviour, a square 6 x 6 hero, so a user who never changes these settings retains
+the default appearance. There are six shapes -- square, portrait, landscape,
 full cover, heart and circle -- and three sizes, and the largest size of each
 rectangle is capped so the eleven neighbours around the hero still have room to
-be cards rather than slivers. The Bento wall has no such setting: its focused
-block is a hand-written template, not a generated cover.
+be cards rather than slivers. These settings apply immediately to newly opened
+and cached folders alike; only focus and pan position are folder-specific.
 
 Two of the six are silhouettes rather than rectangles. The heart and the circle
 are the focused card itself, drawn as the block cells that spell the shape, with
@@ -442,8 +441,7 @@ user requests another batch. The current audio remains in the replacement sample
   yields space rather than covering playback controls. Its current line uses the
   global word-glow policy -- the same left-to-right wipe, on the same grapheme
   intervals -- while the previous/next context remains visually quiet.
-  Bento uses the compact
-  centred treatment. Folia follows the approved poster reference: tiny status and
+  Folia follows the approved poster reference: tiny status and
   media information at upper-left, a left-aligned lyric hierarchy whose current
   line is vertically centred and whose context lines are equally distant above and
   below it, small controls near the lower-left and a thin seek line close to the
@@ -740,12 +738,12 @@ statuses, reviews or playlists. The former placeholder playlist destination beco
   Phase one uses a bounded palette from only the focused cover plus a few static
   gradients behind the wall plus a restrained low-alpha wash across its opaque
   posters; it must not blur a full-screen bitmap, scan the library, or run a
-  continuous animation after the colour transition settles. The retained Bento
-  wall is unaffected.
+  continuous animation after the colour transition settles.
 - Wall density and canvas zoom live in the bottom-right wall tools instead of a
   permanent row above the mosaic. Zoom remains continuously pinchable and is also
   adjustable from 72% to 135% with a 100% reset. Folia ambient strength offers
-  off/low/medium/high and is restored with the folder's wall snapshot.
+  off/low/medium/high. Density, zoom, ambient, focus shape/size and wall-display
+  options all persist globally, not in folder snapshots.
 - The Folia wall's `墙面显示` page provides persistent lights-out, opt-in
   track-change auto-focus, off/low/medium/high cover-colour poster tint and reduced
   motion. Lights-out and tint exempt both the focused card and current media;
@@ -789,3 +787,12 @@ sidecar image → common folder picture → placeholder. Folder cards retain fol
 selection. Distinct tracks must never be assigned another track's embedded image. No
 artificial differentiation if their actual embedded images are identical. Manual folder
 refresh updates versioned per-track URIs; originals and tags are never modified.
+
+### Cover-page lyric placement (D-053, 2026-10-25)
+
+On the portrait cover page, retain the existing intrinsic artwork fit/size setting,
+three-slot previous/current/next lyrics, and shared seek/transport controls. Centre
+the lyric window between the actual rendered artwork bottom and the seek line,
+not the bottom of the artwork's larger allocation. Clamp for short screens/large
+text so lyrics overlap neither artwork nor controls. Plain lyrics, immersive
+visualizers, landscape layout and desktop-overlay lyrics are not redesigned here.

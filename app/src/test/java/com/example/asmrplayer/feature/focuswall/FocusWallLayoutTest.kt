@@ -1,97 +1,12 @@
 package com.example.asmrplayer.feature.focuswall
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FocusWallLayoutTest {
     private val items = List(40) { index ->
         FocusWallLayoutItem(id = "item-$index", stableSeed = index * 7919)
-    }
-
-    @Test
-    fun `layout is deterministic for identical input`() {
-        val first = layout(FocusWallOrientation.Portrait, FocusWallDensity.Medium)
-        val second = layout(FocusWallOrientation.Portrait, FocusWallDensity.Medium)
-
-        assertEquals(first, second)
-    }
-
-    @Test
-    fun `unfocused block mixes square portrait and landscape cards without overlap`() {
-        val block = layout(FocusWallOrientation.Portrait, FocusWallDensity.Medium)
-            .filter { it.blockIndex == 0 }
-        val aspectRatios = block.map { it.width / it.height }
-
-        assertEquals(10, block.size)
-        assertTrue(aspectRatios.any { it < 0.78f })
-        assertTrue(aspectRatios.any { it in 0.9f..1.1f })
-        assertTrue(aspectRatios.any { it > 1.55f })
-        assertTrue(block.map { it.width to it.height }.distinct().size >= 6)
-        block.forEachIndexed { index, first ->
-            block.drop(index + 1).forEach { second ->
-                assertTrue("${first.itemId} overlaps ${second.itemId}", separated(first, second))
-            }
-        }
-    }
-
-    @Test
-    fun `focus reflows only its block and gives selected item the centred hero slot`() {
-        val base = layout(FocusWallOrientation.Portrait, FocusWallDensity.Medium)
-        val focused = layout(
-            orientation = FocusWallOrientation.Portrait,
-            density = FocusWallDensity.Medium,
-            focusedItemId = "item-7",
-        )
-        val focusedById = focused.associateBy(FocusWallPlacement::itemId)
-        val hero = focusedById.getValue("item-7")
-        val focusedBlock = focused.filter { it.blockIndex == hero.blockIndex }
-
-        assertEquals(0f, hero.centerX, 0.01f)
-        assertEquals(0f, hero.centerY, 0.01f)
-        assertEquals(hero.width, hero.height, 0.01f)
-        assertTrue(focusedBlock.all { hero.width * hero.height >= it.width * it.height })
-        assertNotEquals(base.associateBy(FocusWallPlacement::itemId).getValue("item-7"), hero)
-
-        val baseById = base.associateBy(FocusWallPlacement::itemId)
-        focused.filter { it.blockIndex != hero.blockIndex }.forEach { placement ->
-            assertEquals(baseById.getValue(placement.itemId), placement)
-        }
-    }
-
-    @Test
-    fun `landscape layout occupies both axes`() {
-        val placements = layout(FocusWallOrientation.Landscape, FocusWallDensity.Medium)
-
-        assertTrue(placements.map { it.centerX }.distinct().size >= 5)
-        assertTrue(placements.map { it.centerY }.distinct().size >= 5)
-    }
-
-    @Test
-    fun `density changes geometry without changing item order`() {
-        val small = layout(FocusWallOrientation.Portrait, FocusWallDensity.Small)
-        val large = layout(FocusWallOrientation.Portrait, FocusWallDensity.Large)
-
-        assertEquals(small.map { it.itemId }, large.map { it.itemId })
-        assertTrue(large.first().width > small.first().width)
-    }
-
-    @Test
-    fun `continuous density percentage changes geometry without changing order`() {
-        val compact = layout(
-            FocusWallOrientation.Portrait,
-            FocusWallDensity.Medium,
-            densityScale = 0.70f,
-        )
-        val spacious = layout(
-            FocusWallOrientation.Portrait,
-            FocusWallDensity.Medium,
-            densityScale = 1.30f,
-        )
-
-        assertEquals(compact.map { it.itemId }, spacious.map { it.itemId })
-        assertTrue(spacious.first().width > compact.first().width)
     }
 
     @Test
@@ -167,7 +82,7 @@ class FocusWallLayoutTest {
         val largeItems = List(40_000) { index ->
             FocusWallLayoutItem("large-$index", index)
         }
-        val placements = FocusWallLayoutEngine.layout(
+        val placements = FoliaWallLayoutEngine.layout(
             items = largeItems,
             viewportWidth = 1080f,
             viewportHeight = 1800f,
@@ -187,25 +102,12 @@ class FocusWallLayoutTest {
         assertTrue(visible.isNotEmpty())
     }
 
-    private fun separated(first: FocusWallPlacement, second: FocusWallPlacement): Boolean {
-        val firstLeft = first.centerX - first.width / 2f
-        val firstRight = first.centerX + first.width / 2f
-        val firstTop = first.centerY - first.height / 2f
-        val firstBottom = first.centerY + first.height / 2f
-        val secondLeft = second.centerX - second.width / 2f
-        val secondRight = second.centerX + second.width / 2f
-        val secondTop = second.centerY - second.height / 2f
-        val secondBottom = second.centerY + second.height / 2f
-        return firstRight <= secondLeft || secondRight <= firstLeft ||
-            firstBottom <= secondTop || secondBottom <= firstTop
-    }
-
     private fun layout(
         orientation: FocusWallOrientation,
         density: FocusWallDensity,
         focusedItemId: String? = null,
         densityScale: Float = density.scale,
-    ) = FocusWallLayoutEngine.layout(
+    ) = FoliaWallLayoutEngine.layout(
         items = items,
         viewportWidth = 1080f,
         viewportHeight = 1800f,

@@ -8,6 +8,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
+import com.example.asmrplayer.core.card.CardLayerGeometry
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -39,6 +42,58 @@ internal fun fitPlayerArtwork(width: Float, height: Float, preferredWidth: Float
     val ratio = aspect.takeIf { it.isFinite() && it > 0f } ?: 1f
     val w = minOf(preferredWidth * percent.coerceIn(70, 115) / 100f, width * 0.96f, height * 0.88f * ratio).coerceAtLeast(0f)
     return w to w / ratio
+}
+
+/** Actual artwork bottom, not its larger allocation, anchors the three-line window. */
+internal fun coverPageVerticalPlacement(
+    height: Int, artworkHeight: Int, lyricsHeight: Int, progressOffset: Int,
+): Pair<Int, Int> {
+    val artworkTop = ((height - lyricsHeight - artworkHeight) / 2).coerceAtLeast(0)
+    val artworkBottom = artworkTop + artworkHeight
+    val lyricsTop = ((artworkBottom + height + progressOffset - lyricsHeight) / 2)
+        .coerceIn(artworkBottom.coerceAtMost(height - lyricsHeight), height - lyricsHeight)
+    return artworkTop to lyricsTop
+}
+
+/** Measure once per layout, retaining intrinsic art proportions and the existing cover scale. */
+@Composable
+internal fun PlayerCoverPage(
+    showingCard: Boolean,
+    artworkAspect: Float,
+    coverPercent: Int,
+    pair: LyricPair,
+    lyricsPercent: Int,
+    artwork: @Composable (Modifier) -> Unit,
+) {
+    Layout(
+        modifier = Modifier.fillMaxSize(),
+        content = {
+            Box { artwork(Modifier.fillMaxSize()) }
+            Box { PlayerCoverLyrics(pair, lyricsPercent) }
+        },
+    ) { measurables, constraints ->
+        val width = constraints.maxWidth
+        val height = constraints.maxHeight
+        val lyrics = measurables[1].measure(Constraints(
+            minWidth = width, maxWidth = width, maxHeight = height / 2,
+        ))
+        val availableHeight = (height - lyrics.height).coerceAtLeast(0)
+        val dimensions = if (showingCard) {
+            val aspect = CardLayerGeometry.CanvasAspect
+            val h = minOf(availableHeight * 0.86f, width * 0.86f / aspect, 520.dp.toPx())
+            h * aspect to h
+        } else fitPlayerArtwork(width.toFloat(), availableHeight.toFloat(), width * 0.85f, artworkAspect, coverPercent)
+        val art = measurables[0].measure(Constraints.fixed(
+            dimensions.first.roundToInt().coerceIn(0, width),
+            dimensions.second.roundToInt().coerceIn(0, availableHeight),
+        ))
+        // The page ends 14 dp before a 22 dp seek touch band: its line is 25 dp away.
+        val (artY, lyricsY) = coverPageVerticalPlacement(height, art.height, lyrics.height, 25.dp.roundToPx())
+        layout(width, height) {
+            art.placeRelative((width - art.width) / 2, artY)
+            lyrics.placeRelative(0, lyricsY)
+        }
+    }
 }
 
 /** Three-slot reading window, independent of paragraph length and with stable height. */

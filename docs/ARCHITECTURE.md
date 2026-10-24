@@ -156,11 +156,16 @@ Never mutate canonical metadata to implement privacy presentation.
   layer consumes pointer input. Colour transition frames must not re-run spatial
   layout; no full-screen artwork blur or permanent frame loop is part of the base
   effect.
-- Density, continuous zoom and Folia ambient strength are properties of the
-  hoisted `FocusWallViewportState`. The active wall publishes its viewport to the
-  bounded folder snapshot; ambient strength is stored as an ordinal alongside the
-  existing density/focus-shape/focus-size ordinals. UI types never enter the
-  storage package.
+- Folia is the sole wall renderer (D-053); remove the old Bento geometry/chrome,
+  but retain the off-main immutable scene, spatial index, bounded decode and
+  shared gestures. Layout values are explicit 0/1/2/4; legacy 3 also reads as Folia.
+- Hoisted `FocusWallViewportState` reads density/zoom/ambient/focus shape/size from
+  global Preferences, as do lights-out/follow/tint/motion. FolderSnapshot retains
+  only navigation (focused item/pan), listing and subtitle matches. Restoring a
+  cached listing must apply current global preferences, never cached appearance.
+  Pinch publishes live zoom to the global in-memory value immediately and debounces
+  disk persistence; pan frames do not recompose the library or restart that debounce.
+  Preference reconciliation must not reset a pinch when another control changes.
 - Lights-out, auto-focus, poster tint and reduced motion are global presentation
   settings in their own Preferences DataStore. Keeping them separate from the SAF
   root DataStore prevents an appearance edit from re-emitting the selected root
@@ -797,3 +802,11 @@ Pure JVM tests exercise crypto round trips/authentication/wrong passwords/trunca
 frame reorder/trailing/length bounds and portable paths/types/merge. Generated Room
 instrumentation adds union/keep-zero/idempotency/whole-import rollback. Device SAF,
 provider read-back, interruption and rotation still require explicit phone acceptance.
+
+### Portrait cover/lyric measurement (D-053)
+
+`PlayerCoverPage` measures the bounded lyric window first, keeps the former
+artwork allocation and intrinsic fit, then places that window halfway between the
+actual image bottom and the seek line. `coverPageVerticalPlacement` is a pure,
+unit-tested geometry function; placement is clamped for constrained height. No
+extra image decode, frame loop, player or media mutation is introduced.

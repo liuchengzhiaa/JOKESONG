@@ -147,11 +147,11 @@ Implementation contract:
 - cross-fade palette changes over roughly 900 ms; after the transition, the layer
   is static and consumes no frame-rate animation work;
 - expose off/low/medium/high strength in the anchored wall tools, default to
-  medium, animate strength changes, and keep the choice in the folder snapshot;
+  medium, animate strength changes, and persist globally across folders (D-053);
 - keep cover density and the live 72%–135% canvas zoom readout/control in that
   same tools surface instead of permanently spending wall height on a top row;
-- apply the effect to `FocusWallStyle.Folia` only. The retained Bento/V2 wall must
-  remain visually unchanged;
+- apply the effect to the Folia wall, the sole wall renderer after D-053; the
+  obsolete Bento/V2 layout/renderer has been removed;
 - light and dark themes use different alpha strengths so text/card contrast stays
   usable;
 - when privacy presentation is implemented, the palette input must be the alias
@@ -164,8 +164,7 @@ Acceptance:
 2. Focusing a differently coloured cover cross-fades rather than flashing.
 3. A playback track change without a focus change does not replace the palette.
 4. Clearing focus fades the light back to the neutral wall.
-5. The low-alpha poster wash does not consume gestures or obscure controls, and
-   Bento/V2 rendering is unchanged.
+5. The low-alpha poster wash does not consume gestures or obscure controls.
 6. A long pause produces no continuous animation or full-size bitmap allocation.
 7. Palette extraction is unit-tested for determinism, distinct-colour selection,
    filtering and output bounds.
@@ -227,7 +226,7 @@ Acceptance still requiring a phone review:
   cleared as soon as they do not;
 - a pure projection reduces the cached document to at most previous/current/next,
   so the wall never composes the complete subtitle file;
-- Bento keeps the compact centred lyric treatment. Folia now follows the owner's
+- Folia follows the owner's
   470 x 467 reference as normalized poster geometry: status/title at upper-left,
   the current lyric centred at 50%, symmetric context centres at 35.5%/64.5%, small
   transport icons near 88%, and a thin seek line near 95%;

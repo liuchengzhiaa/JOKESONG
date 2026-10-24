@@ -291,7 +291,7 @@ private val FoliaCircleSpans = listOf(
 )
 
 /**
- * The heart's eleven neighbours, hand-written the way the Bento wall's focused block is.
+ * The heart's eleven hand-authored neighbours.
  * The complement of a silhouette cannot be cut out of rectangles by halving them the way
  * a rectangular hero's can: the heart's sloping edge leaves pockets one and two cells
  * wide. Two regions are therefore given as explicit cells -- one L on each side of the

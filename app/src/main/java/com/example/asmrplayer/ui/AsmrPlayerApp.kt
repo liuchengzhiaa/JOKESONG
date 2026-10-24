@@ -73,7 +73,6 @@ import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
 import com.example.asmrplayer.core.settings.ToolClusterStyle
 import com.example.asmrplayer.feature.focuswall.FocusCoverWall
-import com.example.asmrplayer.feature.focuswall.FocusWallStyle
 import com.example.asmrplayer.feature.focuswall.FocusWallViewportState
 import com.example.asmrplayer.feature.focuswall.canRevealPlayingItem
 import com.example.asmrplayer.feature.focuswall.shouldAutoFocusPlayingItem
@@ -264,8 +263,7 @@ fun AsmrPlayerApp(
     val focusedPlayingWallItemId = playbackState.mediaId?.takeIf { mediaId ->
         fullPlayerItem == null &&
             selectedDestination == 0 &&
-            (layoutMode == LibraryLayoutMode.FocusWall ||
-                layoutMode == LibraryLayoutMode.FoliaWall) &&
+            layoutMode.isWall &&
             libraryState.focusedItemId == mediaId
     }
     // The full player is another lyric surface now: its header carries the line being
@@ -493,7 +491,7 @@ fun AsmrPlayerApp(
                     playbackState = playbackState,
                     subtitleState = subtitleState,
                     layoutMode = layoutMode,
-                    onLayoutModeChange = { onLibraryLayoutChange(it.ordinal) },
+                    onLayoutModeChange = { onLibraryLayoutChange(it.storedValue) },
                     onChooseRoot = onChooseRoot,
                     onRefresh = onRefresh,
                     onOpenFolder = onOpenFolder,
@@ -744,7 +742,7 @@ private fun LibraryContent(
         ?.let { id -> { onRevealPlayingItem(id) } }
 
     // Auto-focus is a Folia wall command, not a global navigation policy. It is
-    // dormant in list/grid/Bento modes and follows the same reachability rules as
+    // dormant in list/grid modes and follows the same reachability rules as
     // the explicit "focus current" command when Media3 advances the queue.
     var lastObservedPlayingItemId by remember { mutableStateOf(playingItemId) }
     LaunchedEffect(playingItemId) {
@@ -782,29 +780,13 @@ private fun LibraryContent(
             restored = state.isRestored,
         )
     }
-    // The alternate wall is a separate presentation, so switching between the
-    // two keeps each wall exactly where the user left it during this folder
-    // session instead of making them fight over one pan/zoom state.
-    val foliaViewportState = remember(state.folderKey) {
-        FocusWallViewportState(
-            initialZoom = state.canvasZoom,
-            // Bento snapshot coordinates describe a different world geometry.
-            // Start the alternate wall at its own origin; a shared focused item
-            // is then centred by the wall's normal focus reconciliation.
-            initialPanX = 0f,
-            initialPanY = 0f,
-            initialDensityPercent = state.wallDensityPercent,
-            initialFocusShapeOrdinal = state.wallFocusShapeOrdinal,
-            initialFocusSizeOrdinal = state.wallFocusSizeOrdinal,
-            initialAmbientPercent = state.wallAmbientPercent,
-            restored = false,
-        )
-    }
-    val activeWallViewportState = when (layoutMode) {
-        LibraryLayoutMode.FocusWall -> viewportState
-        LibraryLayoutMode.FoliaWall -> foliaViewportState
-        else -> null
-    }
+    // Display settings are global; only the pan and focused item belong to a folder.
+    LaunchedEffect(viewportState, state.canvasZoom) { viewportState.zoom = state.canvasZoom }
+    LaunchedEffect(viewportState, state.wallDensityPercent) { viewportState.densityPercent = state.wallDensityPercent }
+    LaunchedEffect(viewportState, state.wallFocusShapeOrdinal) { viewportState.focusShapeOrdinal = state.wallFocusShapeOrdinal }
+    LaunchedEffect(viewportState, state.wallFocusSizeOrdinal) { viewportState.focusSizeOrdinal = state.wallFocusSizeOrdinal }
+    LaunchedEffect(viewportState, state.wallAmbientPercent) { viewportState.ambientPercent = state.wallAmbientPercent }
+    val activeWallViewportState = viewportState.takeIf { layoutMode.isWall }
     LaunchedEffect(activeWallViewportState) {
         activeWallViewportState ?: return@LaunchedEffect
         snapshotFlow {
@@ -854,52 +836,6 @@ private fun LibraryContent(
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
               when (layoutMode) {
-                LibraryLayoutMode.FocusWall -> FocusCoverWall(
-                    modifier = Modifier.fillMaxSize(),
-                    items = state.items,
-                    contentKey = state.folderKey,
-                    focusedItemId = focusedItemId,
-                    playbackState = playbackState,
-                    subtitleState = subtitleState,
-                    wordGlowMode = LyricsWordGlowMode.fromOrdinal(
-                        state.lyricsWordGlowModeOrdinal,
-                    ),
-                    viewportState = viewportState,
-                    style = FocusWallStyle.Bento,
-                    onFocusedItemChange = onFocusedItemChange,
-                    onRevealPlayingItem = revealPlayingItem,
-                    onTogglePlayPause = onTogglePlayPause,
-                    onSeekTo = onSeekTo,
-                    onPrevious = onPrevious,
-                    onNext = onNext,
-                    onOpenLyrics = onOpenLyrics,
-                    onItemLongClick = { actionItem = it },
-                    layoutMode = layoutMode,
-                    onLayoutModeChange = onLayoutModeChange,
-                    onDensityChange = onWallDensityChange,
-                    onFocusShapeChange = onWallFocusShapeChange,
-                    onFocusSizeChange = onWallFocusSizeChange,
-                    onAmbientStrengthChange = onWallAmbientStrengthChange,
-                    lightsOut = state.wallLightsOut,
-                    autoFocusPlaying = state.wallAutoFocusPlaying,
-                    posterTintPercent = state.wallPosterTintPercent,
-                    motionPercent = state.motionPercent,
-                    onLightsOutChange = onWallLightsOutChange,
-                    onAutoFocusPlayingChange = onWallAutoFocusPlayingChange,
-                    onPosterTintStrengthChange = onWallPosterTintStrengthChange,
-                    onMotionPercentChange = onMotionPercentChange,
-                    toolClusterStyle = ToolClusterStyle.fromOrdinal(
-                        state.toolClusterStyleOrdinal,
-                    ),
-                    onActivate = { item ->
-                        if (item.type == LibraryItemType.Folder) {
-                            onOpenFolder(item)
-                        } else {
-                            onOpenPlayer(item)
-                        }
-                    },
-                    onPlay = onPlayItem,
-                )
                 LibraryLayoutMode.FoliaWall -> FocusCoverWall(
                     modifier = Modifier.fillMaxSize(),
                     items = state.items,
@@ -910,8 +846,7 @@ private fun LibraryContent(
                     wordGlowMode = LyricsWordGlowMode.fromOrdinal(
                         state.lyricsWordGlowModeOrdinal,
                     ),
-                    viewportState = foliaViewportState,
-                    style = FocusWallStyle.Folia,
+                    viewportState = viewportState,
                     onFocusedItemChange = onFocusedItemChange,
                     onRevealPlayingItem = revealPlayingItem,
                     onTogglePlayPause = onTogglePlayPause,

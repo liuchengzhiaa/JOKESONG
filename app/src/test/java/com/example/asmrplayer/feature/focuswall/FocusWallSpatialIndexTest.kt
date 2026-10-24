@@ -37,26 +37,21 @@ class FocusWallSpatialIndexTest {
 
     @Test fun `asynchronous scene uses exactly the established geometry engines`() {
         val items = List(500) { FocusWallLayoutItem("$it", it) }
-        for (style in FocusWallStyle.entries) {
-            val scene = FocusWallScene(FocusWallSceneRequest(
-                "folder", items, 1080f, 1800f, FocusWallOrientation.Portrait, 100, "25", 2f,
-                style, FoliaFocusShape.Square, FoliaFocusSize.Medium, null,
-            ))
-            val expected = when (style) {
-                FocusWallStyle.Bento -> FocusWallLayoutEngine.layout(items, 1080f, 1800f, FocusWallOrientation.Portrait, FocusWallDensity.Medium, 1f, "25", 2f)
-                FocusWallStyle.Folia -> FoliaWallLayoutEngine.layout(items, 1080f, 1800f, FocusWallOrientation.Portrait, FocusWallDensity.Medium, 1f, "25", 2f)
-            }
-            assertEquals(expected, scene.placements)
-            assertEquals(expected.associateBy { it.itemId }, scene.placementById)
-            assertEquals(wallWorldBounds(expected), scene.bounds)
-        }
+        val scene = FocusWallScene(FocusWallSceneRequest(
+            "folder", items, 1080f, 1800f, FocusWallOrientation.Portrait, 100, "25", 2f,
+            FoliaFocusShape.Square, FoliaFocusSize.Medium, null,
+        ))
+        val expected = FoliaWallLayoutEngine.layout(items, 1080f, 1800f, FocusWallOrientation.Portrait, FocusWallDensity.Medium, 1f, "25", 2f)
+        assertEquals(expected, scene.placements)
+        assertEquals(expected.associateBy { it.itemId }, scene.placementById)
+        assertEquals(wallWorldBounds(expected), scene.bounds)
     }
 
     @Test fun `forty thousand real Folia placements keep a local query bounded`() {
         val scene = FocusWallScene(FocusWallSceneRequest(
             "large", List(40_000) { FocusWallLayoutItem("$it", it) },
             1080f, 1800f, FocusWallOrientation.Portrait, 100, "20000", 2f,
-            FocusWallStyle.Folia, FoliaFocusShape.Square, FoliaFocusSize.Medium, null,
+            FoliaFocusShape.Square, FoliaFocusSize.Medium, null,
         ))
         val query = scene.spatialIndex.query(-1000f, 1000f, -1500f, 1500f)
         assertEquals(40_000, scene.placements.size)
