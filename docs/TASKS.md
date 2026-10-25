@@ -921,5 +921,7 @@ order because each layer consumes the stable model built by the one before it:
       APKs. API36 Android20 tests pass incl10000 folders/two own queries/zero child
       queries/media opens. Ordinary/focused wall count labels absent, child entry/
       return verified;46 fixture hash/size/mtime unchanged. Phone FPS not measured.
-- [ ] Review upload set, commit/push, publish same-signer APK and independent receipt.
+- [x] Reviewed22 files; published same-signer0.1.16/code17/source+tag5535a17.
+      Normal publisher passed in20s; independent remote refs/latest/3asset hashes+
+      sizes and anonymous APK HEAD200/88,772,116 verified. Receipt-only docs follow.
 - [ ] Owner phone same-folder/cache/density/zoom acceptance; no real-library trace yet.

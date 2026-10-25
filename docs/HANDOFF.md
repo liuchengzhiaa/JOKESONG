@@ -1,8 +1,8 @@
 # Handoff
 
-**Latest continuation (2026-10-25):** v0.1.16 cover-wall I/O reduction is in progress
-at the end of this file. v0.1.15 remains the latest published release until its
-successor receipt is independently confirmed. Older sections below are chronological
+**Latest continuation (2026-10-25):** v0.1.16 cover-wall I/O reduction is verified
+and published; see final implementation, Android/UI checks and independent delivery
+receipt at the end of this file. Older pending checkpoints are historical. Older sections below are chronological
 history, not current publication status. Do not invoke Claude or install on the
 owner's phone automatically; runtime work in this slice uses an isolated generated
 fixture emulator only.
@@ -5982,3 +5982,41 @@ verify remote commit/tag/assets/download, then owner upgrades without data clear
 No claim of phone FPS, peak heap/GC measurement or complete stutter/crash elimination.
 This slice removes up to48 eager metadata scans plus repeated requested-cover
 lookups; follow up with controlled real-phone profiling if drag still stutters.
+
+
+### v0.1.16 delivery receipt — published (2026-10-25)
+
+Reviewed22 source/test/resources/version/docs changes only, including removal of the
+obsolete folder-summary helper/tests and addition of metadata-only Android regressions.
+No real media, generated fixture images/MP3s, screenshots, auth, signing keys, machine
+configuration or APK committed. No changes to the other Mihon worktree/task. Test
+emulator stopped after smoke checks; existing data/grants/fixtures retained.
+
+Normal publisher reran all standard tasks successfully in20s (up-to-date), checked
+same application ID and pinned signer, pushed master and unique v0.1.16 tag at
+`5535a17abbf88fe09b38a31762bd8e4920d9c246`, and published public/latest/non-draft/
+non-prerelease Release2026-10-25T01:10:30Z (09:10:30Asia/Shanghai):
+https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.16
+
+Independent API/ref readback confirmed source branch/tag, latest state,3 asset
+sizes/SHA256 and anonymous APK HEAD HTTP200/Content-Length88,772,116:
+- JOKESONG.apk:88,772,116bytes,
+  `e1376637a5c519cb7e8951acbba802fbc604428a4ed9082403f070524ad13232`.
+- JOKESONG-build.json:667bytes,
+  `49614e90c95eb16a832535188be623a8b2f0dde1b900841c44f6b1c1b71b60b6`.
+- SHA256SUMS.txt:79bytes,
+  `5054253852acc45ba2d453ae1df7f91bd3d60db1cc35c601fe727924b73d922c`.
+Phone download:
+https://github.com/liuchengzhiaa/JOKESONG/releases/download/v0.1.16/JOKESONG.apk
+
+Completed verification: focused12 JVM tests; final86 suites/658 tests,0failures/
+errors/skips; lint0errors38existingwarnings; actual isolated API36 Android20 tests;
+10000-folder generated-provider regression proves2 own queries/0 eager child queries/
+media opens; ordinary/focused UI count labels absent, child entry/Back confirmed,
+46 generated source/cover file hash+size+mtime unchanged. No delivery blockers.
+This receipt-only docs commit is separate from code/tag/APK; no extra identical
+APK or overwritten asset. Owner phone performance acceptance remains open: install
+update WITHOUT clearing data, no recursive-cover rerun needed for this read-only
+slice. Compare same directory/zoom/density/cache state for initial entry, dragging
+and return. No claim of measured FPS/peak-heap gain or all stutters/crashes solved;
+if needed next collect controlled phone traces before changing image budgets/layout.
