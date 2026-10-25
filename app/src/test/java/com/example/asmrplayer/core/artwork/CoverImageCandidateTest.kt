@@ -27,9 +27,11 @@ class CoverImageCandidateTest {
             try { image("bad", 100, size); fail() } catch (_: IllegalArgumentException) { }
         }
     }
-    @Test fun `known oversized images are excluded but unknown provider sizes remain probeable`() {
+    @Test fun `sources above output cap remain probeable but source cap is enforced`() {
         assertTrue(folderCoverLengthAllowed("8388608:42"))
-        assertFalse(folderCoverLengthAllowed("8388609:42"))
+        assertTrue(folderCoverLengthAllowed("8388609:42"))
+        assertTrue(folderCoverLengthAllowed("67108864:42"))
+        assertFalse(folderCoverLengthAllowed("67108865:42"))
         assertTrue(folderCoverLengthAllowed("0:42"))
         assertTrue(folderCoverLengthAllowed("-1:42"))
         assertTrue(folderCoverLengthAllowed(""))

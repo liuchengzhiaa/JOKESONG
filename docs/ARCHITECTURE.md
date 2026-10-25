@@ -138,9 +138,16 @@ Never mutate canonical metadata to implement privacy presentation.
   parent-cover action. Verify the known local provider's direct-parent document ID,
   same tree and provider child relation. Force a fresh source extraction key for an
   explicit audio action, not a stale/missing image cache entry or inherited fallback.
-- `SafFolderCoverStore.save` streams at most 8 MiB of original encoded image through
-  an app-cache file, validates actual format/bounds and a <=128px software ImageDecoder
-  result (reject partial decode), then writes/fsyncs/read-back-hashes a sibling stage.
+- D-055 `SafFolderCoverStore.save` stages at most64 MiB to private disk in32KiB
+  chunks. Shared `prepareCoverImage` keeps compliant <=8 MiB/2048px originals, or
+  software-decodes at a <=2048px target and encodes opaque JPEG/transparent WebP.
+  Quality92/84/72/60 and2048/1024/512px retries have a strict8 MiB encoded stream
+  cap. No full-size bitmap or encoded ByteArrayOutputStream. A codec-only cancellable
+  gate bounds concurrent bitmap work; never resolve content URIs/provider calls
+  inside that gate. Caller opens/stages sources before entering it. Prepared temporary
+  copies close/delete on success/error/cancel, original staging sources never mutate.
+  Validate actual format/bounds and <=128px complete decode, then write/fsync/read-back-
+  hash the prepared bytes into the unchanged sibling stage/journal transaction.
   Actual MIME determines the cover extension. Unknown/cloud providers refuse writes;
   local ExternalStorageProvider requires a persisted read/write tree grant and flags.
   Image writes do not broaden the audio-tag editor's stricter provider scope.
@@ -700,12 +707,16 @@ SafDirectoryScanner previously assigned currentFolderArtwork to every audio. It 
 builds a versioned private content URI per retained track, with optional strict-basename
 sidecar/folder fallback. Directory enumeration does not call MediaMetadataRetriever.
 AudioArtworkProvider (not exported, read-only) extracts embedded art on image request;
-validates image bounds and caches original image bytes privately. Max 8 MiB/image,
-64 MiB/192 disk entries, 192 in-process negative results; source size/mtime and source
-URI isolate cache entries. All file writes/deletes are confined to the provider's own
+stages embedded bytes up to64 MiB privately and reuses D-055 preparation rather than
+rejecting every source above8 MiB. Cache each validated/normalized result at <=8 MiB;
+64 MiB/192 disk entries and192 in-process negative results. Version the cache key
+with prepared-v2 (same bounded directory) to avoid stale raw/missing results; source
+size/mtime and URI still isolate entries. All file writes/deletes are confined to the provider's own
 cacheDir/track-artwork-v1, never SAF media. Native retriever returns an embedded byte
-array before its size can be checked (a known API memory limitation); oversized artwork
-is rejected and falls back, not decoded at full size. CoverFacts retains a separate
+array before its size can be checked (a known API memory limitation). This change
+bounds subsequent retained source/codec/output work, not that native allocation.
+>64 MiB/unreadable sources still fall back; decodable large embedded art is sampled,
+not fully pixel-decoded. Metadata-editor transaction/tag limits are unchanged. CoverFacts retains a separate
 playerToneArgb derived from mid-tone chromatic coarse buckets; wall palette stays unchanged.
 
 ### Large-wall follow-up (2026-10-18)
@@ -821,3 +832,12 @@ artwork allocation and intrinsic fit, then places that window halfway between th
 actual image bottom and the seek line. `coverPageVerticalPlacement` is a pure,
 unit-tested geometry function; placement is clamped for constrained height. No
 extra image decode, frame loop, player or media mutation is introduced.
+
+
+D-055 implementation refinement: seekable plain ID3v2.3/v2.4 APIC artwork is read
+as a bounded range directly from the granted SAF descriptor to private staging,
+using <=64MiB tag/4096frames, bounded MIME/description parsing and32KiB copies.
+Prefer Front Cover, otherwise first usable picture. Do not read/hash audio payload.
+Unsupported tag transforms/other formats retain native extraction. Only that native
+fallback retains embeddedPicture's pre-cap allocation limitation; do not promise
+all tag variants or containers bypass it. Both paths feed the same normalizer.

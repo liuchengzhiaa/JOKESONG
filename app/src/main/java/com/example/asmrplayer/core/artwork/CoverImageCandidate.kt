@@ -5,6 +5,8 @@ import java.io.IOException
 import java.io.InputStream
 
 internal const val MaximumFolderCoverBytes = 8L * 1024 * 1024
+internal const val MaximumCoverSourceBytes = 64L * 1024 * 1024
+internal const val MaximumPreparedCoverEdge = 2048
 
 /** Resolution, not compressed file size, approximates image clarity. No pixel buffer. */
 internal data class CoverImageCandidate(val document: CoverDocument, val width: Int, val height: Int) {
@@ -22,9 +24,9 @@ internal fun sharperCoverImage(first: CoverImageCandidate?, second: CoverImageCa
     else -> second
 }
 
-/** Unknown provider length is allowed; the eventual writer still enforces the byte cap. */
+/** Large but bounded sources can be sampled/re-encoded; output retains its smaller cap. */
 internal fun folderCoverLengthAllowed(version: String): Boolean =
-    (version.substringBefore(':').toLongOrNull() ?: 0L) <= MaximumFolderCoverBytes
+    (version.substringBefore(':').toLongOrNull() ?: 0L) <= MaximumCoverSourceBytes
 
 /** Even a hostile/malformed image header cannot make bounds probing read without limit. */
 internal class CoverImageHeaderStream(input: InputStream, private var remaining: Long = MaximumFolderCoverBytes) : FilterInputStream(input) {

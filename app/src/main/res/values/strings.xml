@@ -3,8 +3,8 @@
     <string name="audio_cover_edit">设置音频封面</string>
     <string name="audio_cover_notice">仅更换或移除这首音频的内嵌封面，不修改标题、作者等标签。选择图片后点击保存才会写入真实音频文件。保存时暂停本曲目，完成后可手动继续；安全检查不通过时拒绝写入。</string>
     <string name="folder_cover_batch_title">递归处理文件夹封面</string>
-    <string name="folder_cover_batch_notice">平时只读取当前文件夹的 cover 图片。本操作统一处理整个已授权资料库：已有 cover 不覆盖，缺少时优先从音频内嵌封面或子目录封面回填，仍无封面时选取本目录及子目录中分辨率最高的图片。请保持应用开启；中断后可再次执行。</string>
-    <string name="folder_cover_batch_confirm">将为整个资料库中缺少封面的文件夹生成 cover 图片，逐一处理所有子目录，已有 cover 保持不变。没有音频封面时，将比较本目录及子目录普通图片的像素面积（宽×高），选取最大的一张；没有可用图片的目录才会留空。需要本地目录读写权限；不会修改音频或删除图片。</string>
+    <string name="folder_cover_batch_notice">平时只读取当前文件夹的 cover 图片。本操作统一处理整个已授权资料库：已有 cover 不覆盖，缺少时优先从音频内嵌封面或子目录封面回填，仍无封面时选取本目录及子目录中分辨率最高的图片。过大但可解码的图片会自动缩小并压缩为 cover，原图不改。请保持应用开启；中断后可再次执行。</string>
+    <string name="folder_cover_batch_confirm">将为整个资料库中缺少封面的文件夹生成 cover 图片，逐一处理所有子目录，已有 cover 保持不变。没有音频封面时，将比较本目录及子目录普通图片的像素面积（宽×高），选取最大的一张；没有可用图片的目录才会留空。可解码的过大图片会自动缩小并压缩，不修改原图。需要本地目录读写权限；不会修改音频或删除图片。</string>
     <string name="folder_cover_batch_start">开始处理</string>
     <string name="folder_cover_batch_cancel">停止／取消</string>
     <string name="folder_cover_batch_running">正在处理，可离开此设置页</string>
@@ -17,8 +17,8 @@
     <string name="audio_as_folder_cover_failed">未能保存：音频可能没有内嵌封面，或目标目录不可写。可先设置音频封面，再重试。</string>
     <string name="folder_cover_title">文件夹封面</string>
     <string name="folder_cover_set">设置封面</string>
-    <string name="folder_cover_notice">将图片复制到此文件夹并命名为 cover（保留实际图片格式），不修改音频或选中的原图。替换前的封面保留为隐藏备份。复制整个文件夹到新手机可保留封面。需先授予资料库目录读写权限。</string>
-    <string name="folder_cover_failed">封面未确认保存成功。请检查目录读写权限、图片格式及大小（不超过 8 MB）。仅支持系统本地存储；若已有多张 cover 图片，请先整理为一张。原图或备份会保留，未完成的替换会在下次访问时尝试恢复。</string>
+    <string name="folder_cover_notice">将图片保存到此文件夹并命名为 cover；过大图片会自动缩小并压缩，不修改音频或选中的原图。替换前的封面保留为隐藏备份。复制整个文件夹到新手机可保留封面。需先授予资料库目录读写权限。</string>
+    <string name="folder_cover_failed">封面未确认保存成功。请检查目录读写权限、图片是否完整且可解码（原始图片不超过 64 MiB，过大时自动压缩）。仅支持系统本地存储；若已有多张 cover 图片，请先整理为一张。原图或备份会保留，未完成的替换会在下次访问时尝试恢复。</string>
     <string name="metadata_edit">编辑歌曲信息</string>
     <string name="metadata_close">完成／关闭</string>
     <string name="metadata_save_file">直接保存到音频文件</string>

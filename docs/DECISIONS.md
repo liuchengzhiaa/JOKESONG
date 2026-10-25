@@ -1242,3 +1242,34 @@ Use the existing8MiB writer/actual-format validation/recoverable stage transacti
 never resize/delete original pictures, write audio tags, overwrite existing covers
 or publish user media. Unknown lengths still fail safely if the actual copy exceeds
 that cap. Daily browsing, manual-cover actions and permissions remain unchanged.
+
+
+## D-055 — Normalize large decodable cover sources instead of skipping (2026-10-25)
+
+Owner requests quality/resolution reduction when a picture is not compliant, after
+reporting visible audio art but missing folder covers. Supersedes D-048/D-054's
+8 MiB SOURCE exclusion and unconditional byte-for-byte copies, not source priority,
+no-overwrite, read-only display or SAF transaction rules. Sources remain bounded
+at64 MiB; outputs at8 MiB. Keep original bytes only when output-compliant and <=2048px.
+Otherwise software-sample directly to <=2048px, encode opaque JPEG/alpha WebP at
+92/84/72/60 quality, reducing target to1024/512px if encoded cap is exceeded. Preserve
+aspect/transparency. Do not full-size-decode or modify original images/audio.
+Invalid/partial/unsupported decode is not repaired; >64 MiB remains ineligible.
+Use shared normalization for explicit folder selection, recursive ordinary-image
+fallback and lazy audio-embedded cache. Retain bounded header-only ranking by ORIGINAL
+pixel area, per-run directory index and no display-time folder writes. Output format
+sets cover extension. Serialize codec pixel work only; never acquire the audio
+provider while holding that gate. Private temporary files must be cleaned on errors
+and cancellation, before user-media transaction begins where possible.
+MediaMetadataRetriever still allocates embeddedPicture before a Java cap can be
+checked; do not claim this removes its native allocation risk. Keep metadata edit
+limits, privacy-alias isolation, signing/package, playback and backup behavior intact.
+
+
+D-055 implementation refinement: seekable plain ID3v2.3/v2.4 APIC artwork is read
+as a bounded range directly from the granted SAF descriptor to private staging,
+using <=64MiB tag/4096frames, bounded MIME/description parsing and32KiB copies.
+Prefer Front Cover, otherwise first usable picture. Do not read/hash audio payload.
+Unsupported tag transforms/other formats retain native extraction. Only that native
+fallback retains embeddedPicture's pre-cap allocation limitation; do not promise
+all tag variants or containers bypass it. Both paths feed the same normalizer.

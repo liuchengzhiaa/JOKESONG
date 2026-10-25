@@ -3,7 +3,6 @@ package com.example.asmrplayer.core.artwork
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.database.Cursor
-import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.ParcelFileDescriptor
@@ -33,7 +32,6 @@ internal fun folderArtworkUri(tree: String, folder: String, version: String): St
 class AudioArtworkProvider : ContentProvider() {
     companion object {
         const val Authority = "com.example.asmrplayer.audioartwork"
-        private const val MaxImageBytes = 8 * 1024 * 1024
         private const val MaxCacheEntries = 192
         private const val MaxCacheBytes = 64L * 1024 * 1024
     }
@@ -63,40 +61,37 @@ class AudioArtworkProvider : ContentProvider() {
             ?.takeIf { it.scheme == "content" && it.authority != Authority }
             ?: throw FileNotFoundException("Invalid audio source")
         val directory = File(ctx.cacheDir, "track-artwork-v1").apply { mkdirs() }
-        val key = artworkCacheKey(uri.toString())
+        val key = artworkCacheKey("prepared-v2:$uri")
         val target = File(directory, "$key.art")
         if (target.isFile) {
             target.setLastModified(System.currentTimeMillis())
             return@synchronized ParcelFileDescriptor.open(target, ParcelFileDescriptor.MODE_READ_ONLY)
         }
         if (missing.get(key) != true) {
-            val retriever = MediaMetadataRetriever()
-            val bytes = try {
-                retriever.setDataSource(ctx, audio)
-                retriever.embeddedPicture?.takeIf { it.size <= MaxImageBytes }
-            } catch (_: RuntimeException) { null }
-            finally { runCatching { retriever.release() } }
-            if (bytes != null) {
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-                if (bounds.outWidth > 0 && bounds.outHeight > 0) {
-                    val temporary = File.createTempFile("artwork-", ".tmp", directory)
-                    try {
-                        temporary.writeBytes(bytes)
-                        if (!temporary.renameTo(target)) throw FileNotFoundException("Cannot cache artwork")
-                    } finally { temporary.delete() }
-                    val files = directory.listFiles().orEmpty()
-                    var total = files.sumOf { it.length() }
-                    var count = files.count { it.extension == "art" }
-                    files.filter { it != target && it.extension == "art" }
-                         .sortedBy { it.lastModified() }.forEach { old ->
-                            if (total > MaxCacheBytes || count > MaxCacheEntries) {
-                                val size = old.length()
-                                if (old.delete()) { total -= size; count-- }
-                            }
+            val temporary = File.createTempFile("artwork-source-", ".tmp", directory)
+            val cached = try {
+                if (writeEmbeddedArtwork(ctx, audio, temporary)) {
+                    prepareCoverImage(temporary).use { prepared ->
+                        if (!prepared.file.renameTo(target)) throw FileNotFoundException("Cannot cache artwork")
+                    }
+                    true
+                } else false
+            } catch (cancelled: java.util.concurrent.CancellationException) { throw cancelled }
+              catch (_: java.io.IOException) { false }
+              catch (_: RuntimeException) { false }
+              finally { temporary.delete() }
+            if (cached) {
+                val files = directory.listFiles().orEmpty()
+                var total = files.sumOf { it.length() }
+                var count = files.count { it.extension == "art" }
+                files.filter { it != target && it.extension == "art" }
+                     .sortedBy { it.lastModified() }.forEach { old ->
+                        if (total > MaxCacheBytes || count > MaxCacheEntries) {
+                            val size = old.length()
+                            if (old.delete()) { total -= size; count-- }
                         }
-                    return@synchronized ParcelFileDescriptor.open(target, ParcelFileDescriptor.MODE_READ_ONLY)
-                }
+                    }
+                return@synchronized ParcelFileDescriptor.open(target, ParcelFileDescriptor.MODE_READ_ONLY)
             }
             missing.put(key, true)
         }
@@ -104,6 +99,28 @@ class AudioArtworkProvider : ContentProvider() {
             ?.takeIf { it.scheme == "content" && it.authority != Authority }
             ?: throw FileNotFoundException("No artwork for this audio")
         ctx.contentResolver.openFileDescriptor(fallback, "r") ?: throw FileNotFoundException("Fallback artwork unavailable")
+    }
+
+    /** Native retriever still allocates its byte array before we can enforce the source cap. */
+    private fun writeEmbeddedArtwork(ctx: android.content.Context, audio: Uri, target: File): Boolean {
+        // Read ordinary MP3 APIC ranges straight to disk, avoiding native tag-size limits
+        // and an embeddedPicture byte-array allocation. Pipes/other formats fall back.
+        val direct = try {
+            ctx.contentResolver.openFileDescriptor(audio, "r")?.let { fd ->
+                ParcelFileDescriptor.AutoCloseInputStream(fd).use { input ->
+                    target.outputStream().use { output -> copyId3Artwork(input.channel, output) }
+                }
+            }
+        } catch (_: java.io.IOException) { null }
+        if (direct != null) return direct
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(ctx, audio)
+            val bytes = retriever.embeddedPicture ?: return false
+            if (bytes.size.toLong() !in 1..MaximumCoverSourceBytes) return false
+            target.outputStream().use { it.write(bytes) }
+            true
+        } finally { runCatching { retriever.release() } }
     }
 
     /** Direct cover metadata only. Never joins processing/writing or holds its lock. */

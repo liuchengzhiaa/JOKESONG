@@ -1,7 +1,7 @@
 # Handoff
 
-**Latest continuation (2026-10-25):** see the final v0.1.14 recursive-cover crash
-repair/verification and delivery receipt. Older sections below are chronological
+**Latest continuation (2026-10-25):** see the final v0.1.15 cover-normalization
+verification below (publication pending); v0.1.14 is the last published release. Older sections below are chronological
 history, not current publication status. Do not invoke Claude or install on the
 owner's phone automatically; runtime work in this slice uses an isolated generated
 fixture emulator only.
@@ -5727,3 +5727,131 @@ acceptance remains pending: cover-update install WITHOUT clearing data, explicit
 rerun Settings > Library > recursive cover processing > Start and inspect counts.
 If a different crash persists, collect a fresh diagnostic/stack rather than assuming
 all future memory/provider failures share this now-reproduced AbstractMethodError.
+
+
+## 2026-10-25 — D-055 cover normalization, v0.1.15 in progress
+
+Owner explicitly requests shrinking/quality reduction for non-compliant pictures.
+Previously ordinary candidates >8 MiB AND embeddedPicture >8 MiB were rejected,
+while scanner audio fallback could display a larger folder image. Screenshots show
+this discrepancy; owner media files were NOT accessed, embedded provenance/size of
+those exact MP3s remains unverified. New source cap64 MiB vs output cap8 MiB;
+original compliant <=2048px images retain bytes, oversized dimensions/bytes/encoding
+are software-sampled <=2048px then JPEG/alpha-WebP encoded with quality+size retries.
+Shared preparation returns AutoCloseable private copies, preserves originals and
+transaction/no-overwrite. Folder writer uses it before creating any SAF stage;
+AudioArtworkProvider stages large native result and uses it before publishing cache.
+prepared-v2 cache keys invalidate prior misses/raw files within existing bounded
+cache directory. Native embeddedPicture pre-cap allocation limitation persists.
+No broad permission, media-tag write, privacy alias, playback or Room changes.
+
+Version0.1.15/code16. Added8 pure policy tests and updated source-cap tests;6 generated
+Android preparation regressions cover >8MiB noise PNG, alpha/aspect, unchanged small
+copy, invalid/partial inputs, >64MiB and cancellation cleanup. Clean narrow tests
+plus both APK build underway; full standard checks, generated SAF+embedded runtime
+smoke and publication pending. Do not label this build verified/published yet.
+
+
+### v0.1.15 intermediate verification checkpoint
+
+Clean narrow+APK command succeeded in3m38s,53 tests (candidate8/policy8/batch32/
+wrapper5). API36 isolated emulator upgrade to0.1.15/code16 succeeded; current Android
+instrumentation list CoverImagePreparationTest/CoverImageProbeTest/CoverDirectoryCatalogTest/
+LockedFolderCoverStoreTest/FolderCoverRepositoryTest/PlayerArtworkDecodeTest returns
+OK(15 tests),37.8s. Includes actual >8MiB noisy PNG, alpha/aspect, partial rejection,
+64MiB source cap and encoded-copy cancellation cleanup; no owner images/media.
+
+Generated ignored runtime fixtures `build/cover-normalization-fixtures/`:
+- generated-large.png: RGB2400x1800,12,975,310bytes,
+  SHA256e0f55cef59df4eb33beebb43815b4c830034a092e524bbc528c8db1126d0e09a.
+- generated-embedded.mp3: ID3v2.3 APIC of that exact PNG +128 synthetic MPEG frames,
+  13,028,719bytes, SHA2561bb315dfe235ddeefe5cad4ee330d1122067a59296a03bbe86b6423e4b6e548d.
+Pushed ONLY into existing isolated emulator fixture SAF root's new `large-png` and
+`large-embedded` children. The latter has NO sidecar image, to distinguish real embedded
+extraction from display fallback. Saved42 prior fixture source/cover hashes baseline.
+Native retriever extraction of this synthetic MP3 and actual folder-cover generation
+are not yet verified. Initial UI launch during simultaneous full-host Gradle load
+hit emulator System UI ANR (not confirmed app crash); stopped only emulator-5580,
+retaining data/grant/fixtures, to repeat cold boot after full checks. Full standard
+JVM/lint/APK task still running. Do not call E2E/publish complete at this checkpoint.
+
+
+### v0.1.15 large embedded-art follow-up (continuation)
+
+First full standard check passed:85 suites/646 tests, lint0errors38warnings, APKs.
+Actual UI batch on generated SAF fixture then visited23/created1/existing21/missing1/
+failed0. Large independent PNG succeeded:12,975,310-byte source ->2,501,982-byte
+cover.jpg; embedded-only synthetic MP3 remained missing because native retriever
+returned no art. This is not fixed by just raising the post-retriever byte cap.
+Added pure bounded seekable ID3v2.3/v2.4 APIC reader: scan <=64MiB metadata/4096frames,
+prefer front cover, parse bounded MIME/description/extended headers, stream selected
+picture range in32KiB chunks without audio payload or picture byte-array loading.
+Unsupported versions/unsynchronisation/encoded frames and other containers retain
+native fallback; invalid/oversized metadata refuses. Metadata editor is unchanged.
+Audio provider tries this on the granted SAF FD before native extraction.10 new
+reader tests passed and both APKs rebuilt (app88,773,003bytes at04:35:16 local).
+A resumed tool session no longer exists, but XML confirms10/10 and APK timestamp;
+full final tests and actual embedded-only SAF rerun still pending.
+Host C: had low space (~278MiB); no unrelated files deleted. Temporary build output
+now directed to sibling ASCII `.asmrplayer-build/temp` on D:, with plenty of space.
+Emulator is stopped; retain existing data/grants/45 fixture files. SystemUI startup
+ANR dialog was recoverable with Wait; app crash buffer stayed empty. Last UI snapshot
+had counts below viewport after longer explanatory text, so scroll before reading
+counts; do not treat absent visible Running text as completion. No publication yet.
+
+
+### v0.1.15 final implementation and verification — ready for publication
+
+Final full command (D: temporary directory, existing Gradle cache):
+`./gradlew.bat -I tools/ascii-build-dir.init.gradle testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest`
+passed in7m57s. XML independently counted86 suites/656 tests,0failures/errors;
+lint0errors/38existingwarnings. The preceding clean narrow build passed53 tests;
+streaming-ID3 additions then passed10 focused tests before final full verification.
+Package remains com.example.asmrplayer, version0.1.15/code16. Tested app APK:
+88,773,003bytes, SHA256
+`81a9b4f539227933a0e0fefcb62cadde13dbfc9f5be5e6ffffdb53669c5a6e91`.
+
+Final APK instrumentation on isolated API36 actually returns OK(15 tests),10.577s:
+CoverImagePreparationTest(6), CoverImageProbeTest(2), CoverDirectoryCatalogTest(2),
+LockedFolderCoverStoreTest(1), FolderCoverRepositoryTest(3), PlayerArtworkDecodeTest(1).
+The first final-instrumentation attempt had failed during process startup with an
+ANR while emulator SystemUI was unresponsive and emulator Bluetooth repeatedly
+aborted natively. Recorded, not concealed: this was NOT a passing test run or proof
+of an app decoder crash. Disabled Bluetooth only on this generated emulator,
+dismissed the SystemUI Wait dialog, then repeated final instrumentation successfully.
+No product workaround for emulator startup issues was added. Current exit history
+contains that startup ANR plus normal instrumentation force-stop, no subsequent
+batch crash. Real owner API35/vendor/large-library behavior remains unverified.
+
+Actual final-APK SAF/UI replay, retaining existing test data and grant:
+- Open MainActivity > Settings > Library > recursive folder covers > Start.
+  Root is ONLY `/sdcard/Download/JokesongCrashFixture` on emulator-5580 via dedicated
+  ADB5049. It has21 prior covered folders + large-png + large-embedded.
+- Large standalone PNG12,975,310bytes had already normalized successfully on the
+  intermediate APK. Final APK generated the remaining embedded-only MP3 folder
+  cover: visited23/created1/existing22/missing0/failed0. No sidecar image exists in
+  large-embedded; APIC is the only possible art source, proving streaming extraction
+  through the real private provider + codec + SAF transaction, not image fallback.
+- Both resulting cover.jpg files are2,501,982bytes, JPEG2048x1536, SHA256
+  `97ea9e1b9bbc177d23774cc69dd66a19b78c45b252da30c48102aa2d177d386b`.
+  Both large source hashes remain exactly as recorded above; all42 original fixture
+  hashes match baseline. No audio/image original was rewritten.
+- Repeat actual Start, wait for the visible completed status (not just absent Running):
+  visited23/created0/existing23/missing0/failed0. All46 files' SHA256/size/mtime
+  snapshots match before/after. No overwrite or new crash. Output snapshots, generated
+  source images/MP3 and pulled JPEGs remain ignored under build/cover-normalization-fixtures.
+- To replay cleanly, generate a new root with the two large source files above,
+  authorize it through SAF, run Start, verify created covers/dimensions/source hashes,
+  then rerun and compare snapshots. Never clear owner data or delete owner covers.
+
+Limitations: <=64MiB source, <=8MiB output, <=2048px longest edge; irreparably corrupt
+or unsupported images still fail safely. Native fallback for non-plain-ID3/other
+containers still allocates embeddedPicture before the cap; streaming plain MP3 tags
+avoids that path but is not a universal container parser. Header-only candidate
+ranking, source priorities, existing-cover preservation and transaction rules remain.
+Host C: remains nearly full (~260MiB); use existing sibling `.asmrplayer-build/temp`
+on D: for future temporary work; no unrelated user files deleted. No phone installed
+or owner media/accounts accessed. No Claude invocation. Remaining: reviewed18-file
+source/docs/test upload, commit/push, normal publisher, independent remote receipt.
+Safest owner action after publication: install over current app WITHOUT clearing
+its data, explicitly rerun recursive folder covers; existing covers stay untouched.

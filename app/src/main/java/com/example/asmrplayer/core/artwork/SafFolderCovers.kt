@@ -2,7 +2,6 @@ package com.example.asmrplayer.core.artwork
 
 import android.content.Context
 import android.graphics.BitmapFactory
-import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract as Docs
@@ -149,7 +148,7 @@ internal class SafFolderCoverStore(
     }
     override fun install(folder: String, source: String): String = save(folder, source.toUri(), replace = false)
 
-    /** The original chosen image is copied byte-for-byte. No tag, alias or source-image change. */
+    /** Saves a validated/normalized copy only. Never changes source images, audio tags or aliases. */
     fun save(folder: String, source: Uri, replace: Boolean): String {
         val parent = checked(folder)
         requireWritable(parent)
@@ -160,56 +159,49 @@ internal class SafFolderCoverStore(
         val local = File.createTempFile("cover-copy-", ".tmp", context.cacheDir)
         try {
             openSource(source).use { input -> local.outputStream().use { output ->
-                val buffer = ByteArray(32 * 1024)
-                var total = 0L
-                while (true) {
-                    budget.check()
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    total += count
-                    check(total <= MaximumFolderCoverBytes) { "COVER_IMAGE_TOO_LARGE" }
-                    output.write(buffer, 0, count)
-                }
+                copyCoverSource(input, output, budget::check)
             } }
-            val mime = validateFolderCoverImage(local)
-            val extension = when (mime) {
-                "image/jpeg" -> "jpg"; "image/png" -> "png"; "image/webp" -> "webp"
-                "image/bmp", "image/x-ms-bmp" -> "bmp"; "image/heif", "image/heic" -> "heif"
-                "image/avif" -> "avif"; else -> error("COVER_UNSUPPORTED_IMAGE")
-            }
-            val token = UUID.randomUUID().toString()
-            val stageName = ".jokesong-cover-$token-stage.$extension"
-            val stage = Docs.createDocument(resolver, parent, mime, stageName) ?: error("COVER_CREATE_FAILED")
-            try {
-                check(info(stage).first == stageName) { "COVER_PROVIDER_CHANGED_NAME" }
-                resolver.openFileDescriptor(stage, "rw")!!.let { fd ->
-                    ParcelFileDescriptor.AutoCloseOutputStream(fd).use { output ->
-                        local.inputStream().use { it.copyTo(output, 32 * 1024) }
-                        output.flush()
-                        Os.fsync(fd.fileDescriptor)
+            prepareCoverImage(local, budget::check).use { prepared ->
+                val mime = prepared.mime
+                val extension = when (mime) {
+                    "image/jpeg" -> "jpg"; "image/png" -> "png"; "image/webp" -> "webp"
+                    "image/bmp", "image/x-ms-bmp" -> "bmp"; "image/heif", "image/heic" -> "heif"
+                    "image/avif" -> "avif"; else -> error("COVER_UNSUPPORTED_IMAGE")
+                }
+                val token = UUID.randomUUID().toString()
+                val stageName = ".jokesong-cover-$token-stage.$extension"
+                val stage = Docs.createDocument(resolver, parent, mime, stageName) ?: error("COVER_CREATE_FAILED")
+                try {
+                    check(info(stage).first == stageName) { "COVER_PROVIDER_CHANGED_NAME" }
+                    resolver.openFileDescriptor(stage, "rw")!!.let { fd ->
+                        ParcelFileDescriptor.AutoCloseOutputStream(fd).use { output ->
+                            prepared.file.inputStream().use { it.copyTo(output, 32 * 1024) }
+                            output.flush()
+                            Os.fsync(fd.fileDescriptor)
+                        }
                     }
+                    check(info(stage).second and Docs.Document.FLAG_SUPPORTS_RENAME != 0) { "COVER_RENAME_UNSUPPORTED" }
+                    old.singleOrNull()?.let {
+                        check(info(it.uri.toUri()).second and Docs.Document.FLAG_SUPPORTS_RENAME != 0) { "COVER_RENAME_UNSUPPORTED" }
+                    }
+                    val txStore = TransactionStore(parent)
+                    val sourceHash = sha256(prepared.file.inputStream())
+                    check(txStore.hash(stageName) == sourceHash) { "COVER_STAGE_VERIFY_FAILED" }
+                    // Detect an intervening external cover edit before moving anything.
+                    check(covers(folder) == old) { "COVER_ORIGINAL_CHANGED" }
+                    budget.check() // No cancellation point inside the rename/recovery transaction.
+                    val j = CoverInstallJournal(stageName, "cover.$extension", old.singleOrNull()?.name,
+                        ".jokesong-cover-$token-backup.${old.singleOrNull()?.name?.substringAfterLast('.') ?: extension}",
+                        sourceHash)
+                    CoverInstallTransaction(txStore).commit(j)
+                    return txStore.find(j.target)!!.toString()
+                } catch (error: Exception) {
+                    // Do not delete a stage needed by a pending transaction or an old-image backup.
+                    if (TransactionStore(parent).pending() == null) runCatching {
+                        if (info(stage).first == stageName) Docs.deleteDocument(resolver, stage)
+                    }
+                    throw error
                 }
-                check(info(stage).second and Docs.Document.FLAG_SUPPORTS_RENAME != 0) { "COVER_RENAME_UNSUPPORTED" }
-                old.singleOrNull()?.let {
-                    check(info(it.uri.toUri()).second and Docs.Document.FLAG_SUPPORTS_RENAME != 0) { "COVER_RENAME_UNSUPPORTED" }
-                }
-                val txStore = TransactionStore(parent)
-                val sourceHash = sha256(local.inputStream())
-                check(txStore.hash(stageName) == sourceHash) { "COVER_STAGE_VERIFY_FAILED" }
-                // Detect an intervening external cover edit before moving anything.
-                check(covers(folder) == old) { "COVER_ORIGINAL_CHANGED" }
-                budget.check() // No cancellation point inside the rename/recovery transaction.
-                val j = CoverInstallJournal(stageName, "cover.$extension", old.singleOrNull()?.name,
-                    ".jokesong-cover-$token-backup.${old.singleOrNull()?.name?.substringAfterLast('.') ?: extension}",
-                    sourceHash)
-                CoverInstallTransaction(txStore).commit(j)
-                return txStore.find(j.target)!!.toString()
-            } catch (error: Exception) {
-                // Do not delete a stage needed by a pending transaction or an old-image backup.
-                if (TransactionStore(parent).pending() == null) runCatching {
-                    if (info(stage).first == stageName) Docs.deleteDocument(resolver, stage)
-                }
-                throw error
             }
         } finally { local.delete() }
     }
@@ -316,18 +308,4 @@ private fun sha256(input: InputStream): String = input.use {
         digest.update(buffer, 0, count)
     }
     digest.digest().joinToString("") { b -> "%02x".format(b) }
-}
-internal fun validateFolderCoverImage(file: File): String {
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    BitmapFactory.decodeFile(file.path, bounds)
-    check(bounds.outWidth in 1..65536 && bounds.outHeight in 1..65536) { "COVER_INVALID_IMAGE" }
-    val bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(file)) { decoder, info, _ ->
-        val scale = minOf(1f, 128f / maxOf(info.size.width, info.size.height))
-        decoder.setTargetSize((info.size.width * scale).toInt().coerceAtLeast(1),
-            (info.size.height * scale).toInt().coerceAtLeast(1))
-        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-        decoder.setOnPartialImageListener { false }
-    }
-    bitmap.recycle()
-    return bounds.outMimeType ?: error("COVER_INVALID_IMAGE")
 }

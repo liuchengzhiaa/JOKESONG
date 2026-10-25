@@ -74,11 +74,17 @@ ordering. An image fallback generated earlier in this run must not hide a sharpe
 later sibling image or outrank a later real embedded-art source. Existing disk
 covers remain protected and keep their previous precedence.
 
-Probe dimensions only, with bounded header reads and no full-size bitmap decode.
-Known images over the existing 8 MiB copy limit are ineligible; unknown lengths
-remain subject to the writer's real byte cap. Final chosen image goes through the
-existing format/partial-decode/read-back/transaction validation, preserving source
-bytes and leaving original images/audio untouched. Continue processing all siblings.
+Probe dimensions only with bounded header reads. D-055 accepts source images up to
+64 MiB, including sources above the old 8 MiB output limit. Stage them to private
+disk in bounded chunks, then keep compliant images (<=8 MiB, <=2048px longest edge)
+byte-for-byte. For decodable oversized/unsupported-encoding images, sample directly
+to at most2048px and re-encode: JPEG for opaque images, alpha-preserving WebP for
+transparent images. Try quality92/84/72/60 and smaller1024/512px targets if needed;
+encoded output remains <=8 MiB. Never allocate the full original pixel dimensions.
+Validate format/partial decode and use the existing read-back/transaction writer.
+Original images/audio and existing cover files remain untouched. Undecodable or
+>64 MiB sources still fail/skip safely; this does not repair damaged images.
+Continue processing all siblings.
 Folders with no usable artwork anywhere below them remain empty; failures are
 counted separately from missing artwork, not reported as successful persistence.
 
@@ -105,8 +111,9 @@ Capture track and directory identities when long-pressed, not when saving finish
 
 Long-press folder image selection still copies actual image bytes into that folder,
 using the shared SAF picker hint (`Download/mihon/local`). Do not move the selected
-original. Support validated JPEG/PNG/WebP/BMP/HEIF/AVIF up to 8 MiB with bounded
-validation decode; actual MIME determines extension. Manual replacement refuses
+original. Use the same64 MiB source/8 MiB normalized-output preparation pipeline
+as recursive processing; retain compliant bytes, otherwise sample/re-encode without
+changing the original. Actual prepared MIME determines the extension. Manual replacement refuses
 multiple cover files. Preserve old images as hidden `.jokesong-cover-...` backups.
 The old private-reset action stays removed: do not interpret reset as image deletion.
 

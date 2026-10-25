@@ -891,3 +891,19 @@ order because each layer consumes the stable model built by the one before it:
       latest/public/non-draft Release; independent remote refs and3 asset hashes+
       sizes match; anonymous APK HEAD200/88,756,415bytes. Receipt-only docs follow.
 - [ ] Owner phone rerun; API35/vendor SAF/large real library not reproduced here.
+
+
+## Current follow-up — normalize oversized cover sources (2026-10-25)
+
+- [x] D-055: explicit64MiB source/8MiB output and sampled2048px codec policy;
+      preserve original compliant bytes/aspect/alpha, originals and existing covers.
+- [x] Shared preparation in SAF manual/batch writer and audio embedded-art cache;
+      prepared-v2 cache keys; unchanged transactional writes and tag-editor limits.
+- [x] Clean53 narrow tests +10 focused ID3 tests; final86 suites/656 JVM tests,
+      lint0errors38warnings, both APKs. API36 final ART OK(15). Actual SAF/UI
+      large embedded-only MP3 creates cover,23visited/1created/22existing/0missing/
+      0failed; repeat23existing/0created. All46 hash/size/mtime unchanged; prior42
+      fixture hashes and both large source originals retained. No owner media used.
+- [ ] Review upload, commit/push, publish same-signer0.1.15/code16 and independent
+      remote refs/assets/public download verification; receipt-only followup docs.
+- [ ] Owner phone real12.53MB PNG/embedded example acceptance; no owner media used here.
