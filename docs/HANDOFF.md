@@ -1,8 +1,8 @@
 # Handoff
 
-**Latest continuation (2026-10-25):** see the final v0.1.15 cover-normalization
-verification and independently confirmed publication receipt below. v0.1.15 is
-the latest published release. Older sections below are chronological
+**Latest continuation (2026-10-25):** v0.1.16 cover-wall I/O reduction is in progress
+at the end of this file. v0.1.15 remains the latest published release until its
+successor receipt is independently confirmed. Older sections below are chronological
 history, not current publication status. Do not invoke Claude or install on the
 owner's phone automatically; runtime work in this slice uses an isolated generated
 fixture emulator only.
@@ -5892,3 +5892,93 @@ Owner phone acceptance remains open; install compatible update WITHOUT clearing 
 rerun recursive covers explicitly. Corrupt/unsupported/>64MiB inputs remain excluded;
 if a real folder still fails, collect counts and fresh diagnostic before broadening
 limits or decoding originals at full resolution. Do not invoke Claude automatically.
+
+
+## 2026-10-25 — v0.1.16 cover-wall I/O reduction in progress
+
+Owner asks to study Mihon bookshelf performance from another task and remove folder
+subfolder/audio counts. Read the owner-specified Mihon task,
+then only its local performance research and targeted source. No task message,
+worktree edit/build or signing access. Research is NOT a new LazyGrid story: unused
+query removal, state retention and cover metadata caching transfer; DB/WAL changes
+do not directly apply to our SAF browsing. Source references in COVER_WALL_PERFORMANCE.
+
+Confirmed scanner still eagerly enumerated first48 child folders for counts before
+publishing listing, followed by separate lazy image queries. Removed that loop and
+LibraryItem counts, folder number text/helper/resources/tests. Ordinary/focused
+folder posters now title only; lists use type label. Audio format/duration stays.
+Unused Room columns preserved, no migration/data modification. Direct named-cover
+reader uses3 columns, no audio count/classification/first-audio metadata, no media
+open/decoder/writes. Null query throws, not cached absence. Provider adds256-entry
+metadata-only positive/negative LRU,32 bounded locks, cancellable waiting, no global
+I/O lock; errors/cancel not cached. Key includes full scan+write revision already
+provided by scanner/repository, so explicit refresh/manual/batch invalidates caches.
+No thumbnail disk tree, extra permissions or expanded bitmap budget/concurrency.
+0.1.16/code17. New pure8 cache tests, updated4 cover-selection tests, new Android5
+metadata-provider tests (10000 folders/top500/two queries/no child opens; direct
+lookup/projection/errors/cancel/audio+LRC). Focused JVM+both APK build underway;
+full checks and Android execution/UI smoke/publication PENDING. Existing emulator
+is stopped, data/grants retained; D: temp recommended because C: nearly full.
+No frame/peak-memory measurement, no owner phone/media accessed; don't promise all
+stutter solved. Keep this task separate from active Mihon work/builds.
+
+
+### v0.1.16 verification checkpoint
+
+Focused cache8/selection4 JVM tests passed. First combined narrow/APK build failed
+only in the new Android fixture: Kotlin rejected reified intersection inference
+for mixed String/Long MatrixCursor row arrays. Added explicit List<Any> row type;
+no production workaround or scope expansion. Full standard JVM/lint/APK command
+now running. Current XML shows86 suites/658 tests,0failed/errors/skipped; final
+lint report still old at this checkpoint, so do NOT claim full verification done.
+Both new APKs exist, but generated Android execution/UI smoke and publication remain.
+
+
+### v0.1.16 final JVM/build checkpoint
+
+Full standard `testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest`
+completed BUILD SUCCESSFUL in4m17s after the fixture type correction. Independently
+read final86 suites/658 tests,0failure/errors/skips and fresh lint0errors38warnings.
+Both APKs built. App APK88,772,116bytes, SHA256
+`e1376637a5c519cb7e8951acbba802fbc604428a4ed9082403f070524ad13232`.
+New isolated Android20-test execution is underway, actual wall smoke still pending.
+No claimed FPS gain and no publication yet. Same package, version0.1.16/code17.
+
+
+### v0.1.16 final Android/UI verification — ready for publication
+
+Updated only dedicated emulator-5580 (ADB5049) via adb install -r, retaining all
+existing test data and SAF grants. No owner phone/account/media used. Explicit
+instrumentation list FolderBrowsingIoTest plus the six previously used artwork
+classes returned OK(20 tests),44.935s on isolated API36. New5 tests prove10000-folder
+listing uses2 own queries,0 child-directory queries/media opens,500 naturally sorted
+retained items and correct total/truncation; direct named-cover lookup uses3 columns,
+never audio/descendant fallback; null-query/cancellation behavior and audio/LRC match
+remain correct. Existing15 codec/catalog/wrapper/repository/decoder tests also pass.
+
+Actual app UI smoke on the retained generated23-folder SAF root:
+- MainActivity launch succeeds. The emulator again displayed its known SystemUI
+  ANR Wait dialog; dismissed it. This is not an app crash or a useful FPS benchmark.
+- Ordinary wall screenshot shows named folder titles and loaded generated covers
+  (including both noisy JPEGs), with no subfolder/audio count text in UI hierarchy.
+- Focus large-png, wait for animation/fresh UI dump: status=folder + title, no counts.
+  Tap current focused title, actually enter large-png (own title and empty-content
+  state confirmed), Back restores JokesongCrashFixture wall. Final hierarchy still
+  has0 count labels. One initial uiautomator dump during animation returned null
+  root and stale snapshot; rejected that navigation inference and repeated each
+  step from fresh observed bounds. Final saved snapshots are the successful replay.
+-46 fixture source/cover SHA256,size,mtime snapshots match the v0.1.15 baseline
+  exactly. ApplicationExitInfo shows normal test-completion force-stop only, no new
+  app crash/ANR. No real media edits/broad permissions/database migration.
+- Ignored evidence: build/wall-performance-fixtures/{instrumentation.txt,wall-ui.xml,
+  focused-ui.xml,child-ui.xml,restored-ui.xml,wall.png,focused.png,media-hashes.txt,
+  media-stat.txt}. Keep these private/generated artifacts out of Git/Release assets.
+
+Exact app APK remains88,772,116bytes/e1376637a5c519cb7e8951acbba802fbc604428a4ed9082403f070524ad13232.
+Focused12 JVM tests, final86 suites/658 tests, lint0errors38warnings, both APKs and
+actual Android20 tests now complete. Publication/source review still pending at
+this checkpoint. Safest next: publish same-signer0.1.16/code17 and independently
+verify remote commit/tag/assets/download, then owner upgrades without data clear.
+No claim of phone FPS, peak heap/GC measurement or complete stutter/crash elimination.
+This slice removes up to48 eager metadata scans plus repeated requested-cover
+lookups; follow up with controlled real-phone profiling if drag still stutters.

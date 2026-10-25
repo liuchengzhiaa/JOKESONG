@@ -1273,3 +1273,28 @@ Prefer Front Cover, otherwise first usable picture. Do not read/hash audio paylo
 Unsupported tag transforms/other formats retain native extraction. Only that native
 fallback retains embeddedPicture's pre-cap allocation limitation; do not promise
 all tag variants or containers bypass it. Both paths feed the same normalizer.
+
+
+## D-056 — Remove folder statistics from browsing; cache requested cover addresses (2026-10-25)
+
+Owner requests less cover-wall stutter and no folder/audio numbers on folder cards.
+Supersedes the old folder-summary display behavior. Remove first48 child enumerations
+from scan, not merely hide their output. Keep own-folder top500 retention/natural
+order/supported count and audio/subtitle matching. Do not remove Room columns or
+migrate user data merely to remove unused presentation fields.
+
+Only requested folder images query direct children to select a named cover. Read
+ID/name/MIME only, not audio metadata/counts, sizes or timestamps. Cache positive
+AND missing cover addresses in a256-entry metadata LRU. Coordination uses bounded
+stripes, cancellable waiting, no global I/O monitor; never cache failure/cancellation.
+Key includes scan/write revision; explicit refresh, manual cover change or batch
+completion produces new keys. External disk edits become visible after refresh.
+Retain existing image fetch/decode limits, memory budget, spatial culling and folder
+snapshots. Do not replace Folia's2D canvas with a1D bookshelf, predecode the library,
+or assert measured FPS/OOM improvement from code inspection alone.
+
+Read the owner's separate Mihon research, based on v0.19.0 e4de208 and v0.21.2
+9612d955db3165e1578fdf9ff19ca9b7762c4a46. Transfer the ideas of eliminating unused
+queries, retaining state and caching metadata; do not attribute longstanding lazy
+grid/pager/concurrency code to a new0.21.2 optimization. No upstream code copied.
+See COVER_WALL_PERFORMANCE.md for exact references and verification limits.

@@ -202,8 +202,6 @@
     <string name="now_playing">正在播放</string>
     <string name="play">播放</string>
     <string name="pause">暂停</string>
-    <string name="folder_subfolder_count">%1$d 个子文件夹</string>
-    <string name="folder_audio_count">%1$d 条音频</string>
     <string name="folder_type">文件夹</string>
     <string name="audio_type">音频</string>
     <string name="demo_hint">点击卡片使其聚焦，再次点击执行操作</string>

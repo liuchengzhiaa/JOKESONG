@@ -735,10 +735,21 @@ playerToneArgb derived from mid-tone chromatic coarse buckets; wall palette stay
   max heap (4–64 MiB), no unbounded weak-reference index; fetch concurrency 4, decode 2.
   This limits cache/in-flight pressure, not the memory of currently visible bitmaps or
   an oversized native embeddedPicture allocation; the known native limitation remains.
-- `readDirectFolderArtwork` remains a direct metadata-only summary probe. All
-  folder artwork now uses D-048's lazy resolver, not an initial-probe shortcut.
-  No audio is opened during directory enumeration. Main scanner requests size/modified
-  columns used by its version logic and skips hidden cover transaction artifacts.
+- D-056 removes the remaining first48 child-folder summary scans from
+  `SafDirectoryScanner`. Listing queries only its own children and own title; never
+  enumerates child folders, opens audio or decodes artwork. LibraryItem no longer
+  carries child/audio counts. Unused Room schema columns remain for compatibility.
+- `readDirectFolderArtwork` requests only document ID/name/MIME and retains only a
+  deterministic direct named-cover candidate, not audio/folder counts or first audio.
+  Null provider cursors are errors, not cacheable missing-cover results. It never
+  opens media or recurses. Normal scanner retains size/modified for audio versions.
+- AudioArtworkProvider's folder branch uses FolderArtworkLookupCache:256 metadata
+  entries (positive AND absent), LRU,32 bounded coordination locks. Same-key concurrent
+  requests coalesce; no global LRU lock covers I/O. Waiting and before-publication
+  checkpoints propagate cancellation; errors/cancellation are not cached. Full folder
+  URI includes scan+FolderCoverRepository write revision, so explicit refresh/manual
+  replacement/batch completion invalidate misses/hits; snapshot navigation reuses them.
+  No bitmap cache enlargement, on-disk derived images, broad permission or writes.
 - Settings → Library can explicitly copy numeric runtime/last-three self-process
   ApplicationExitInfo facts (API30+), library count/layout/zoom/density and build ID.
   No descriptions, process names, media paths/names, trace streams or automatic upload.

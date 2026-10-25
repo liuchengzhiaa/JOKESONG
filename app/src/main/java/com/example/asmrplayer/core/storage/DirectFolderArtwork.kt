@@ -3,16 +3,11 @@ package com.example.asmrplayer.core.storage
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.DocumentsContract
-import com.example.asmrplayer.core.artwork.isFolderCoverArtifact
-import com.example.asmrplayer.core.metadata.isMetadataArtifactName
+import java.io.IOException
 
-internal data class DirectFolderArtwork(
-    val artworkUri: String?,
-    val childFolderCount: Int,
-    val audioCount: Int,
-)
+internal data class DirectFolderArtwork(val artworkUri: String?)
 
-/** Only enumerates direct children. Never opens audio, decodes art or recurses while scanning. */
+/** Read-only direct cover lookup. No child counts, audio metadata, image decode or recursion. */
 internal fun readDirectFolderArtwork(
     resolver: ContentResolver,
     treeUri: Uri,
@@ -23,43 +18,29 @@ internal fun readDirectFolderArtwork(
         DocumentsContract.Document.COLUMN_DOCUMENT_ID,
         DocumentsContract.Document.COLUMN_DISPLAY_NAME,
         DocumentsContract.Document.COLUMN_MIME_TYPE,
-        DocumentsContract.Document.COLUMN_SIZE,
-        DocumentsContract.Document.COLUMN_LAST_MODIFIED,
     )
     val children = DocumentsContract.buildChildDocumentsUriUsingTree(
         treeUri, DocumentsContract.getDocumentId(folderUri),
     )
     val selection = FolderArtworkSelection()
-    var folders = 0
-    var audios = 0
-    resolver.query(children, columns, null, null, null)?.use { cursor ->
-        val id = cursor.getColumnIndexOrThrow(columns[0])
-        val name = cursor.getColumnIndexOrThrow(columns[1])
-        val mime = cursor.getColumnIndexOrThrow(columns[2])
-        val size = cursor.getColumnIndex(columns[3])
-        val modified = cursor.getColumnIndex(columns[4])
-        while (cursor.moveToNext()) {
+    onRow()
+    val cursor = resolver.query(children, columns, null, null, null)
+        ?: throw IOException("FOLDER_COVER_QUERY_FAILED")
+    cursor.use {
+        val id = it.getColumnIndexOrThrow(columns[0])
+        val name = it.getColumnIndexOrThrow(columns[1])
+        val mime = it.getColumnIndexOrThrow(columns[2])
+        while (it.moveToNext()) {
             onRow()
-            val label = cursor.getString(name)?.takeIf(String::isNotBlank) ?: continue
-            if (isMetadataArtifactName(label) || isFolderCoverArtifact(label)) continue
-            val type = cursor.getString(mime)
-            if (type == DocumentsContract.Document.MIME_TYPE_DIR) { folders++; continue }
-            val image = SupportedArtwork.isSupported(label, type)
-            val audio = !image && SupportedAudio.isSupported(label, type)
-            if (audio) audios++
-            if (!audio && !image) continue
-            val docId = cursor.getString(id) ?: continue
-            val entry = FolderArtworkEntry(
-                label,
-                DocumentsContract.buildDocumentUriUsingTree(treeUri, docId).toString(),
-                "${if (size >= 0) cursor.getLong(size) else 0L}:${if (modified >= 0) cursor.getLong(modified) else 0L}",
-            )
-            if (audio) selection.audio(entry) else selection.image(entry)
+            val label = it.getString(name)?.takeIf(String::isNotBlank) ?: continue
+            if (!com.example.asmrplayer.core.artwork.isNamedFolderCover(label)) continue
+            val type = it.getString(mime)
+            if (type == DocumentsContract.Document.MIME_TYPE_DIR || !SupportedArtwork.isSupported(label, type)) continue
+            val docId = it.getString(id) ?: continue
+            selection.image(FolderArtworkEntry(label,
+                DocumentsContract.buildDocumentUriUsingTree(treeUri, docId).toString()))
         }
     }
-    return DirectFolderArtwork(
-        artworkUri = selection.image?.uri,
-        childFolderCount = folders,
-        audioCount = audios,
-    )
+    onRow()
+    return DirectFolderArtwork(selection.image?.uri)
 }

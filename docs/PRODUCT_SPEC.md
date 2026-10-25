@@ -41,6 +41,11 @@ subtitle support, direct metadata editing and a distinctive focus-cover wall.
   system directory picker.
 - A folder represents a work or a structural grouping. Audio files are tracks.
 - Folder browsing shows direct children only. Child folders and audio can coexist.
+- D-056: folder cards show their title, not subfolder/audio counts. Browsing must not
+  enter child folders to compute those counts. Audio format/duration labels remain.
+- Folder cover addresses resolve only when requested and are cached with bounded
+  metadata-only storage, including absent covers. Explicit refresh/manual cover writes/
+  batch completion must use a new revision; external edits require explicit refresh.
 - The library also offers all-audio, recent, favorite and playlist views.
 - Removing a root, folder or item from the app removes only its index. The app does
   not delete real media files.

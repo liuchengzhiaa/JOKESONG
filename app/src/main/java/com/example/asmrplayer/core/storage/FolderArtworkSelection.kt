@@ -5,17 +5,14 @@ import com.example.asmrplayer.core.artwork.isNamedFolderCover
 
 internal data class FolderArtworkEntry(val name: String, val uri: String, val version: String = "")
 
-/** Constant-space selection independent of provider cursor ordering. Images take priority. */
+/** Constant-space direct-cover selection independent of provider cursor ordering. */
 internal class FolderArtworkSelection {
     var image: FolderArtworkEntry? = null
-        private set
-    var firstAudio: FolderArtworkEntry? = null
         private set
 
     fun image(candidate: FolderArtworkEntry) {
         if (isNamedFolderCover(candidate.name)) image = earlier(image, candidate)
     }
-    fun audio(candidate: FolderArtworkEntry) { firstAudio = earlier(firstAudio, candidate) }
 
     private fun earlier(current: FolderArtworkEntry?, next: FolderArtworkEntry): FolderArtworkEntry {
         if (current == null) return next

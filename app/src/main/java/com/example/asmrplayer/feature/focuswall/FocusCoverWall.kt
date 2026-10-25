@@ -129,7 +129,6 @@ import com.example.asmrplayer.core.model.LibraryItemType
 import com.example.asmrplayer.core.settings.ToolClusterStyle
 import com.example.asmrplayer.core.settings.levelFraction
 import com.example.asmrplayer.core.subtitles.TimedTextDocument
-import com.example.asmrplayer.feature.folderSummaryLine
 import com.example.asmrplayer.feature.library.LibraryLayoutMode
 import com.example.asmrplayer.feature.library.LibraryLayoutOptionsPanel
 import com.example.asmrplayer.feature.library.icon
@@ -1597,17 +1596,19 @@ private fun FoliaOrdinaryPosterChrome(
                     shadow = Shadow(Color.Black.copy(alpha = 0.94f), Offset(0f, 1f), 6f),
                 ),
             )
-            Text(
-                text = item.detailLine(),
-                color = Color.White.copy(alpha = 0.58f),
-                fontSize = metadataSize,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    shadow = Shadow(Color.Black.copy(alpha = 0.90f), Offset(0f, 1f), 4f),
-                ),
-            )
+            if (item.type == LibraryItemType.Audio) {
+                Text(
+                    text = item.detailLine(),
+                    color = Color.White.copy(alpha = 0.58f),
+                    fontSize = metadataSize,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        shadow = Shadow(Color.Black.copy(alpha = 0.90f), Offset(0f, 1f), 4f),
+                    ),
+                )
+            }
         }
     }
 }
@@ -1696,17 +1697,19 @@ private fun FoliaFocusedPosterChrome(
                     shadow = Shadow(Color.Black.copy(alpha = 0.9f), Offset(0f, 1f), 5f),
                 ),
             )
-            Text(
-                text = item.detailLine(),
-                color = Color.White.copy(alpha = 0.62f),
-                fontSize = metadataFont,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    shadow = Shadow(Color.Black.copy(alpha = 0.86f), Offset(0f, 1f), 4f),
-                ),
-            )
+            if (item.type == LibraryItemType.Audio) {
+                Text(
+                    text = item.detailLine(),
+                    color = Color.White.copy(alpha = 0.62f),
+                    fontSize = metadataFont,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        shadow = Shadow(Color.Black.copy(alpha = 0.86f), Offset(0f, 1f), 4f),
+                    ),
+                )
+            }
         }
 
         if (lyricFrame != null) {
@@ -2032,7 +2035,7 @@ private class FocusWallCellShape(private val cells: FocusWallShape) : Shape {
 
 @Composable
 private fun LibraryItem.detailLine(): String = when (type) {
-    LibraryItemType.Folder -> folderSummaryLine(childFolderCount, audioCount)
+    LibraryItemType.Folder -> ""
     LibraryItemType.Audio -> durationLabel ?: subtitle.ifBlank { stringResource(R.string.audio_type) }
 }
 

@@ -17,7 +17,6 @@ import com.example.asmrplayer.core.subtitles.TimedTextMatch
 import com.example.asmrplayer.core.subtitles.matchTimedText
 import java.util.PriorityQueue
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
@@ -39,11 +38,9 @@ data class DirectoryListing(
 class SafDirectoryScanner(
     private val contentResolver: ContentResolver,
     private val retainedItemLimit: Int = 500,
-    private val artworkProbeLimit: Int = 48,
 ) {
     init {
         require(retainedItemLimit > 0)
-        require(artworkProbeLimit >= 0)
     }
 
     fun rootDocumentUri(treeUri: Uri): Uri = DocumentsContract.buildDocumentUriUsingTree(
@@ -133,7 +130,7 @@ class SafDirectoryScanner(
         }
 
         val sortedItems = retainedItems.toList().sortedWith(DisplayComparator)
-        val itemsWithArtwork = sortedItems.mapIndexed { index, item ->
+        val itemsWithArtwork = sortedItems.map { item ->
             when {
                 item.type == LibraryItemType.Audio -> item.copy(
                     artworkUri = audioArtworkUri(
@@ -144,19 +141,9 @@ class SafDirectoryScanner(
                         version = artworkVersions[item.id].orEmpty(),
                     ),
                 )
-                index < artworkProbeLimit -> {
-                    val probe = item.documentUri?.let(Uri::parse)?.let { childFolderUri ->
-                        queryDirectFolder(treeUri, childFolderUri)
-                    }
-                    item.copy(
-                        artworkUri = folderArtworkUri(treeUri.toString(), item.documentUri!!, scanVersion),
-                        childFolderCount = probe?.childFolderCount ?: 0,
-                        audioCount = probe?.audioCount ?: 0,
-                    )
-                }
                 else -> item.copy(
-                    // Only visible covers query these folders. The old 48-probe
-                    // limit must not mean that all remaining folders have no cover.
+                    // Listing must never enumerate child folders for counts/artwork.
+                    // Only requested covers resolve their own direct cover lazily.
                     artworkUri = folderArtworkUri(treeUri.toString(), item.documentUri!!, scanVersion),
                 )
             }
@@ -213,11 +200,6 @@ class SafDirectoryScanner(
             if (!cursor.moveToFirst()) return@use null
             cursor.getString(cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME))
         } ?: ""
-
-    private suspend fun queryDirectFolder(treeUri: Uri, folderUri: Uri): DirectFolderArtwork {
-        val coroutineContext = currentCoroutineContext()
-        return readDirectFolderArtwork(contentResolver, treeUri, folderUri) { coroutineContext.ensureActive() }
-    }
 
     private fun earlierArtwork(
         current: ArtworkCandidate?,

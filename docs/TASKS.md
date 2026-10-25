@@ -908,3 +908,18 @@ order because each layer consumes the stable model built by the one before it:
       source/tag d1461f9. Independent remote refs/latest Release and3 asset digests+
       sizes verified; anonymous APK HEAD200/88,773,003bytes. Receipt-only docs follow.
 - [ ] Owner phone real12.53MB PNG/embedded example acceptance; no owner media used here.
+
+
+## Current follow-up — cover-wall I/O and folder count removal (2026-10-25)
+
+- [x] Read owner's specified Mihon conversation/research and targeted source read-only;
+      adapt unused-query elimination and cover metadata caching, not a new layout.
+- [x] Remove first48 child statistic scans/model fields/number labels. Direct lookup
+      reads3 columns/named covers only; add256-entry positive+negative LRU with
+      bounded coordination, cancellation and revision invalidation. Prepare0.1.16/code17.
+- [x] Focused12 JVM tests; final86 suites/658 tests, lint0errors38warnings, both
+      APKs. API36 Android20 tests pass incl10000 folders/two own queries/zero child
+      queries/media opens. Ordinary/focused wall count labels absent, child entry/
+      return verified;46 fixture hash/size/mtime unchanged. Phone FPS not measured.
+- [ ] Review upload set, commit/push, publish same-signer APK and independent receipt.
+- [ ] Owner phone same-folder/cache/density/zoom acceptance; no real-library trace yet.

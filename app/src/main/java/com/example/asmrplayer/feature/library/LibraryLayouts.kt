@@ -62,7 +62,6 @@ import com.example.asmrplayer.core.model.LibraryItem
 import com.example.asmrplayer.core.model.LibraryItemType
 import com.example.asmrplayer.core.settings.ToolClusterStyle
 import com.example.asmrplayer.feature.focuswall.wallMotionDuration
-import com.example.asmrplayer.feature.folderSummaryLine
 import com.example.asmrplayer.ui.components.GlassOptionsPanel
 import com.example.asmrplayer.ui.components.GlassTool
 import com.example.asmrplayer.ui.components.GlassToolCluster
@@ -522,7 +521,7 @@ private fun PlayPauseAction(
 
 @Composable
 private fun LibraryItem.listDetail(): String = when (type) {
-    LibraryItemType.Folder -> folderSummaryLine(childFolderCount, audioCount)
+    LibraryItemType.Folder -> stringResource(R.string.folder_type)
     LibraryItemType.Audio -> subtitle.ifBlank { stringResource(R.string.audio_type) }
 }
 

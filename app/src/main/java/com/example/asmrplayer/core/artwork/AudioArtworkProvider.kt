@@ -35,6 +35,7 @@ class AudioArtworkProvider : ContentProvider() {
         private const val MaxCacheEntries = 192
         private const val MaxCacheBytes = 64L * 1024 * 1024
     }
+    private val folderLookups = FolderArtworkLookupCache()
     private val gate = Any()
     private val missing = LruCache<String, Boolean>(192)
     override fun onCreate(): Boolean = true
@@ -136,7 +137,9 @@ class AudioArtworkProvider : ContentProvider() {
             // Display is strictly read-only: no folder-write lock, journal, DB, audio or recursion.
             val root = DocumentsContract.getTreeDocumentId(tree)
             require(DocumentsContract.getTreeDocumentId(folder) == root)
-            readDirectFolderArtwork(ctx.contentResolver, tree, folder) { signal?.throwIfCanceled() }.artworkUri
+            folderLookups.getOrLoad(uri.toString(), { signal?.throwIfCanceled() }) {
+                readDirectFolderArtwork(ctx.contentResolver, tree, folder) { signal?.throwIfCanceled() }.artworkUri
+            }
         } catch (cancelled: android.os.OperationCanceledException) { throw cancelled }
           catch (error: Exception) { throw FileNotFoundException("Folder cover unavailable: ${error.message}").apply { initCause(error) } }
             ?: throw FileNotFoundException("Folder has no artwork")
