@@ -904,6 +904,7 @@ order because each layer consumes the stable model built by the one before it:
       large embedded-only MP3 creates cover,23visited/1created/22existing/0missing/
       0failed; repeat23existing/0created. All46 hash/size/mtime unchanged; prior42
       fixture hashes and both large source originals retained. No owner media used.
-- [ ] Review upload, commit/push, publish same-signer0.1.15/code16 and independent
-      remote refs/assets/public download verification; receipt-only followup docs.
+- [x] Reviewed18 source/test/docs files; published same-signer0.1.15/code16,
+      source/tag d1461f9. Independent remote refs/latest Release and3 asset digests+
+      sizes verified; anonymous APK HEAD200/88,773,003bytes. Receipt-only docs follow.
 - [ ] Owner phone real12.53MB PNG/embedded example acceptance; no owner media used here.

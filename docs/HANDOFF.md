@@ -1,7 +1,8 @@
 # Handoff
 
 **Latest continuation (2026-10-25):** see the final v0.1.15 cover-normalization
-verification below (publication pending); v0.1.14 is the last published release. Older sections below are chronological
+verification and independently confirmed publication receipt below. v0.1.15 is
+the latest published release. Older sections below are chronological
 history, not current publication status. Do not invoke Claude or install on the
 owner's phone automatically; runtime work in this slice uses an isolated generated
 fixture emulator only.
@@ -5855,3 +5856,39 @@ or owner media/accounts accessed. No Claude invocation. Remaining: reviewed18-fi
 source/docs/test upload, commit/push, normal publisher, independent remote receipt.
 Safest owner action after publication: install over current app WITHOUT clearing
 its data, explicitly rerun recursive folder covers; existing covers stay untouched.
+
+
+### v0.1.15 delivery receipt — published (2026-10-25)
+
+Normal publisher reran full standard JVM/lint/APK tasks successfully in30s
+(up-to-date), checked unchanged package and pinned signing certificate, pushed
+source/master and unique tagv0.1.15 at
+`d1461f964a71b3aaa16f01e297097b67123c64fe`, and published the public/latest,
+non-draft/non-prerelease Release at2026-10-25T00:28:57Z (08:28:57Asia/Shanghai):
+https://github.com/liuchengzhiaa/JOKESONG/releases/tag/v0.1.15
+
+Independent GH API/remote refs readback matches the release source/tag and latest.
+All3 remote asset sizes/SHA256 match local verified files:
+- JOKESONG.apk:88,773,003bytes,
+  `81a9b4f539227933a0e0fefcb62cadde13dbfc9f5be5e6ffffdb53669c5a6e91`.
+- JOKESONG-build.json:667bytes,
+  `e48eacf7b465084ce702fd590ebf4f94902b5cfb9705efaedb60cb7782772360`.
+- SHA256SUMS.txt:79bytes,
+  `0ef5837eb40483de820eaed3531607de8235774e1fe474cdf8de3b90f6f50fe8`.
+Anonymous APK HEAD HTTP200, Content-Length88,773,003. Phone download:
+https://github.com/liuchengzhiaa/JOKESONG/releases/download/v0.1.15/JOKESONG.apk
+
+Reviewed18 files: source/version/resources/generated-fixture tests/docs only. No
+private images/audio/card exports/auth/signing keys/machine config/APK in Git.
+Final656 JVM tests, lint0errors38existingwarnings,15 actual isolated ART tests;
+large standalone PNG and embedded-only MP3 both yield2,501,982-byte2048x1536 JPEG.
+SAF batch23visited/1new/22existing/0missing/0failed, repeat23existing/0new and all46
+hash+size+mtime unchanged. Test emulator now stopped, data/grants/fixtures retained.
+Earlier in-progress/pending checkpoints are historical, not current blockers.
+This receipt-only docs commit is separate from the tested code/APK/tag; no duplicate
+APK or asset overwrite. Changelog clarifies manual replacement preserves a backup,
+while recursive processing never overwrites an existing cover. No delivery blockers.
+Owner phone acceptance remains open; install compatible update WITHOUT clearing data,
+rerun recursive covers explicitly. Corrupt/unsupported/>64MiB inputs remain excluded;
+if a real folder still fails, collect counts and fresh diagnostic before broadening
+limits or decoding originals at full resolution. Do not invoke Claude automatically.
